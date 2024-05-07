@@ -6,7 +6,7 @@ import AnalyseCtrl from '../../ctrl';
 import { view as keyboardView } from '../../keyboard';
 import type * as studyDeps from '../studyDeps';
 import { tourSide, renderRelayTour } from './relayTourView';
-import { renderVideoPlayer, player } from './videoPlayerView';
+import { renderVideoPlayer } from './videoPlayerView';
 import {
   type RelayViewContext,
   viewContext,
@@ -24,8 +24,8 @@ export function relayView(
   relay: RelayCtrl,
   deps: typeof studyDeps,
 ): VNode {
-  const ctx: RelayViewContext = { ...viewContext(ctrl, deps), study, deps, relay, allowVideo: allowVideo() };
-  const { wide, tinyBoard } = queryBody();
+  const { wide, tinyBoard, allowVideo } = getViewState();
+  const ctx: RelayViewContext = { ...viewContext(ctrl, deps), study, deps, relay, allowVideo };
   return renderMain(ctx, { wide: wide, 'with-video': !!relay.data.videoUrls, 'tiny-board': tinyBoard }, [
     ctrl.keyboardHelp && keyboardView(ctrl),
     deps.studyView.overboard(study),
@@ -33,38 +33,6 @@ export function relayView(
       ? [renderRelayTour(ctx), ...tourSide(ctx), deps.relayManager(relay, study)]
       : renderBoardView(ctx, wide)),
   ]);
-}
-
-export function addResizeListener(redraw: () => void) {
-  let [oldWide, oldShowVideo, oldTinyBoard] = [false, false, false];
-  window.addEventListener(
-    'resize',
-    () => {
-      const { wide, allowVideo, tinyBoard } = queryBody(),
-        placeholder = document.getElementById('video-player-placeholder') ?? undefined,
-        showVideo = allowVideo && !!placeholder;
-      player?.cover(allowVideo ? placeholder : undefined);
-      if (oldShowVideo !== showVideo || oldWide !== wide || oldTinyBoard !== tinyBoard) redraw();
-      [oldWide, oldShowVideo, oldTinyBoard] = [wide, showVideo, tinyBoard];
-    },
-    { passive: true },
-  );
-}
-
-function queryBody() {
-  const docStyle = window.getComputedStyle(document.body),
-    scale = (parseFloat(docStyle.getPropertyValue('--zoom')) / 100) * 0.75 + 0.25,
-    boardWidth = scale * window.innerHeight,
-    allowVideo = docStyle.getPropertyValue('--allow-video') === 'true',
-    leftSidePlusGaps = 410,
-    minWidthForTwoColumns = 500;
-  // zoom -> scale calc from file://./../../../../common/css/layout/_uniboard.scss
-  // leftSidePlusGaps and minWidthForTwoColumns aren't exact and don't have to be
-  return {
-    wide: window.innerWidth - leftSidePlusGaps - boardWidth > minWidthForTwoColumns,
-    allowVideo,
-    tinyBoard: scale <= 0.67,
-  };
 }
 
 function renderBoardView(ctx: RelayViewContext, wide: boolean) {
@@ -124,8 +92,20 @@ export function renderPinnedImage(ctx: RelayViewContext): MaybeVNode {
   });
 }
 
-export function allowVideo(): boolean {
-  return window.getComputedStyle(document.body).getPropertyValue('--allow-video') === 'true';
+export function getViewState() {
+  const docStyle = window.getComputedStyle(document.body),
+    scale = (parseFloat(docStyle.getPropertyValue('---zoom')) / 100) * 0.75 + 0.25,
+    boardWidth = scale * window.innerHeight,
+    allowVideo = docStyle.getPropertyValue('---allow-video') === 'true',
+    leftSidePlusGaps = 410,
+    minWidthForTwoColumns = 500;
+  // zoom -> scale calc from common/css/layout/_uniboard.scss
+  // leftSidePlusGaps and minWidthForTwoColumns aren't exact and don't have to be
+  return {
+    wide: window.innerWidth - leftSidePlusGaps - boardWidth > minWidthForTwoColumns,
+    allowVideo,
+    tinyBoard: scale <= 0.67,
+  };
 }
 
 function renderEmbedPlaceholder(ctx: RelayViewContext): MaybeVNode {

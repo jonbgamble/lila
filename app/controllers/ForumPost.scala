@@ -1,7 +1,5 @@
 package controllers
 
-import views.*
-
 import lila.app.{ *, given }
 import lila.core.net.IpAddress
 import lila.core.i18n.I18nKey as trans
@@ -9,14 +7,6 @@ import lila.core.id.{ ForumCategId, ForumTopicId }
 import lila.msg.MsgPreset
 
 final class ForumPost(env: Env) extends LilaController(env) with ForumController:
-
-  private val CreateRateLimit =
-    lila.memo.RateLimit[IpAddress](
-      credits = 4,
-      duration = 5.minutes,
-      key = "forum.post",
-      enforce = env.net.rateLimit.value
-    )
 
   def search(text: String, page: Int) =
     OpenBody:
@@ -31,7 +21,7 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
               access.isGrantedRead(post.topic.categId).map {
                 lila.forum.PostView.WithReadPerm(post, _)
               }
-            page <- renderPage(html.forum.search(text, pager))
+            page <- renderPage(views.forum.post.search(text, pager))
           yield Ok(page)
 
   def create(categId: ForumCategId, slug: String, page: Int) = AuthBody { ctx ?=> me ?=>
@@ -44,37 +34,34 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
             canModCateg  <- access.isGrantedMod(categ.slug)
             replyBlocked <- access.isReplyBlockedOnUBlog(topic, canModCateg)
             res <-
-              if replyBlocked then fuccess(BadRequest(trans.ublog.youBlockedByBlogAuthor()))
+              if replyBlocked then BadRequest.snip(trans.ublog.youBlockedByBlogAuthor()).toFuccess
               else
                 categ.team.so(env.team.api.isLeader(_, me)).flatMap { inOwnTeam =>
-                  forms
-                    .post(inOwnTeam)
-                    .bindFromRequest()
-                    .fold(
-                      err =>
-                        CategGrantWrite(categId, tryingToPostAsMod = true):
-                          for
-                            unsub       <- env.timeline.status(s"forum:${topic.id}")
-                            canModCateg <- access.isGrantedMod(categ.slug)
-                            page <- renderPage:
-                              html.forum.topic
-                                .show(
-                                  categ,
-                                  topic,
-                                  posts,
-                                  Some(err -> anyCaptcha),
-                                  unsub,
-                                  canModCateg = canModCateg
-                                )
-                          yield BadRequest(page)
-                      ,
-                      data =>
-                        CategGrantWrite(categId, tryingToPostAsMod = ~data.modIcon):
-                          CreateRateLimit(ctx.ip, rateLimited):
-                            postApi.makePost(categ, topic, data).map { post =>
-                              Redirect(routes.ForumPost.redirect(post.id))
-                            }
-                    )
+                  bindForm(forms.post(inOwnTeam))(
+                    err =>
+                      CategGrantWrite(categId, tryingToPostAsMod = true):
+                        for
+                          unsub       <- env.timeline.status(s"forum:${topic.id}")
+                          canModCateg <- access.isGrantedMod(categ.slug)
+                          page <- renderPage:
+                            views.forum.topic
+                              .show(
+                                categ,
+                                topic,
+                                posts,
+                                Some(err -> anyCaptcha),
+                                unsub,
+                                canModCateg = canModCateg
+                              )
+                        yield BadRequest(page)
+                    ,
+                    data =>
+                      CategGrantWrite(categId, tryingToPostAsMod = ~data.modIcon):
+                        limit.forumPost(ctx.ip, rateLimited):
+                          postApi.makePost(categ, topic, data).map { post =>
+                            Redirect(routes.ForumPost.redirect(post.id))
+                          }
+                  )
                 }
           yield res
   }
@@ -83,17 +70,14 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
     env.forum.postApi.teamIdOfPostId(postId).flatMap { teamId =>
       teamId.so(env.team.api.isLeader(_, me)).flatMap { inOwnTeam =>
         Found(postApi.getPost(postId)): post =>
-          forms
-            .postEdit(inOwnTeam, post.text)
-            .bindFromRequest()
-            .fold(
-              _ => Redirect(routes.ForumPost.redirect(postId)),
-              data =>
-                CreateRateLimit(ctx.ip, rateLimited):
-                  postApi.editPost(postId, data.changes).map { post =>
-                    Redirect(routes.ForumPost.redirect(post.id))
-                  }
-            )
+          bindForm(forms.postEdit(inOwnTeam, post.text))(
+            _ => Redirect(routes.ForumPost.redirect(postId)),
+            data =>
+              limit.forumPost(ctx.ip, rateLimited):
+                postApi.editPost(postId, data.changes).map { post =>
+                  Redirect(routes.ForumPost.redirect(post.id))
+                }
+          )
       }
     }
   }
@@ -126,8 +110,8 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
 
   def react(categId: ForumCategId, id: ForumPostId, reaction: String, v: Boolean) = Auth { _ ?=> me ?=>
     CategGrantWrite(categId):
-      FoundPage(postApi.react(categId, id, reaction, v)): post =>
-        views.html.forum.post.reactions(post, canReact = true)
+      FoundSnip(postApi.react(categId, id, reaction, v)): post =>
+        lila.ui.Snippet(views.forum.post.reactions(post, canReact = true))
   }
 
   def redirect(id: ForumPostId) = Open:

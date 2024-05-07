@@ -7,7 +7,7 @@ import RelayTeams from './relayTeams';
 import RelayLeaderboard from './relayLeaderboard';
 import { StudyChapters } from '../studyChapters';
 import { MultiCloudEval } from '../multiCloudEval';
-import { addResizeListener } from './relayView';
+import { addResizeListener } from './videoPlayerView';
 
 export const relayTabs = ['overview', 'boards', 'teams', 'leaderboard'] as const;
 export type RelayTab = (typeof relayTabs)[number];

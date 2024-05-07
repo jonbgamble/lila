@@ -2,18 +2,15 @@ package controllers
 
 import play.api.libs.json.Json
 import play.api.mvc.{ RequestHeader, Result }
-import views.html
 
 import lila.app.{ *, given }
 import lila.challenge.Challenge as ChallengeModel
-import lila.challenge.Challenge.Id as ChallengeId
-
 import lila.core.net.{ Bearer, IpAddress }
-import lila.game.{ AnonCookie, Pov }
+import lila.core.id.ChallengeId
+import lila.game.{ AnonCookie }
 import lila.oauth.{ EndpointScopes, OAuthScope, OAuthServer }
 import lila.setup.ApiConfig
 import lila.core.socket.SocketVersion
-import lila.user.{ Me, User as UserModel }
 
 final class Challenge(
     env: Env,
@@ -67,14 +64,14 @@ final class Challenge(
                 .flatMap(env.user.lightUserApi.asyncManyFallback)
                 .flatMap: friends =>
                   error match
-                    case Some(e) => BadRequest.page(html.challenge.mine(c, json, friends, e.some, color))
-                    case None    => Ok.page(html.challenge.mine(c, json, friends, none, color))
+                    case Some(e) => BadRequest.page(views.challenge.mine(c, json, friends, e.some, color))
+                    case None    => Ok.page(views.challenge.mine(c, json, friends, none, color))
             else
-              Ok.pageAsync:
+              Ok.async:
                 c.challengerUserId
-                  .so(env.user.api.withPerf(_, c.perfType))
+                  .so(env.user.api.byIdWithPerf(_, c.perfType))
                   .map:
-                    html.challenge.theirs(c, json, _, color)
+                    views.challenge.theirs(c, json, _, color)
           ,
           json = Ok(json)
         ).flatMap(withChallengeAnonCookie(mine && c.challengerIsAnon, c, owner = true))
@@ -158,9 +155,7 @@ final class Challenge(
         api
           .decline(
             c,
-            env.challenge.forms.decline
-              .bindFromRequest()
-              .fold(_ => ChallengeModel.DeclineReason.default, _.realReason)
+            bindForm(env.challenge.forms.decline)(_ => ChallengeModel.DeclineReason.default, _.realReason)
           )
           .inject(NoContent)
   }
@@ -172,12 +167,10 @@ final class Challenge(
           else notFoundJson()
         }
       case Some(c) =>
-        env.challenge.forms.decline
-          .bindFromRequest()
-          .fold(
-            jsonFormError,
-            data => api.decline(c, data.realReason).inject(jsonOkResult)
-          )
+        bindForm(env.challenge.forms.decline)(
+          jsonFormError,
+          data => api.decline(c, data.realReason).inject(jsonOkResult)
+        )
     }
   }
 
@@ -253,47 +246,25 @@ final class Challenge(
                 env.round.roundApi.tell(game.id, lila.core.round.StartClock)
                 jsonOkResult
 
-  private val ChallengeIpRateLimit = lila.memo.RateLimit[IpAddress](
-    500,
-    10.minute,
-    key = "challenge.create.ip"
-  )
-
-  private val BotChallengeIpRateLimit = lila.memo.RateLimit[IpAddress](
-    400,
-    1.day,
-    key = "challenge.bot.create.ip"
-  )
-
-  private val ChallengeUserRateLimit = lila.memo.RateLimit.composite[UserId](
-    key = "challenge.create.user"
-  )(
-    ("fast", 5 * 5, 1.minute),
-    ("slow", 40 * 5, 1.day)
-  )
-
   def toFriend(id: ChallengeId) = AuthBody { ctx ?=> _ ?=>
-    import play.api.data.*
-    import play.api.data.Forms.*
     Found(api.byId(id)): c =>
       if isMine(c) then
-        Form(single("username" -> lila.common.Form.username.historicalField))
-          .bindFromRequest()
-          .fold(
-            _ => NoContent,
-            username =>
-              ChallengeIpRateLimit(ctx.ip, rateLimited):
-                env.user.repo.byId(username).flatMap {
-                  case None                       => Redirect(routes.Challenge.show(c.id))
-                  case Some(dest) if ctx.is(dest) => Redirect(routes.Challenge.show(c.id))
-                  case Some(dest) =>
-                    env.challenge.granter.isDenied(dest, c.perfType).flatMap {
-                      case Some(denied) =>
-                        showChallenge(c, lila.challenge.ChallengeDenied.translated(denied).some)
-                      case None => api.setDestUser(c, dest).inject(Redirect(routes.Challenge.show(c.id)))
-                    }
-                }
-          )
+        bindForm(env.setup.forms.toFriend)(
+          _ => NoContent,
+          username =>
+            limit.challenge(ctx.ip, rateLimited):
+              def redir = Redirect(routes.Challenge.show(c.id))
+              env.user.repo.byId(username).flatMap {
+                case None                       => redir
+                case Some(dest) if ctx.is(dest) => redir
+                case Some(dest) =>
+                  env.challenge.granter.isDenied(dest, c.perfType).flatMap {
+                    case Some(denied) =>
+                      showChallenge(c, lila.challenge.ChallengeDenied.translated(denied).some)
+                    case None => api.setDestUser(c, dest).inject(redir)
+                  }
+              }
+        )
       else notFound
   }
 
@@ -302,44 +273,42 @@ final class Challenge(
       (!me
         .is(username))
         .so(
-          env.setup.forms.api.user
-            .bindFromRequest()
-            .fold(
-              doubleJsonFormError,
-              config =>
-                ChallengeIpRateLimit(req.ipAddress, rateLimited, cost = if me.isApiHog then 0 else 1):
-                  env.user.repo.enabledById(username).flatMap {
-                    case None => JsonBadRequest(jsonError(s"No such user: $username"))
-                    case Some(destUser) =>
-                      val cost = if me.isApiHog then 0 else if destUser.isBot then 1 else 5
-                      BotChallengeIpRateLimit(req.ipAddress, rateLimited, cost = if me.isBot then 1 else 0):
-                        ChallengeUserRateLimit(me, rateLimited, cost = cost):
-                          for
-                            challenge <- makeOauthChallenge(config, me, destUser)
-                            grant     <- env.challenge.granter.isDenied(destUser, config.perfType)
-                            res <- grant match
-                              case Some(denied) =>
-                                fuccess:
-                                  JsonBadRequest:
-                                    jsonError(lila.challenge.ChallengeDenied.translated(denied))
-                              case _ =>
-                                env.challenge.api.create(challenge).map {
-                                  if _ then
-                                    val json = env.challenge.jsonView
-                                      .show(challenge, SocketVersion(0), lila.challenge.Direction.Out.some)
-                                    if config.keepAliveStream then
-                                      jsOptToNdJson:
-                                        ndJson.addKeepAlive(env.challenge.keepAliveStream(challenge, json))
-                                    else JsonOk(json)
-                                  else JsonBadRequest(jsonError("Challenge not created"))
-                                }
-                          yield res
-                  }
-            )
+          bindForm(env.setup.forms.api.user)(
+            doubleJsonFormError,
+            config =>
+              limit.challenge(req.ipAddress, rateLimited, cost = if me.isApiHog then 0 else 1):
+                env.user.repo.enabledById(username).flatMap {
+                  case None => JsonBadRequest(jsonError(s"No such user: $username"))
+                  case Some(destUser) =>
+                    val cost = if me.isApiHog then 0 else if destUser.isBot then 1 else 5
+                    limit.challengeBot(req.ipAddress, rateLimited, cost = if me.isBot then 1 else 0):
+                      limit.challengeUser(me, rateLimited, cost = cost):
+                        for
+                          challenge <- makeOauthChallenge(config, me, destUser)
+                          grant     <- env.challenge.granter.isDenied(destUser, config.perfType)
+                          res <- grant match
+                            case Some(denied) =>
+                              fuccess:
+                                JsonBadRequest:
+                                  jsonError(lila.challenge.ChallengeDenied.translated(denied))
+                            case _ =>
+                              env.challenge.api.create(challenge).map {
+                                if _ then
+                                  val json = env.challenge.jsonView
+                                    .show(challenge, SocketVersion(0), lila.challenge.Direction.Out.some)
+                                  if config.keepAliveStream then
+                                    jsOptToNdJson:
+                                      ndJson.addKeepAlive(env.challenge.keepAliveStream(challenge, json))
+                                  else JsonOk(json)
+                                else JsonBadRequest(jsonError("Challenge not created"))
+                              }
+                        yield res
+                }
+          )
         )
     }
 
-  private def makeOauthChallenge(config: ApiConfig, orig: UserModel, dest: UserModel) =
+  private def makeOauthChallenge(config: ApiConfig, orig: lila.user.User, dest: lila.user.User) =
     import lila.challenge.Challenge.*
     val timeControl = makeTimeControl(config.clock, config.days)
     env.user.perfsRepo
@@ -358,13 +327,13 @@ final class Challenge(
         )
 
   def openCreate = AnonOrScopedBody(parse.anyContent)(_.Challenge.Write): ctx ?=>
-    env.setup.forms.api
-      .open(isAdmin = isGrantedOpt(_.ApiChallengeAdmin) || ctx.me.exists(_.isVerified))
-      .bindFromRequest()
-      .fold(
-        jsonFormError,
-        config =>
-          ChallengeIpRateLimit(req.ipAddress, rateLimited):
+    bindForm(
+      env.setup.forms.api.open(isAdmin = isGrantedOpt(_.ApiChallengeAdmin) || ctx.me.exists(_.isVerified))
+    )(
+      jsonFormError,
+      config =>
+        limit
+          .challenge(req.ipAddress, rateLimited):
             import lila.challenge.Challenge.*
             env.challenge.api
               .createOpen(config)
@@ -376,13 +345,13 @@ final class Challenge(
                     "urlBlack" -> s"$url?color=black"
                   )
           .dmap(_.as(JSON))
-      )
+    )
 
   def offerRematchForGame(gameId: GameId) = Auth { _ ?=> me ?=>
     NoBot:
       Found(env.game.gameRepo.game(gameId)): g =>
         g.opponentOf(me).flatMap(_.userId).so(env.user.repo.byId).orNotFound { opponent =>
-          env.challenge.granter.isDenied(opponent, g.perfType).flatMap {
+          env.challenge.granter.isDenied(opponent, g.perfKey).flatMap {
             case Some(d) => BadRequest(jsonError(lila.challenge.ChallengeDenied.translated(d)))
             case _ =>
               api.offerRematchForGame(g, me).map {

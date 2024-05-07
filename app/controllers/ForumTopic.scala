@@ -1,7 +1,6 @@
 package controllers
 
 import play.api.libs.json.*
-import views.*
 
 import lila.app.{ *, given }
 import lila.core.net.IpAddress
@@ -10,20 +9,12 @@ import lila.core.id.{ ForumCategId, ForumTopicId }
 
 final class ForumTopic(env: Env) extends LilaController(env) with ForumController:
 
-  private val CreateRateLimit =
-    lila.memo.RateLimit[IpAddress](
-      credits = 2,
-      duration = 5.minutes,
-      key = "forum.topic",
-      enforce = env.net.rateLimit.value
-    )
-
   def form(categId: ForumCategId) = Auth { _ ?=> me ?=>
     NoBot:
       NotForKids:
         FoundPage(env.forum.categRepo.byId(categId)): categ =>
           categ.team.so(env.team.api.isLeader(_, me)).map { inOwnTeam =>
-            html.forum.topic.form(categ, forms.topic(inOwnTeam), anyCaptcha)
+            views.forum.topic.form(categ, forms.topic(inOwnTeam), anyCaptcha)
           }
   }
 
@@ -32,17 +23,14 @@ final class ForumTopic(env: Env) extends LilaController(env) with ForumControlle
       CategGrantWrite(categId):
         Found(env.forum.categRepo.byId(categId)): categ =>
           categ.team.so(env.team.api.isLeader(_, me)).flatMap { inOwnTeam =>
-            forms
-              .topic(inOwnTeam)
-              .bindFromRequest()
-              .fold(
-                err => BadRequest.page(html.forum.topic.form(categ, err, anyCaptcha)),
-                data =>
-                  CreateRateLimit(ctx.ip, rateLimited):
-                    topicApi.makeTopic(categ, data).map { topic =>
-                      Redirect(routes.ForumTopic.show(categ.slug, topic.slug, 1))
-                    }
-              )
+            bindForm(forms.topic(inOwnTeam))(
+              err => BadRequest.page(views.forum.topic.form(categ, err, anyCaptcha)),
+              data =>
+                limit.forumTopic(ctx.ip, rateLimited):
+                  topicApi.makeTopic(categ, data).map { topic =>
+                    Redirect(routes.ForumTopic.show(categ.slug, topic.slug, 1))
+                  }
+            )
           }
   }
 
@@ -67,7 +55,7 @@ final class ForumTopic(env: Env) extends LilaController(env) with ForumControlle
             res <-
               if canRead then
                 Ok.page(
-                  html.forum.topic.show(categ, topic, posts, form, unsub, canModCateg, None, replyBlocked)
+                  views.forum.topic.show(categ, topic, posts, form, unsub, canModCateg, None, replyBlocked)
                 ).map(_.withCanonical(routes.ForumTopic.show(categ.slug, topic.slug, page)))
               else notFound
           yield res
@@ -100,19 +88,17 @@ final class ForumTopic(env: Env) extends LilaController(env) with ForumControlle
   def diagnostic = AuthBody { ctx ?=> me ?=>
     NoBot:
       val slug = me.userId.value
-      env.forum.forms.diagnostic
-        .bindFromRequest()
-        .fold(
-          err => jsonFormError(err),
-          text =>
-            env.forum.topicRepo
-              .existsByTree(diagnosticId, slug)
-              .flatMap:
-                if _ then showDiagnostic(slug, text)
-                else
-                  FoundPage(env.forum.categRepo.byId(diagnosticId)): categ =>
-                    html.forum.topic.makeDiagnostic(categ, forms.topic(false), anyCaptcha, text)
-        )
+      bindForm(env.forum.forms.diagnostic)(
+        err => jsonFormError(err),
+        text =>
+          env.forum.topicRepo
+            .existsByTree(diagnosticId, slug)
+            .flatMap:
+              if _ then showDiagnostic(slug, text)
+              else
+                FoundPage(env.forum.categRepo.byId(diagnosticId)): categ =>
+                  views.forum.topic.makeDiagnostic(categ, forms.topic(false), anyCaptcha, text)
+      )
   }
 
   def clearDiagnostic(slug: String) = Auth { _ ?=> me ?=>
@@ -123,4 +109,4 @@ final class ForumTopic(env: Env) extends LilaController(env) with ForumControlle
   private def showDiagnostic(slug: String, formText: String)(using Context, Me) =
     FoundPage(topicApi.showLastPage(diagnosticId, slug)): (categ, topic, posts) =>
       val form = forms.postWithCaptcha(false).some
-      html.forum.topic.show(categ, topic, posts, form, None, true, formText.some)
+      views.forum.topic.show(categ, topic, posts, form, None, true, formText.some)

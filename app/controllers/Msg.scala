@@ -8,7 +8,7 @@ final class Msg(env: Env) extends LilaController(env):
 
   def home = Auth { _ ?=> me ?=>
     negotiateApi(
-      html = Ok.pageAsync(inboxJson.map(views.html.msg.home)),
+      html = Ok.async(inboxJson.map(views.msg.home)),
       api = v =>
         JsonOk:
           if v.value >= 5 then inboxJson
@@ -25,7 +25,7 @@ final class Msg(env: Env) extends LilaController(env):
         case Some(c) =>
           def newJson = inboxJson.map { _ + ("convo" -> env.msg.json.convo(c)) }
           negotiateApi(
-            html = Ok.pageAsync(newJson.map(views.html.msg.home)),
+            html = Ok.async(newJson.map(views.msg.home)),
             api = v =>
               JsonOk:
                 if v.value >= 5 then newJson
@@ -72,18 +72,16 @@ final class Msg(env: Env) extends LilaController(env):
         .fold(doubleJsonFormError, _.inject(Ok(Json.obj("ok" -> true, "id" -> userId))))
     else // new API: create/reply
       (ctx.kid.no && me.isnt(userId)).so:
-        env.msg.textForm
-          .bindFromRequest()
-          .fold(
-            doubleJsonFormError,
-            text =>
-              env.msg.api
-                .post(me, userId, text)
-                .flatMap:
-                  case lila.core.msg.PostResult.Success => jsonOkResult
-                  case lila.core.msg.PostResult.Limited => rateLimited
-                  case _                                => BadRequest(jsonError("The message was rejected"))
-          )
+        bindForm(env.msg.textForm)(
+          doubleJsonFormError,
+          text =>
+            env.msg.api
+              .post(me, userId, text)
+              .flatMap:
+                case lila.core.msg.PostResult.Success => jsonOkResult
+                case lila.core.msg.PostResult.Limited => rateLimited
+                case _                                => BadRequest(jsonError("The message was rejected"))
+        )
   }
 
   private def inboxJson(using me: Me) =

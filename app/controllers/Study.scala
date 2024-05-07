@@ -3,7 +3,6 @@ package controllers
 import play.api.libs.json.*
 import play.api.mvc.*
 import scalalib.Json.given
-import views.*
 
 import scala.util.chaining.*
 
@@ -37,7 +36,7 @@ final class Study(
           .all(Order.default, page)
           .flatMap: pag =>
             preloadMembers(pag) >> negotiate(
-              Ok.page(html.study.list.all(pag, Order.default)),
+              Ok.page(views.study.list.all(pag, Order.default)),
               apiStudies(pag)
             )
       else
@@ -45,7 +44,7 @@ final class Study(
           .studySearch(ctx.me)(text, page)
           .flatMap: pag =>
             negotiate(
-              Ok.page(html.study.list.search(pag, text)),
+              Ok.page(views.study.list.search(pag, text)),
               apiStudies(pag)
             )
 
@@ -66,7 +65,7 @@ final class Study(
             .all(order, page)
             .flatMap: pag =>
               preloadMembers(pag) >> negotiate(
-                Ok.page(html.study.list.all(pag, order)),
+                Ok.page(views.study.list.all(pag, order)),
                 apiStudies(pag)
               )
 
@@ -78,7 +77,7 @@ final class Study(
         .byOwner(owner, order, page)
         .flatMap: pag =>
           preloadMembers(pag) >> negotiate(
-            Ok.page(html.study.list.byOwner(pag, order, owner)),
+            Ok.page(views.study.list.byOwner(pag, order, owner)),
             apiStudies(pag)
           )
 
@@ -88,7 +87,7 @@ final class Study(
       .flatMap: pag =>
         preloadMembers(pag) >> negotiate(
           env.study.topicApi.userTopics(me).flatMap { topics =>
-            Ok.page(html.study.list.mine(pag, order, topics))
+            Ok.page(views.study.list.mine(pag, order, topics))
           },
           apiStudies(pag)
         )
@@ -99,7 +98,7 @@ final class Study(
       .minePublic(order, page)
       .flatMap: pag =>
         preloadMembers(pag) >> negotiate(
-          Ok.page(html.study.list.minePublic(pag, order)),
+          Ok.page(views.study.list.minePublic(pag, order)),
           apiStudies(pag)
         )
   }
@@ -109,7 +108,7 @@ final class Study(
       .minePrivate(order, page)
       .flatMap: pag =>
         preloadMembers(pag) >> negotiate(
-          Ok.page(html.study.list.minePrivate(pag, order)),
+          Ok.page(views.study.list.minePrivate(pag, order)),
           apiStudies(pag)
         )
   }
@@ -119,11 +118,11 @@ final class Study(
       .mineMember(order, page)
       .flatMap: pag =>
         preloadMembers(pag) >> negotiate(
-          Ok.pageAsync:
+          Ok.async:
             env.study.topicApi
               .userTopics(me)
               .map:
-                html.study.list.mineMember(pag, order, _)
+                views.study.list.mineMember(pag, order, _)
           ,
           apiStudies(pag)
         )
@@ -134,7 +133,7 @@ final class Study(
       .mineLikes(order, page)
       .flatMap: pag =>
         preloadMembers(pag) >> negotiate(
-          Ok.page(html.study.list.mineLikes(pag, order)),
+          Ok.page(views.study.list.mineLikes(pag, order)),
           apiStudies(pag)
         )
   }
@@ -145,7 +144,7 @@ final class Study(
         .byTopic(topic, order, page)
         .zip(ctx.userId.soFu(env.study.topicApi.userTopics))
         .flatMap: (pag, topics) =>
-          preloadMembers(pag) >> Ok.page(html.study.topic.show(topic, pag, order, topics))
+          preloadMembers(pag) >> Ok.page(views.study.list.topic.show(topic, pag, order, topics))
 
   private def preloadMembers(pag: Paginator[StudyModel.WithChaptersAndLiked]) =
     env.user.lightUserApi.preloadMany(
@@ -178,14 +177,16 @@ final class Study(
           (sc, data) <- getJsonData(oldSc)
           res <- negotiate(
             html =
+              val noCrawler = HTTPRequest.isCrawler(ctx.req).no
               for
-                chat      <- NoCrawlers(chatOf(sc.study))
-                sVersion  <- NoCrawlers(env.study.version(sc.study.id))
-                streamers <- NoCrawlers(streamerCache.get(sc.study.id))
-                page      <- renderPage(html.study.show(sc.study, data, chat, sVersion, streamers))
+                chat      <- noCrawler.so(chatOf(sc.study))
+                sVersion  <- noCrawler.so(env.study.version(sc.study.id))
+                streamers <- noCrawler.so(streamerCache.get(sc.study.id))
+                page      <- renderPage(views.study.show(sc.study, data, chat, sVersion, streamers))
               yield Ok(page)
                 .withCanonical(routes.Study.chapter(sc.study.id, sc.chapter.id))
-                .enforceCrossSiteIsolation,
+                .enforceCrossSiteIsolation
+            ,
             json = for
               chatOpt <- chatOf(sc.study)
               jsChat <- chatOpt.soFu: c =>
@@ -233,7 +234,7 @@ final class Study(
             lila.study.TreeBuilder(chapter.root, chapter.setup.variant)
           }.some
         )
-        .add("analysis" -> analysis.map { lila.study.ServerEval.toJson(chapter, _) })
+        .add("analysis" -> analysis.map { env.analyse.jsonView.bothPlayers(chapter.root.ply, _) })
     )
 
   def show(id: StudyId) = Open:
@@ -268,34 +269,30 @@ final class Study(
   )
 
   def createAs = AuthBody { ctx ?=> me ?=>
-    StudyForm.importGame.form
-      .bindFromRequest()
-      .fold(
-        _ => Redirect(routes.Study.byOwnerDefault(me.username)),
-        data =>
-          for
-            owner   <- env.study.api.recentByOwnerWithChapterCount(me, 50)
-            contrib <- env.study.api.recentByContributorWithChapterCount(me, 50)
-            res <-
-              if owner.isEmpty && contrib.isEmpty then createStudy(data)
-              else
-                val back = HTTPRequest
-                  .referer(ctx.req)
-                  .orElse(
-                    data.fen.map(fen => editorC.editorUrl(fen, data.variant | chess.variant.Variant.default))
-                  )
-                Ok.page(html.study.create(data, owner, contrib, back))
-          yield res
-      )
+    bindForm(StudyForm.importGame.form)(
+      _ => Redirect(routes.Study.byOwnerDefault(me.username)),
+      data =>
+        for
+          owner   <- env.study.api.recentByOwnerWithChapterCount(me, 50)
+          contrib <- env.study.api.recentByContributorWithChapterCount(me, 50)
+          res <-
+            if owner.isEmpty && contrib.isEmpty then createStudy(data)
+            else
+              val back = HTTPRequest
+                .referer(ctx.req)
+                .orElse(
+                  data.fen.map(fen => editorC.editorUrl(fen, data.variant | chess.variant.Variant.default))
+                )
+              Ok.page(views.study.create(data, owner, contrib, back))
+        yield res
+    )
   }
 
   def create = AuthBody { ctx ?=> me ?=>
-    StudyForm.importGame.form
-      .bindFromRequest()
-      .fold(
-        _ => Redirect(routes.Study.byOwnerDefault(me.username)),
-        createStudy
-      )
+    bindForm(StudyForm.importGame.form)(
+      _ => Redirect(routes.Study.byOwnerDefault(me.username)),
+      createStudy
+    )
   }
 
   private def createStudy(data: StudyForm.importGame.Data)(using ctx: Context, me: Me) =
@@ -325,17 +322,11 @@ final class Study(
       .inject(Redirect(routes.Study.show(id)))
   }
 
-  private val ImportPgnLimitPerUser = lila.memo.RateLimit[UserId](
-    credits = 1000,
-    duration = 24.hour,
-    key = "study.import-pgn.user"
-  )
-
   private def doImportPgn(id: StudyId, data: StudyForm.importPgn.Data, sri: Sri)(
       f: List[Chapter] => Result
   )(using ctx: Context, me: Me): Future[Result] =
     val chapterDatas = data.toChapterDatas
-    ImportPgnLimitPerUser(me, rateLimited, cost = chapterDatas.size):
+    limit.studyPgnImport(me, rateLimited, cost = chapterDatas.size):
       env.study.api
         .importPgns(
           id,
@@ -347,24 +338,20 @@ final class Study(
 
   def importPgn(id: StudyId) = AuthBody { ctx ?=> me ?=>
     get("sri").so: sri =>
-      StudyForm.importPgn.form
-        .bindFromRequest()
-        .fold(
-          doubleJsonFormError,
-          data => doImportPgn(id, data, Sri(sri))(_ => NoContent)
-        )
+      bindForm(StudyForm.importPgn.form)(
+        doubleJsonFormError,
+        data => doImportPgn(id, data, Sri(sri))(_ => NoContent)
+      )
   }
 
   def apiImportPgn(id: StudyId) = ScopedBody(_.Study.Write) { ctx ?=> me ?=>
-    StudyForm.importPgn.form
-      .bindFromRequest()
-      .fold(
-        jsonFormError,
-        data =>
-          doImportPgn(id, data, Sri("api")): chapters =>
-            import lila.study.ChapterPreview.json.write
-            JsonOk(Json.obj("chapters" -> write(chapters.map(_.preview))(using Map.empty)))
-      )
+    bindForm(StudyForm.importPgn.form)(
+      jsonFormError,
+      data =>
+        doImportPgn(id, data, Sri("api")): chapters =>
+          import lila.study.ChapterPreview.json.write
+          JsonOk(Json.obj("chapters" -> write(chapters.map(_.preview))(using Map.empty)))
+    )
   }
 
   def admin(id: StudyId) = Secure(_.StudyAdmin) { ctx ?=> me ?=>
@@ -381,59 +368,40 @@ final class Study(
         if chapterId.value == "autochap"
         then env.study.api.byIdWithChapter(studyId)
         else env.study.api.byIdWithChapterOrFallback(studyId, chapterId)
-      def notFound = NotFound(html.study.embed.notFound)
+      def notFound = NotFound.snip(views.study.embed.notFound)
       studyFu
         .flatMap:
           _.fold(notFound.toFuccess): sc =>
             env.api.textLpvExpand
               .getChapterPgn(sc.chapter.id)
               .map:
-                case Some(LpvEmbed.PublicPgn(pgn)) => Ok(html.study.embed(sc.study, sc.chapter, pgn))
+                case Some(LpvEmbed.PublicPgn(pgn)) => Ok.snip(views.study.embed(sc.study, sc.chapter, pgn))
                 case _                             => notFound
 
   def cloneStudy(id: StudyId) = Auth { ctx ?=> _ ?=>
     Found(env.study.api.byId(id)): study =>
       CanView(study, study.settings.cloneable.some) {
-        Ok.page(html.study.clone(study))
+        Ok.page(views.study.clone(study))
       }(privateUnauthorizedFu(study), privateForbiddenFu(study))
   }
 
-  private val CloneLimitPerUser = lila.memo.RateLimit[UserId](
-    credits = 10 * 3,
-    duration = 24.hour,
-    key = "study.clone.user"
-  )
-
-  private val CloneLimitPerIP = lila.memo.RateLimit[IpAddress](
-    credits = 20 * 3,
-    duration = 24.hour,
-    key = "study.clone.ip"
-  )
-
   def cloneApply(id: StudyId) = Auth { ctx ?=> me ?=>
     val cost = if isGranted(_.Coach) || me.hasTitle then 1 else 3
-    CloneLimitPerUser(me, rateLimited, cost = cost):
-      CloneLimitPerIP(ctx.ip, rateLimited, cost = cost):
-        Found(env.study.api.byId(id)) { prev =>
-          CanView(prev, prev.settings.cloneable.some) {
-            env.study.api
-              .cloneWithChat(me, prev)
-              .map: study =>
-                Redirect(routes.Study.show((study | prev).id))
-          }(privateUnauthorizedFu(prev), privateForbiddenFu(prev))
-        }
+    limit.studyClone(me.userId -> ctx.ip, rateLimited, cost):
+      Found(env.study.api.byId(id)) { prev =>
+        CanView(prev, prev.settings.cloneable.some) {
+          env.study.api
+            .cloneWithChat(me, prev)
+            .map: study =>
+              Redirect(routes.Study.show((study | prev).id))
+        }(privateUnauthorizedFu(prev), privateForbiddenFu(prev))
+      }
   }
-
-  private val PgnRateLimitPerIp = lila.memo.RateLimit[IpAddress](
-    credits = 31,
-    duration = 1.minute,
-    key = "export.study.pgn.ip"
-  )
 
   def pgn(id: StudyId) = Open:
     Found(env.study.api.byId(id)): study =>
       HeadLastModifiedAt(study.updatedAt):
-        PgnRateLimitPerIp(ctx.ip, rateLimited, msg = id):
+        limit.studyPgn(ctx.ip, rateLimited, msg = id):
           CanView(study, study.settings.shareable.some)(doPgn(study))(
             privateUnauthorizedFu(study),
             privateForbiddenFu(study)
@@ -443,7 +411,7 @@ final class Study(
     env.study.api.byId(id).flatMap {
       _.fold(studyNotFoundText.toFuccess): study =>
         HeadLastModifiedAt(study.updatedAt):
-          PgnRateLimitPerIp[Fu[Result]](req.ipAddress, rateLimited, msg = id):
+          limit.studyPgn[Fu[Result]](req.ipAddress, rateLimited, msg = id):
             CanView(study, study.settings.shareable.some)(doPgn(study))(
               privateUnauthorizedText,
               privateForbiddenText
@@ -528,11 +496,10 @@ final class Study(
         CanView(study) {
           env.study.gifExport
             .ofChapter(chapter, theme, piece)
-            .map { stream =>
+            .map: stream =>
               Ok.chunked(stream)
                 .pipe(asAttachmentStream(s"${env.study.pgnDump.filename(study, chapter)}.gif"))
                 .as("image/gif")
-            }
             .recover { case lila.core.lilaism.LilaInvalid(msg) =>
               BadRequest(msg)
             }
@@ -549,34 +516,32 @@ final class Study(
     env.study.topicApi.popular(50).zip(ctx.userId.soFu(env.study.topicApi.userTopics)).flatMap {
       (popular, mine) =>
         val form = mine.map(StudyForm.topicsForm)
-        Ok.page(html.study.topic.index(popular, mine, form))
+        Ok.page(views.study.list.topic.index(popular, mine, form))
     }
 
   def setTopics = AuthBody { ctx ?=> me ?=>
-    StudyForm.topicsForm
-      .bindFromRequest()
-      .fold(
-        _ => Redirect(routes.Study.topics),
-        topics => env.study.topicApi.userTopics(me, topics).inject(Redirect(routes.Study.topics))
-      )
+    bindForm(StudyForm.topicsForm)(
+      _ => Redirect(routes.Study.topics),
+      topics => env.study.topicApi.userTopics(me, topics).inject(Redirect(routes.Study.topics))
+    )
   }
 
   def staffPicks = Open:
     pageHit
     FoundPage(env.api.cmsRenderKey("studies-staff-picks")):
-      html.study.list.staffPicks
+      views.study.staffPicks
 
   def privateUnauthorizedText = Unauthorized("This study is now private")
   def privateUnauthorizedJson = Unauthorized(jsonError("This study is now private"))
   def privateUnauthorizedFu(study: StudyModel)(using Context) = negotiate(
-    Unauthorized.page(html.site.message.privateStudy(study)),
+    Unauthorized.page(views.study.privateStudy(study)),
     privateUnauthorizedJson
   )
 
   def privateForbiddenText = Forbidden("This study is now private")
   def privateForbiddenJson = forbiddenJson("This study is now private")
   def privateForbiddenFu(study: StudyModel)(using Context) = negotiate(
-    Forbidden.page(html.site.message.privateStudy(study)),
+    Forbidden.page(views.study.privateStudy(study)),
     privateForbiddenJson
   )
 
@@ -597,23 +562,8 @@ final class Study(
 
   private val streamerCache =
     env.memo.cacheApi[StudyId, List[UserId]](1024, "study.streamers"):
-      _.refreshAfterWrite(5.seconds).buildAsyncFuture: studyId =>
-        env.study.studyRepo
-          .membersById(studyId)
-          .flatMap:
-            _.map(_.members.keys)
-              .filter(_.nonEmpty)
-              .so: members =>
-                env.streamer.liveStreamApi.all.flatMap:
-                  _.streams
-                    .filter: s =>
-                      members.exists(s.streamer.is(_))
-                    .traverse: stream =>
-                      env.study
-                        .isConnected(studyId, stream.streamer.userId)
-                        .map:
-                          _.option(stream.streamer.userId)
-                    .dmap(_.flatten)
+      _.expireAfterWrite(10.seconds).buildAsyncFuture: studyId =>
+        env.study.findConnectedUsersIn(studyId)(env.streamer.liveStreamApi.streamerUserIds)
 
   def glyphs(lang: String) = Anon:
     play.api.i18n.Lang

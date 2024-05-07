@@ -19,12 +19,10 @@ case class TeamInfo(
     tours: TeamInfo.PastAndNext,
     simuls: Seq[Simul]
 ):
-
   export withLeaders.{ team, leaders, publicLeaders }
 
-  def mine                                             = member.isDefined
-  def ledByMe                                          = member.exists(_.perms.nonEmpty)
-  def havePerm(perm: TeamSecurity.Permission.Selector) = member.exists(_.hasPerm(perm))
+  def mine    = member.isDefined
+  def ledByMe = member.exists(_.perms.nonEmpty)
 
   def hasRequests = requests.nonEmpty
 
@@ -97,7 +95,7 @@ final class TeamInfoApi(
 
   def tournaments(team: Team, nbPast: Int, nbSoon: Int): Fu[PastAndNext] =
     tourApi.visibleByTeam(team.id, nbPast, nbSoon).zip(swissApi.visibleByTeam(team.id, nbPast, nbSoon)).map {
-      case (tours, swisses) =>
+      (tours, swisses) =>
         PastAndNext(
           past = {
             tours.past.map(AnyTour(_)) ::: swisses.past.map(AnyTour(_))

@@ -1,17 +1,15 @@
 package controllers
 
 import chess.format.pgn.{ PgnStr, Tag }
-import play.api.data.Form
 import play.api.libs.json.{ Json, OWrites }
 import play.api.mvc.*
-import views.*
 
 import scala.annotation.nowarn
 
 import lila.app.{ *, given }
 import lila.common.HTTPRequest
 import lila.relay.{ RelayRound as RoundModel, RelayTour as TourModel }
-import lila.core.id.RelayRoundId
+import lila.core.id.{ RelayRoundId, RelayTourId }
 
 final class RelayRound(
     env: Env,
@@ -19,14 +17,14 @@ final class RelayRound(
     apiC: => Api
 ) extends LilaController(env):
 
-  def form(tourId: TourModel.Id) = Auth { ctx ?=> _ ?=>
+  def form(tourId: RelayTourId) = Auth { ctx ?=> _ ?=>
     NoLameOrBot:
       WithTourAndRoundsCanUpdate(tourId): trs =>
         Ok.page:
-          html.relay.roundForm.create(env.relay.roundForm.create(trs), trs.tour)
+          views.relay.form.round.create(env.relay.roundForm.create(trs), trs.tour)
   }
 
-  def create(tourId: TourModel.Id) = AuthOrScopedBody(_.Study.Write) { ctx ?=> me ?=>
+  def create(tourId: RelayTourId) = AuthOrScopedBody(_.Study.Write) { ctx ?=> me ?=>
     NoLameOrBot:
       WithTourAndRoundsCanUpdate(tourId): trs =>
         val tour = trs.tour
@@ -34,54 +32,48 @@ final class RelayRound(
           Redirect(routes.RelayTour.show(tour.slug, tour.id.value)),
           rateLimited
         )
-        env.relay.roundForm
-          .create(trs)
-          .bindFromRequest()
-          .fold(
-            err =>
-              negotiate(
-                BadRequest.page(html.relay.roundForm.create(err, tour)),
-                jsonFormError(err)
-              ),
-            setup =>
-              rateLimitCreation(whenRateLimited):
-                env.relay.api
-                  .create(setup, tour)
-                  .flatMap: rt =>
-                    negotiate(
-                      Redirect(routes.RelayRound.show(tour.slug, rt.relay.slug, rt.relay.id)),
-                      JsonOk(env.relay.jsonView.myRound(rt))
-                    )
-          )
+        bindForm(env.relay.roundForm.create(trs))(
+          err =>
+            negotiate(
+              BadRequest.page(views.relay.form.round.create(err, tour)),
+              jsonFormError(err)
+            ),
+          setup =>
+            rateLimitCreation(whenRateLimited):
+              env.relay.api
+                .create(setup, tour)
+                .flatMap: rt =>
+                  negotiate(
+                    Redirect(routes.RelayRound.show(tour.slug, rt.relay.slug, rt.relay.id)),
+                    JsonOk(env.relay.jsonView.myRound(rt))
+                  )
+        )
   }
 
   def edit(id: RelayRoundId) = Auth { ctx ?=> me ?=>
     FoundPage(env.relay.api.byIdAndContributor(id)): rt =>
-      html.relay.roundForm.edit(rt, env.relay.roundForm.edit(rt.round))
+      views.relay.form.round.edit(rt, env.relay.roundForm.edit(rt.round))
   }
 
   def update(id: RelayRoundId) = AuthOrScopedBody(_.Study.Write) { ctx ?=> me ?=>
     env.relay.api
       .byIdAndContributor(id)
       .flatMapz { rt =>
-        env.relay.roundForm
-          .edit(rt.round)
-          .bindFromRequest()
-          .fold(
-            err => fuccess(Left(rt -> err)),
-            data =>
-              env.relay.api
-                .update(rt.round)(data.update)
-                .dmap(_.withTour(rt.tour))
-                .dmap(Right(_))
-          )
+        bindForm(env.relay.roundForm.edit(rt.round))(
+          err => fuccess(Left(rt -> err)),
+          data =>
+            env.relay.api
+              .update(rt.round)(data.update)
+              .dmap(_.withTour(rt.tour))
+              .dmap(Right(_))
+        )
           .dmap(some)
       }
       .orNotFound:
         _.fold(
           (old, err) =>
             negotiate(
-              BadRequest.page(html.relay.roundForm.edit(old, err)),
+              BadRequest.page(views.relay.form.round.edit(old, err)),
               jsonFormError(err)
             ),
           rt => negotiate(Redirect(rt.path), JsonOk(env.relay.jsonView.withUrl(rt, withTour = true)))
@@ -179,7 +171,7 @@ final class RelayRound(
   private def WithTour(id: String)(
       f: TourModel => Fu[Result]
   )(using Context): Fu[Result] =
-    Found(env.relay.api.tourById(TourModel.Id(id)))(f)
+    Found(env.relay.api.tourById(RelayTourId(id)))(f)
 
   private def WithTourAndRoundsCanUpdate(id: String)(
       f: TourModel.WithRounds => Fu[Result]
@@ -223,25 +215,15 @@ final class RelayRound(
         chat     <- NoCrawlers(studyC.chatOf(sc.study))
         sVersion <- NoCrawlers(env.study.version(sc.study.id))
         page <- renderPage:
-          html.relay.show(rt.withStudy(sc.study), data, chat, sVersion, crossSiteIsolation)
+          views.relay.show(rt.withStudy(sc.study), data, chat, sVersion, crossSiteIsolation)
         _ = if HTTPRequest.isHuman(req) then lila.mon.http.path(rt.tour.path).increment()
-      yield if crossSiteIsolation then Ok(page).enforceCrossSiteIsolation else Ok(page)
+      yield
+        if crossSiteIsolation then Ok(page).enforceCrossSiteIsolation
+        else Ok(page).withHeaders(crossOriginPolicy.unsafe*)
     )(
       studyC.privateUnauthorizedFu(oldSc.study),
       studyC.privateForbiddenFu(oldSc.study)
     )
-
-  private val CreateLimitPerUser = lila.memo.RateLimit[UserId](
-    credits = 100 * 10,
-    duration = 24.hour,
-    key = "broadcast.round.user"
-  )
-
-  private val CreateLimitPerIP = lila.memo.RateLimit[lila.core.net.IpAddress](
-    credits = 100 * 10,
-    duration = 24.hour,
-    key = "broadcast.round.ip"
-  )
 
   private[controllers] def rateLimitCreation(fail: => Fu[Result])(
       create: => Fu[Result]
@@ -251,6 +233,4 @@ final class RelayRound(
       else if isGranted(_.Relay) then 2
       else if me.hasTitle || me.isVerified then 5
       else 10
-    CreateLimitPerUser(me, fail, cost = cost):
-      CreateLimitPerIP(req.ipAddress, fail, cost = cost):
-        create
+    limit.relay(me.userId -> req.ipAddress, fail, cost)(create)
