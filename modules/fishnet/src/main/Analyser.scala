@@ -167,7 +167,7 @@ final class Analyser(
       acquired = none,
       skipPositions = Nil,
       createdAt = nowInstant,
-      origin = origin.some
+      origin = origin
     )
 
 object Analyser:

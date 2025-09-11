@@ -85,7 +85,7 @@ final class Auth(env: Env, accountC: => Account) extends LilaController(env):
   private def serveLogin(using ctx: Context, referrer: Option[ValidReferrer]) = NoBot:
     val switch = get("switch").orElse(get("as"))
     t3Counter(_.login.load)
-    referrer.ifTrue(ctx.isAuth).ifTrue(switch.isEmpty) match
+    referrer.ifTrue(ctx.isAuth && !env.demo.enabled).ifTrue(switch.isEmpty) match
       case Some(url) =>
         t3Counter(_.login.success)
         Redirect(url.value) // redirect immediately if already logged in

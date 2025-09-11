@@ -6,6 +6,7 @@ import { domDialog, bind, dataIcon, hl, type VNode } from 'lib/view';
 
 import type { AutoplayDelay } from '@/autoplay';
 import type AnalyseCtrl from '@/ctrl';
+import { canLocalAnalyse } from '@/local/localAnalysisEngine';
 import * as pgnExport from '@/pgnExport';
 
 import { showSettingsDialog } from './settingsView';
@@ -149,17 +150,41 @@ export function view(ctrl: AnalyseCtrl): VNode {
           i18n.site.continueFromHere,
         ),
       studyButton(ctrl),
-      ctrl.idbTree.movesDirty &&
+      canLocalAnalyse(ctrl) &&
+        hl(
+          'a',
+          {
+            attrs: { 'data-icon': licon.Cogs },
+            on: {
+              click: () => {
+                site.asset.loadEsm('analyse.local', { init: ctrl });
+                ctrl.actionMenu(false);
+                ctrl.redraw();
+              },
+            },
+          },
+          i18n.site.justTheWordAnalysis,
+        ),
+      (ctrl.idbTree.movesDirty || ctrl.idbTree.hasLocalAnalysis) &&
         hl(
           'a',
           {
             attrs: {
-              title: i18n.site.clearSavedMoves,
+              title: i18n.site.clearLocalData,
               'data-icon': licon.Trash,
             },
-            hook: bind('click', () => ctrl.idbTree.clear('moves')),
+            hook: bind('click', () => ctrl.idbTree.clear()),
           },
-          i18n.site.clearSavedMoves,
+          i18n.site.clearLocalData,
+        ),
+      displayColumns() > 1 &&
+        hl(
+          'button',
+          {
+            attrs: { 'data-icon': licon.Expand },
+            on: { click: () => ctrl.presentationMode(true) },
+          },
+          'Presentation mode',
         ),
       hl(
         'button',

@@ -8,21 +8,27 @@ import lila.msg.MsgPreset
 
 final class ForumPost(env: Env) extends LilaController(env) with ForumController:
 
+  def preview = AuthBody(parse.tolerantText) { ctx ?=> me ?=>
+    val encoded = env.ask.api.encode(ctx.body.body, me)
+    val html = env.forum.textExpand.preview(encoded.text)
+    Ok.snip(views.askUi.renderHtmlWithAsks(html, encoded.asks))
+  }
+
   def search(text: String, page: Int) = AuthBody: _ ?=>
-    _ ?=>
+    me ?=>
       NotForKids:
         if text.trim.isEmpty
         then Redirect(routes.ForumCateg.index)
         else
           for
-            ids <- env.forumSearch(text, page)
+            ids <- env.forum.searchApi(text, page, me.marks.troll)
             posts <- ids.mapFutureList(env.forum.postApi.viewsFromIds)
             pager <- posts.mapFutureResults: post =>
               access
                 .isGrantedRead(post.topic.categId)
                 .map:
                   lila.forum.PostView.WithReadPerm(post, _)
-            page <- renderPage(views.forum.post.search(text, pager))
+            page <- renderPage(views.forum.post.search(text, pager.toPaginator))
           yield Ok(page)
 
   def create(categId: ForumCategId, slug: ForumTopicSlug, page: Int) = AuthBody { ctx ?=> me ?=>
@@ -44,6 +50,7 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
                         for
                           unsub <- env.timeline.status(s"forum:${topic.id}")
                           canModCateg <- access.isGrantedMod(categ.id)
+                          asks <- env.ask.repo.asksIn(posts.currentPageResults.map(_.body.render)*)
                           page <- renderPage:
                             views.forum.topic
                               .show(
@@ -54,6 +61,7 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
                                 unsub,
                                 canModCateg = canModCateg
                               )
+                              .copy(askFrags = asks.map(views.askUi.render))
                         yield BadRequest(page)
                     ,
                     data =>
@@ -94,7 +102,7 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
     Found(postApi.getPost(id).flatMapz(postApi.viewOf)): view =>
       val post = view.post
       if post.userId.exists(_.is(me)) && !post.erased then
-        if view.topic.nbPosts == 1 then
+        if !view.topic.isFeed && view.topic.nbPosts == 1 then
           env.forum.delete.deleteTopic(view).inject(Redirect(routes.ForumCateg.show(view.categ.id)))
         else postApi.erasePost(post).inject(Redirect(routes.ForumPost.redirect(id)))
       else

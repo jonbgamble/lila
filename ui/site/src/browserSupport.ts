@@ -1,4 +1,4 @@
-import { frag, once } from 'lib';
+import { frag, once, myUsername } from 'lib';
 import { isIos, isSafari, isWebkit } from 'lib/device';
 import { pubsub } from 'lib/pubsub';
 import { alert } from 'lib/view';
@@ -42,5 +42,14 @@ export function upgradeNag() {
     pubsub
       .after('polyfill.dialog')
       .then(() => alert('Your browser is out of date.\nLichess may not work properly.'));
+  }
+  if (once('troll-server')) {
+    pubsub
+      .after('polyfill.dialog')
+      .then(() =>
+        alert(
+          `This server has named you ${myUsername()}.\n\nYour communications won't be visible to others.\n\nClick "My games" to start analysing.`,
+        ),
+      );
   }
 }

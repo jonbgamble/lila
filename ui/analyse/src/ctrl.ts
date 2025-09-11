@@ -42,7 +42,7 @@ import ExplorerCtrl from './explorer/explorerCtrl';
 import ForecastCtrl from './forecast/forecastCtrl';
 import { ForkCtrl } from './fork';
 import { IdbTree } from './idbTree';
-import type { AnalyseOpts, AnalyseData, ServerEvalData, JustCaptured, NvuiPlugin } from './interfaces';
+import type { AnalyseOpts, AnalyseData, StaticAnalysisData, JustCaptured, NvuiPlugin } from './interfaces';
 import * as keyboard from './keyboard';
 import LiveAnnotate from './liveAnnotate';
 import MotifCtrl from './motif/motifCtrl';
@@ -57,7 +57,7 @@ import type GamebookPlayCtrl from './study/gamebook/gamebookPlayCtrl';
 import type { AnaMove } from './study/interfaces';
 import type StudyCtrl from './study/studyCtrl';
 import { TreeView } from './treeView/treeView';
-import { treeReconstruct, addCrazyData } from './util';
+import { treeReconstruct, addCrazyData, mergeLocalEval } from './util';
 import { plural } from './view/util';
 import wikiTheory, { wikiClear, type WikiTheory } from './wiki';
 
@@ -114,6 +114,13 @@ export default class AnalyseCtrl implements CevalHandler {
   );
   keyboardHelp: boolean = location.hash === '#keyboard';
   threatMode: Prop<boolean> = prop(false);
+  presentationMode = propWithEffect(new URLSearchParams(location.search).get('presentation') === '1', v => {
+    const url = new URL(location.href);
+    if (v) url.searchParams.set('presentation', '1');
+    else url.searchParams.delete('presentation');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+    this.redraw();
+  });
 
   treeView: TreeView;
   cgVersion = {
@@ -947,16 +954,24 @@ export default class AnalyseCtrl implements CevalHandler {
     return Object.keys(this.mainline[0].eval || {}).length > 0;
   };
 
-  mergeAnalysisData(data: ServerEvalData) {
+  mergeAnalysisData(data: StaticAnalysisData, isServer = true) {
     if (this.study && this.study.data.chapter.id !== data.ch) return;
-    const tree = completeNode(this.variantKey)(data.tree);
-    this.tree.merge(tree);
+    const dataTree = completeNode(this.variantKey)(data.tree);
+    if (isServer) this.tree.merge(dataTree);
+    else mergeLocalEval(this.tree.root, dataTree, !!this.study);
     this.data.treeParts = treeOps.mainlineNodeList(this.tree.root);
-    this.data.treeParts.forEach(this.ensureServerEvalNodes);
-    this.data.analysis = data.analysis;
-    if (data.analysis) data.analysis.partial = !!treeOps.findInMainline(tree, this.partialAnalysisCallback);
+    if (isServer || !data.analysis) {
+      this.data.treeParts.forEach(this.ensureServerEvalNodes);
+      this.data.analysis = data.analysis;
+    } else {
+      // this local eval is not yet uploaded. preserve the engine spec of the server eval
+      this.data.analysis = { ...data.analysis, engine: this.data.analysis?.engine };
+    }
+    if (data.analysis)
+      data.analysis.partial = isServer && !!treeOps.findInMainline(dataTree, this.partialAnalysisCallback);
     if (data.division) this.data.game.division = data.division;
     if (this.retro) this.retro.onMergeAnalysisData();
+
     pubsub.emit('analysis.server.progress', this.data);
     this.redraw();
   }
@@ -1076,13 +1091,18 @@ export default class AnalyseCtrl implements CevalHandler {
   };
 
   private readonly ensureServerEvalNodes = (node: TreeNode) => {
-    if (node.eval && !node.eval.knodes && this.data.analysis?.nodesPerMove)
-      node.eval.knodes = this.data.analysis.nodesPerMove / 1000;
+    if (node.eval && !node.eval.knodes && this.data.analysis?.engine?.nodesPerMove)
+      node.eval.knodes = this.data.analysis.engine.nodesPerMove / 1000;
   };
   private async mergeIdbThenShowTreeView() {
     await this.idbTree.merge();
     this.treeView.hidden = false;
     this.idbTree.revealNode();
     this.redraw();
+  }
+
+  async deleteServerAnalysis() {
+    if (!this.opts.hunter || !this.data.analysis) return undefined;
+    return fetch('/mod/analysis/' + this.data.analysis.id, { method: 'DELETE' });
   }
 }

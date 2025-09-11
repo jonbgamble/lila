@@ -8,7 +8,7 @@ import { ratingDiff } from 'lib/view/userLink';
 import type AnalyseCtrl from '@/ctrl';
 import { findTag } from '@/study/studyChapters';
 
-import type { AnalysisSide, GamePhase } from '../interfaces';
+import type { AnalysisMetaSide, GamePhase } from '../interfaces';
 
 type AdviceKind = 'inaccuracy' | 'mistake' | 'blunder';
 
@@ -67,7 +67,7 @@ function playerTable(ctrl: AnalyseCtrl, color: Color): VNode {
 const accuracyClass = (accuracy: number): string =>
   accuracy >= 85 ? 'good' : accuracy >= 70 ? 'inaccuracy' : accuracy >= 55 ? 'mistake' : 'blunder';
 
-const renderPhases = (side: AnalysisSide): VNode[] => {
+const renderPhases = (side: AnalysisMetaSide): VNode[] => {
   return [
     h(`div.advice-summary__phase`, [h('strong', [side.accuracy, '%']), h('span', i18n.site.accuracy)]),
     ...phaseOrder
@@ -148,7 +148,7 @@ export function render(ctrl: AnalyseCtrl): VNode | undefined {
 
   // don't cache until the analysis is complete!
   const buster = ctrl.data.analysis.partial ? Math.random() : '';
-  let cacheKey = String(buster) + !!ctrl.retro;
+  let cacheKey = String(buster) + !!ctrl.retro + Boolean(ctrl.idbTree.hasLocalAnalysis);
   if (ctrl.study) cacheKey += ctrl.study.data.chapter.id;
 
   return h('div.analyse__round-training', [

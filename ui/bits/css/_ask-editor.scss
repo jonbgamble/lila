@@ -1,0 +1,151 @@
+.ask-editor-dialog {
+  min-width: min(680px, calc(100vw - 40px));
+}
+
+.ask-editor {
+  @extend %flex-column;
+
+  gap: 1em;
+
+  h2,
+  h3 {
+    margin: 0;
+  }
+
+  h2 {
+    font-size: 1.4em;
+  }
+
+  h3 {
+    font-size: 1em;
+  }
+
+  input[type='text'] {
+    padding: 0.5em 0.6em;
+  }
+
+  .disabled {
+    opacity: 0.55;
+  }
+
+  .actions {
+    @extend %flex-center-nowrap;
+
+    justify-content: flex-end;
+    gap: 0.8em;
+  }
+}
+
+.ask-editor__field {
+  @extend %flex-column;
+
+  gap: 0.35em;
+
+  > span {
+    font-weight: bold;
+  }
+}
+
+.ask-editor__tag-groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8em;
+
+  fieldset {
+    display: flex;
+    flex-flow: row wrap;
+    align-content: flex-start;
+    gap: 0.5em;
+    margin: 0;
+    padding: 0.7em;
+    border: 1px solid $c-border;
+    border-radius: 6px;
+  }
+
+  legend {
+    padding: 0 0.3em;
+    color: $c-font-dim;
+    font-weight: bold;
+  }
+}
+
+.ask-editor__tag {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.35em 0.55em;
+  border-radius: 5px;
+  background: $c-bg-zebra;
+  cursor: pointer;
+
+  input {
+    margin: 0;
+  }
+}
+
+.ask-editor__section-head {
+  @extend %flex-between-nowrap;
+
+  margin-bottom: 0.5em;
+}
+
+.ask-editor__choices {
+  @extend %flex-column;
+
+  gap: 0.5em;
+}
+
+.ask-editor__choice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.2em;
+  gap: 0.4em;
+
+  button {
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: $c-bad;
+    cursor: pointer;
+
+    &::before {
+      @extend %data-icon;
+    }
+  }
+}
+
+.ask-editor__error {
+  margin: 0;
+  color: $c-bad;
+}
+
+.markdown-textarea .ask-editor-button {
+  all: unset;
+  margin: 0 16px 0 0;
+  width: 24px;
+  height: 24px;
+  color: $c-font-dimmer;
+  cursor: pointer;
+
+  &::before {
+    @extend %data-icon;
+
+    font-size: 24px;
+  }
+
+  &.disabled {
+    color: $c-border;
+    cursor: default;
+  }
+}
+
+@media (hover: hover) {
+  .markdown-textarea .ask-editor-button:hover:not(.disabled) {
+    color: $c-primary;
+  }
+}
+
+@media (max-width: $small) {
+  .ask-editor__tag-groups {
+    grid-template-columns: 1fr;
+  }
+}

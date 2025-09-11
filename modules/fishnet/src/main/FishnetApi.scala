@@ -109,7 +109,7 @@ final class FishnetApi(
             }
           else fuccess(PostAnalysisResult.UnusedPartial)
     res <- res match
-      case r @ PostAnalysisResult.Complete(res) => sink.save(res, work.game.hash).inject(r)
+      case r @ PostAnalysisResult.Complete(res) => sink.save(res, (() => work.game.hash).some).inject(r)
       case r @ PostAnalysisResult.Partial(res) => sink.progress(res).inject(r)
       case r @ PostAnalysisResult.UnusedPartial => fuccess(r)
   yield res
@@ -121,10 +121,10 @@ final class FishnetApi(
         repo.updateAnalysis(work.abort)
       }
 
-  def userAnalysisExists(gameId: GameId) =
+  def userAnalysisExists(id: lila.tree.Analysis.Id) =
     analysisColl.exists(
       $doc(
-        "game.id" -> gameId,
+        "game.id" -> id.value,
         "sender.system" -> false
       )
     )

@@ -76,7 +76,7 @@ lazy val modules = Seq(
   // level 3
   db, room,
   // level 4
-  memo, rating,
+  memo, rating, search,
   // level 5
   game, gathering, study, user, puzzle, analyse,
   report, pref, chat, playban, lobby, mailer, oauth, search,
@@ -92,8 +92,8 @@ lazy val modules = Seq(
   // and then the smaller ones
   pool, lobby, relation, tv, coordinate, feed, history, recap,
   shutup, appeal, irc, explorer, learn, event, coach,
-  practice, evalCache, irwin, bot, racer, cms, i18n, jsBot,
-  socket, bookmark, studySearch, gameSearch, forumSearch, teamSearch, irc
+  practice, evalCache, irwin, bot, racer, cms, i18n, jsBot, ask,
+  socket, bookmark, studySearch, gameSearch, irc
 )
 
 lazy val moduleRefs = modules map projectToRef
@@ -142,7 +142,7 @@ lazy val i18n = module("i18n",
     I18n.serialize(
       sourceDir = new File("translation/source"),
       destDir = new File("translation/dest"),
-      dbs = "activity app appeal arena broadcast challenge class coach contact coordinates dgt emails faq features insight keyboardMove lag learn nvui oauthScope onboarding patron perfStat preferences puzzle puzzleTheme recap search settings site streamer storm study swiss team timeago tfa tourname ublog variant video voiceCommands msg".split(' ').toList,
+      dbs = "activity app appeal arena broadcast challenge class coach contact coordinates dgt emails faq features insight keyboardMove lag learn localAnalysis nvui oauthScope onboarding patron perfStat preferences puzzle puzzleTheme recap search settings site streamer storm study swiss team timeago tfa tourname ublog variant video voiceCommands msg".split(' ').toList,
       outputDir = (Compile / resourceManaged).value
     )
   }.taskValue
@@ -224,8 +224,8 @@ lazy val history = module("history",
 )
 
 lazy val search = module("search",
-  Seq(memo),
-  Seq(playWs.ahc, lilaSearch)
+  Seq(db, mon),
+  playWs.bundle
 )
 
 lazy val chat = module("chat",
@@ -449,23 +449,18 @@ lazy val msg = module("msg",
   Seq()
 )
 
-lazy val forum = module("forum",
-  Seq(memo, ui),
-  Seq()
+lazy val ask = module("ask",
+  Seq(memo, ui, security),
+  reactivemongo.bundle
 )
 
-lazy val forumSearch = module("forumSearch",
-  Seq(search),
+lazy val forum = module("forum",
+  Seq(memo, ui, feed, search),
   Seq()
 )
 
 lazy val team = module("team",
-  Seq(memo, room, ui),
-  Seq()
-)
-
-lazy val teamSearch = module("teamSearch",
-  Seq(search),
+  Seq(memo, room, ui, search),
   Seq()
 )
 

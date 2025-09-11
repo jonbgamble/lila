@@ -142,3 +142,4 @@ object Icon:
   val Logo: Icon = "" // e07a
   val Switch: Icon = "" // e07b
   val Cpu: Icon = "" // e07e
+  val Mask: Icon = "" // e07f

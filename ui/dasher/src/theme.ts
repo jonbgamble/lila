@@ -36,6 +36,7 @@ export class ThemeCtrl extends PaneCtrl {
     this.list = [
       { key: 'system', name: i18n.site.deviceTheme },
       { key: 'light', name: i18n.site.light },
+      { key: 'clouds', name: i18n.site.clouds },
       { key: 'dark', name: i18n.site.dark },
       { key: 'transp', name: i18n.site.picture },
     ];
@@ -110,12 +111,27 @@ export class ThemeCtrl extends PaneCtrl {
     this.redraw();
   };
 
+  private get className() {
+    switch (this.backgroundData.current) {
+      case 'system':
+        return prefersLightThemeQuery().matches ? 'light' : 'dark';
+      case 'light':
+        return 'light';
+      case 'clouds':
+        return 'light clouds';
+      case 'dark':
+        return 'dark';
+      case 'transp':
+        return 'transp';
+      default:
+        return '';
+    }
+  }
+
   private readonly apply = () => {
     const key = this.backgroundData.current;
     document.body.dataset.theme = key === 'darkBoard' ? 'dark' : key;
-    document.documentElement.className =
-      key === 'system' ? (prefersLightThemeQuery().matches ? 'light' : 'dark') : key;
-
+    document.documentElement.className = this.className;
     if (key === 'transp') {
       const bgData = document.getElementById('bg-data');
       const styleValue = `html.transp::before{background-image:url(${this.backgroundData.image});opacity:calc(var(---bg-opacity)/100);}`;

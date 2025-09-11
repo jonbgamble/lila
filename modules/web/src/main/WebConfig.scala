@@ -60,7 +60,8 @@ object WebConfig:
     crawlable = c.get[Boolean]("net.crawlable"),
     rateLimit = c.get[RateLimit]("net.ratelimit"),
     email = c.get[EmailAddress]("net.email"),
-    logRequests = c.get[Boolean]("net.http.log")
+    logRequests = c.get[Boolean]("net.http.log"),
+    demo = c.get[Boolean]("net.demo")
   )
 
   final class LilaVersion(val date: String, val commit: String, val message: String)

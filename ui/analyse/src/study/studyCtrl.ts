@@ -337,6 +337,10 @@ export default class StudyCtrl {
     !this.isGamebookPlay() &&
     (this.data.chapter.features.computer || this.data.chapter.practice);
 
+  canMergeAnalysisCleanly() {
+    return !this.data.chapter.serverEval || Number(this.data.chapter.serverEval?.version) > 0;
+  }
+
   configurePractice = () => {
     if (!this.data.chapter.practice && this.ctrl.practice) this.ctrl.togglePractice();
     if (this.data.chapter.practice) this.ctrl.togglePractice(true);
@@ -671,7 +675,6 @@ export default class StudyCtrl {
     const s = p.split('#');
     return `${s[0]}${location.search}${s[1] ? `#${s[1]}` : ''}`;
   };
-  hideMoves = () => this.ctrl.actionMenu() && !this.relay;
 
   socketHandlers: Handlers = {
     path: d => {

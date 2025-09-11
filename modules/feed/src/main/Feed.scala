@@ -6,7 +6,9 @@ import reactivemongo.api.bson.Macros.Annotations.Key
 import java.time.format.{ DateTimeFormatter, FormatStyle }
 import scalalib.paginator.Paginator
 
+import lila.core.id.{ ForumTopicId, ForumTopicSlug }
 import lila.core.lilaism.Lilaism.*
+import lila.core.ask.AskApi
 export lila.common.extensions.unapply
 import lila.db.dsl.{ *, given }
 import lila.db.paginator.Adapter
@@ -23,13 +25,25 @@ object Feed:
       content: Markdown,
       public: Boolean,
       at: Instant,
-      flair: Option[Flair]
+      flair: Option[Flair],
+      topicId: Option[ForumTopicId]
   ):
     lazy val rendered: Html = renderer(s"dailyFeed:${id}")(content)
     lazy val dateStr = dateFormatter.print(at)
     lazy val title = "Daily update - " + dateStr
     def published = public && at.isBeforeNow
     def future = at.isAfterNow
+
+  case class Comments(
+      topicId: ForumTopicId,
+      slug: ForumTopicSlug,
+      nbComments: Int,
+      lastCommentAt: Option[Instant],
+      lastCommentBy: Option[UserId]
+  )
+
+  case class View(update: Update, comments: Option[Comments]):
+    export update.*
 
   private val renderer = lila.markdown.MarkdownRender(
     autoLink = false,
@@ -44,7 +58,10 @@ object Feed:
   import scalalib.ThreadLocalRandom
   def makeId = ThreadLocalRandom.nextString(6)
 
-final class FeedApi(coll: Coll, cacheApi: CacheApi, flairApi: FlairApi)(using Executor, Scheduler):
+final class FeedApi(coll: Coll, cacheApi: CacheApi, flairApi: FlairApi, askApi: AskApi)(using
+    Executor,
+    Scheduler
+):
 
   import Feed.*
 
@@ -73,14 +90,32 @@ final class FeedApi(coll: Coll, cacheApi: CacheApi, flairApi: FlairApi)(using Ex
 
   def get(id: ID): Fu[Option[Update]] = coll.byId[Update](id)
 
-  def set(update: Update): Funit =
-    for _ <- coll.update.one($id(update.id), update, upsert = true) yield cache.clear()
+  def edit(id: ID): Fu[Option[Update]] = get(id).flatMap:
+    case Some(up) =>
+      askApi
+        .decode(up.content.value)
+        .map: editable =>
+          up.copy(content = Markdown(editable)).some
+    case _ => fuccess(none[Update])
+
+  def set(update: Update)(using me: Me): Funit =
+    for
+      askEncoded <- askApi.encodeAndCommit(update.content.value, me, s"/feed#${update.id}".some)
+      _ <- coll.update.one($id(update.id), update.copy(content = Markdown(askEncoded)), upsert = true)
+    yield cache.clear()
 
   def delete(id: ID): Funit =
     for _ <- coll.delete.one($id(id)) yield cache.clear()
 
-  case class UpdateData(content: Markdown, public: Boolean, at: Instant, flair: Option[Flair]):
-    def toUpdate(id: Option[ID]) = Update(id | makeId, content, public, at, flair)
+  case class UpdateData(
+      content: Markdown,
+      public: Boolean,
+      at: Instant,
+      flair: Option[Flair],
+      comments: Boolean
+  ):
+    def toUpdate(id: Option[ID], topicId: Option[ForumTopicId] = None) =
+      Update(id.getOrElse(makeId), content, public, at, flair, topicId)
 
   def form(from: Option[Update]): Form[UpdateData] =
     import play.api.data.*
@@ -91,9 +126,10 @@ final class FeedApi(coll: Coll, cacheApi: CacheApi, flairApi: FlairApi)(using Ex
         "content" -> nonEmptyText(maxLength = 20_000).into[Markdown],
         "public" -> boolean,
         "at" -> ISOInstantOrTimestamp.mapping,
-        "flair" -> flairApi.formField(anyFlair = true, asAdmin = true)
+        "flair" -> flairApi.formField(anyFlair = true, asAdmin = true),
+        "comments" -> boolean
       )(UpdateData.apply)(unapply)
-    from.fold(form)(u => form.fill(UpdateData(u.content, u.public, u.at, u.flair)))
+    from.fold(form)(u => form.fill(UpdateData(u.content, u.public, u.at, u.flair, u.topicId.isDefined)))
 
 final class FeedPaginatorBuilder(coll: Coll)(using Executor):
   import Feed.*

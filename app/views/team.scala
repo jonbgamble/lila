@@ -60,7 +60,7 @@ def show(
             momentFromNow(post.post.createdAt)
           )
         ),
-        p(shorten(Markdown(post.post.text).unlink, 210))
+        p(shorten(Markdown(lila.core.ask.Ask.strip(post.post.text)).unlink, 210))
       )
 
   showUi(info.show, members, chat, toursFrag, forumFrag, asMod, modLog)

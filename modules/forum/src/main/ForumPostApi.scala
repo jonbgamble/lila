@@ -20,7 +20,10 @@ final class ForumPostApi(
     shutupApi: lila.core.shutup.ShutupApi,
     detectLanguage: DetectLanguage,
     picfitApi: lila.memo.PicfitApi,
-    relationApi: lila.core.relation.RelationApi
+    relationApi: lila.core.relation.RelationApi,
+    askApi: lila.core.ask.AskApi,
+    feedApi: lila.feed.FeedApi,
+    searchApi: lila.search.SearchClient
 )(using Executor)(using scheduler: Scheduler)
     extends lila.core.forum.ForumPostApi:
 
@@ -35,10 +38,11 @@ final class ForumPostApi(
     publicMod = MasterGranter(_.PublicMod)
     modIcon = ~data.modIcon && (publicMod || MasterGranter(_.SeeReport))
     anonMod = modIcon && !publicMod
+    askEncoded = askApi.encode(spam.replace(data.text), me).pp
     post = ForumPost.make(
       topicId = topic.id,
       userId = (!anonMod).option(me),
-      text = spam.replace(data.text),
+      text = askEncoded.text,
       lang = lang.map(_.language),
       troll = me.marks.troll,
       categId = categ.id,
@@ -52,6 +56,8 @@ final class ForumPostApi(
           _ <- postRepo.coll.insert.one(post)
           _ <- topicRepo.coll.update.one($id(topic.id), topic.withPost(post))
           _ <- categRepo.coll.update.one($id(categ.id), categ.withPost(topic, post))
+          _ <- askApi.commit(askEncoded, s"/forum/redirect/post/${post.id}".some)
+          _ <- searchApi.upsert(lila.search.SearchClient.Index.Forum, post.id)
         yield
           promotion.save(me, post.text)
           if post.isTeam
@@ -91,22 +97,33 @@ final class ForumPostApi(
         case (_, post) if !post.canStillBeEdited =>
           fufail("Post can no longer be edited")
         case (_, post) =>
-          val newPost = post.editPost(nowInstant, spam.replace(newText))
-          val save = (newPost.text != post.text).so:
-            for
-              _ <- postRepo.coll.update.one($id(post.id), newPost)
-              _ <- newPost.isAnonModPost.so(logAnonPost(newPost, edit = true))
-            yield promotion.save(me, newPost.text)
-          save.inject(newPost)
+          askApi
+            .encodeAndCommit(spam.replace(newText), me, s"/forum/redirect/post/${postId}".some)
+            .flatMap: askEncoded =>
+              val newPost = post.editPost(nowInstant, askEncoded)
+              val save = (newPost.text != post.text).so:
+                for
+                  _ <- postRepo.coll.update.one($id(post.id), newPost)
+                  _ <- searchApi.upsert(lila.search.SearchClient.Index.Forum, newPost.id)
+                  _ <- newPost.isAnonModPost.so(logAnonPost(newPost, edit = true))
+                yield promotion.save(me, newPost.text)
+              save.inject(newPost)
 
   def urlData(postId: ForumPostId, forUser: Option[User]): Fu[Option[PostUrlData]] =
     get(postId).flatMap:
       case Some(_, post) if !post.visibleBy(forUser) => fuccess(none[PostUrlData])
       case Some(topic, post) =>
-        postRepo.forUser(forUser).countBeforePost(post).dmap { nb =>
-          val page = nb / config.postMaxPerPage.value + 1
+        val postUrlData = postRepo.forUser(forUser).countBeforePost(post).dmap { nb =>
+          val page = (nb + topic.isFeed.so(1)) / config.postMaxPerPage.value + 1
           PostUrlData(topic.categId, topic.slug, page, post.id).some
         }
+        topic.feedItemId.fold(postUrlData): feedItemId =>
+          feedApi
+            .get(feedItemId)
+            .flatMap:
+              case Some(feedItem) if feedItem.published || forUser.exists(MasterGranter.of(_.Feed)) =>
+                postUrlData
+              case _ => fuccess(none)
       case _ => fuccess(none)
 
   def get(postId: ForumPostId): Fu[Option[(ForumTopic, ForumPost)]] =
@@ -233,6 +250,7 @@ final class ForumPostApi(
     for
       _ <- picfitApi.pullRef(picRef(post.id))
       _ <- postRepo.coll.update.one($id(post.id), post.erase)
+      _ <- searchApi.delete(lila.search.SearchClient.Index.Forum, post.id)
     yield ()
 
   def teamIdOfPost(post: ForumPost): Fu[Option[TeamId]] =

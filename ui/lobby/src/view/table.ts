@@ -37,11 +37,11 @@ export default function table(ctrl: LobbyController) {
       disabled: hasOngoingRealTimeGame,
     },
   ];
-  if (opts.bots)
-    lobbyButtons.push({
-      gameType: 'bots',
-      label: 'play bot',
-    });
+  // if (opts.bots)
+  //   lobbyButtons.push({
+  //     gameType: 'bots',
+  //     label: 'play bot',
+  //   });
 
   return hl('div.lobby__table', [
     hl('div.lobby__start', [site.blindMode && hl('h2', i18n.site.play), lobbyButtons.map(makeLobbyButton)]),

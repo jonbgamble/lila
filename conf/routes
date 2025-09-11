@@ -19,6 +19,9 @@ POST  /timeline/unsub/:channel         controllers.Timeline.unsub(channel)
 # Search
 GET   /games/search                    controllers.Search.index(page: Int ?= 1)
 
+# Markdown
+POST  /markdown/preview                controllers.ForumPost.preview
+
 # Game export
 POST  /games/export/_ids               controllers.Game.exportByIds
 POST  /api/games/export/_ids           controllers.Game.exportByIds
@@ -117,7 +120,7 @@ GET   /blog.atom                       controllers.Main.movedPermanently(to = "/
 GET   /api/blog/carousel               controllers.Ublog.apiCarousel
 GET   /blog/friends                    controllers.Ublog.friends(page: Int ?= 1)
 GET   /blog/liked                      controllers.Ublog.liked(page: Int ?= 1)
-GET   /blog/search                     controllers.Ublog.search(text ?= "", by: BlogsBy ?= BlogsBy.score, page: Int ?= 1)
+GET   /blog/search                     controllers.Ublog.search(text ?= "", by: BlogsBy ?= BlogsBy.score, cursor: Option[Long] ?= None)
 GET   /blog/community                  controllers.Ublog.communityAll(filter: Option[BlogQualityFilter] ?= None, page: Int ?= 1)
 GET   /$lang<\w\w\w?>/blog/community   controllers.Ublog.communityLang(lang: Language, filter: Option[BlogQualityFilter] ?= None, page: Int ?= 1)
 GET   /blog/community.atom             controllers.Ublog.communityAtom(lang: Language ?= Language("all"))
@@ -223,6 +226,8 @@ GET   /analysis/pgn/*pgn               controllers.UserAnalysis.pgn(pgn)
 GET   /analysis/*something             controllers.UserAnalysis.parseArg(something)
 GET   /analysis                        controllers.UserAnalysis.index
 GET   /embed/analysis                  controllers.UserAnalysis.embed
+POST  /analysis/local                  controllers.Analyse.postLocalAnalysis
+
 
 # Study
 GET   /study                           controllers.Study.allDefault(page: Int ?= 1)
@@ -521,6 +526,8 @@ GET   /fishnet/status                         controllers.Fishnet.status
 
 # Pref
 POST  /pref/:name                             controllers.Pref.set(name)
+GET   /account/pref-json/:name                controllers.Pref.getJson(name)
+POST  /account/pref-json/:name                controllers.Pref.setJson(name)
 GET   /account/preferences/network            controllers.Pref.network
 POST  /account/preferences/network            controllers.Pref.networkPost
 GET   /account/preferences/:categ             controllers.Pref.form(categ)
@@ -648,6 +655,7 @@ GET   /api/stream/mod                  controllers.Mod.eventStream
 GET   /api/stream/mod-marked-since     controllers.Mod.markedUsersStream
 GET   /mod/image/queue                 controllers.Mod.imageQueue(page: Int ?= 1)
 POST  /mod/image/accept/:id            controllers.Mod.imageAccept(id: ImageId, v: Boolean)
+POST  /mod/delete-analysis/:id         controllers.Mod.deleteGameAnalysis(id: GameId)
 
 # Irwin
 GET   /irwin                           controllers.Irwin.dashboard
@@ -656,6 +664,18 @@ GET   /api/stream/irwin                controllers.Irwin.eventStream
 
 # Kaladin
 GET   /kaladin                         controllers.Irwin.kaladin
+
+# Ask
+GET   /ask/:id                         controllers.Ask.view(id: AskId, view: Option[String], tally: Boolean ?= false)
+POST  /ask/picks/:id                   controllers.Ask.picks(id: AskId, picks: Option[String], view: Option[String], anon: Boolean ?= false)
+POST  /ask/form/:id                    controllers.Ask.form(id: AskId, view: Option[String], anon: Boolean ?= false)
+POST  /ask/conclude/:id                controllers.Ask.conclude(id: AskId)
+POST  /ask/unset/:id                   controllers.Ask.unset(id: AskId, view: Option[String], anon: Boolean ?= false)
+POST  /ask/reset/:id                   controllers.Ask.reset(id: AskId)
+POST  /ask/delete/:id                  controllers.Ask.delete(id: AskId)
+GET   /ask/admin/:id                   controllers.Ask.admin(id: AskId)
+GET   /ask/byUser/:username            controllers.Ask.byUser(username: UserStr)
+GET   /ask/json/:id                    controllers.Ask.json(id: AskId)
 
 # Forum
 GET   /forum                           controllers.ForumCateg.index

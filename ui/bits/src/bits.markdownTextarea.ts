@@ -1,7 +1,10 @@
 import { frag } from 'lib';
+import { licon } from 'lib/licon';
 import { alert, info, spinnerHtml } from 'lib/view';
 import { wireMarkdownImgResizers, naturalSize, markdownPicfitRegex } from 'lib/view/markdownImgResizer';
 import { text as xhrText, json as xhrJson, ValidationError } from 'lib/xhr';
+
+import { openAskEditor } from './bits.askEditor';
 
 // also see markdownTextarea.ts
 
@@ -18,43 +21,64 @@ function wireMarkdownTextarea(markdown: HTMLElement) {
   const previewTab = markdown.querySelector<HTMLButtonElement>('.preview-tab')!;
   const writeTab = markdown.querySelector<HTMLButtonElement>('.write-tab')!;
   const uploadBtn = markdown.querySelector<HTMLButtonElement>('.upload-image');
+  const askBtn =
+    markdown.querySelector<HTMLButtonElement>('.ask-editor-button') ??
+    frag<HTMLButtonElement>(
+      `<button class="ask-editor-button" type="button" title="Create poll" aria-label="Create poll" data-icon="${licon.List}"></button>`,
+    );
   const preview = markdown.querySelector<HTMLElement>('.preview')!;
 
+  if (!askBtn.parentElement) (uploadBtn ?? previewTab).insertAdjacentElement('afterend', askBtn);
+  askBtn.addEventListener('click', () => openAskEditor({ textarea }));
+
   previewTab.addEventListener('click', async () => {
-    preview.innerHTML = `<div class="busy">${spinnerHtml}</div>`;
-    preview.classList.remove('none');
-    uploadBtn?.classList.add('none');
-    writeTab.classList.remove('active');
-    previewTab.classList.add('active');
-    const rendered = frag<HTMLElement>(
-      await xhrText(`/markdown/preview/${markdown.dataset.formatKey ?? 'forum'}`, {
-        method: 'POST',
-        body: textarea.value,
-      }),
-    );
-    await Promise.all([
-      rendered.querySelector('.lpv--autostart') && site.asset.loadEsm('bits.lpv', { init: { el: rendered } }),
-      rendered.querySelector('a') && site.asset.loadEsm('bits.expandText', { init: rendered }),
-    ]);
-    preview.replaceChildren(rendered);
-    if (markdownPicfitRegex().test(textarea.value) && !localStorage.getItem('markdown.rtfm')) {
-      await info('Drag a side or bottom edge to resize an image.');
-      localStorage.setItem('markdown.rtfm', '1');
+    try {
+      preview.innerHTML = `<div class="busy">${spinnerHtml}</div>`;
+      preview.classList.remove('none');
+      askBtn.classList.add('none');
+      uploadBtn?.classList.add('none');
+      writeTab.classList.remove('active');
+      previewTab.classList.add('active');
+      const rendered = frag<HTMLElement>(
+        await xhrText(`/markdown/preview/${markdown.dataset.formatKey ?? 'forum'}`, {
+          method: 'POST',
+          body: textarea.value,
+        }),
+      );
+      await Promise.all([
+        rendered.querySelector('.lpv--autostart') &&
+          site.asset.loadEsm('bits.lpv', { init: { el: rendered } }),
+        rendered.querySelector('a') && site.asset.loadEsm('bits.expandText', { init: rendered }),
+      ]);
+      preview.replaceChildren(rendered);
+      if (markdownPicfitRegex().test(textarea.value) && !localStorage.getItem('markdown.rtfm')) {
+        await info('Drag a side or bottom edge to resize an image.');
+        localStorage.setItem('markdown.rtfm', '1');
+      }
+      await wireMarkdownImgResizers({
+        root: preview,
+        update: {
+          markdown: (text?: string) => (text !== undefined ? (textarea.value = text) : textarea.value),
+        },
+        origin: markdown.dataset.imageDownloadOrigin!,
+        designWidth: Number(markdown.dataset.imageDesignWidth),
+        realm: markdown.dataset.markdownRealm!,
+      });
+    } catch (e) {
+      preview.classList.add('none');
+      preview.innerHTML = '';
+      askBtn.classList.remove('none');
+      uploadBtn?.classList.remove('none');
+      writeTab.classList.add('active');
+      previewTab.classList.remove('active');
+      alert(e instanceof Error ? e.message : `Preview failed: ${e}`);
     }
-    await wireMarkdownImgResizers({
-      root: preview,
-      update: {
-        markdown: (text?: string) => (text !== undefined ? (textarea.value = text) : textarea.value),
-      },
-      origin: markdown.dataset.imageDownloadOrigin!,
-      designWidth: Number(markdown.dataset.imageDesignWidth),
-      realm: markdown.dataset.markdownRealm!,
-    });
   });
 
   writeTab.addEventListener('click', () => {
     previewTab.classList.remove('active');
     writeTab.classList.add('active');
+    askBtn.classList.remove('none');
     uploadBtn?.classList.remove('none');
     preview.innerHTML = '';
     preview.classList.add('none');

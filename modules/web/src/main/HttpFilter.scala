@@ -57,7 +57,13 @@ final class HttpFilter(
     val client = ClientName(req)
     lila.mon.http.count(actionName, client.name, req.method, statusCode).increment()
     lila.mon.http.time(actionName).record(reqTime)
-    if net.logRequests then logger.info(s"$statusCode $client $req $actionName ${reqTime}ms")
+    if net.logRequests && !actionName.startsWith("Fishnet") && req.remoteAddress != "164.92.196.190" then
+      val now = java.time.format.DateTimeFormatter
+        .ofPattern("uuuu-MM-dd HH:mm:ss")
+        .format(java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC))
+      logger.info(
+        s"${now.format(nowInstant)} ${req.remoteAddress} - $statusCode $client $req $actionName ${reqTime}ms"
+      )
     mobile.foreach: m =>
       lila.mon.http.mobileCount(actionName, m.version, m.userId.isDefined, m.osName).increment()
     HttpFilter

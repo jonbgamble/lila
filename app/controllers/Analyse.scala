@@ -1,7 +1,7 @@
 package controllers
 
 import chess.format.Fen
-import play.api.libs.json.{ Json, JsArray }
+import play.api.libs.json.*
 import play.api.mvc.*
 
 import lila.app.{ *, given }
@@ -9,7 +9,7 @@ import lila.common.HTTPRequest
 import lila.core.misc.lpv.LpvEmbed
 import lila.game.PgnDump
 import lila.oauth.AccessToken
-import lila.tree.ExportOptions
+import lila.tree.{ ExportOptions, Analysis }
 
 final class Analyse(
     env: Env,
@@ -33,6 +33,37 @@ final class Analyse(
           _.error.fold(NoContent)(BadRequest(_))
   }
 
+  def postLocalAnalysis = AuthBody(parse.json) { ctx ?=> me ?=>
+    ctx.body.body.validate[lila.analyse.Analysis] match
+      case JsError(errs) => fuccess(BadRequest(errs.mkString("\n")))
+      case JsSuccess(uploaded, _) =>
+
+        def isConflict(existing: Option[lila.analyse.Analysis]) =
+          existing
+            .map(_.engine.nodesPerMove)
+            .exists(npm => uploaded.engine.nodesPerMove < npm + 200_000)
+
+        def markAnalysed =
+          uploaded.id.gameId.so: gid =>
+            env.round.proxyRepo.updateIfPresent(gid): game =>
+              game.copy(metadata = game.metadata.copy(analysed = true))
+
+        env.fishnet.api
+          .userAnalysisExists(uploaded.id)
+          .flatMap: requested =>
+            if requested then Locked
+            else
+              env.analyse.repo
+                .byId(uploaded.id)
+                .flatMap: existing =>
+                  if isConflict(existing) then Conflict
+                  else
+                    for
+                      _ <- env.analyse.analyser.save(uploaded)
+                      _ <- markAnalysed
+                    yield Ok
+  }
+
   private[controllers] def replay(pov: Pov, userTv: Option[lila.user.User])(using ctx: Context) =
     if ctx.req.client.isCrawler then replayForCrawler(pov)
     else
@@ -49,7 +80,7 @@ final class Analyse(
           val opening = pgnFlags.opening.so(env.game.gameOpening.atPly(pov.game, _))
           (
             env.analyse.analyser.get(pov.game),
-            (!pov.game.metadata.analysed).so(env.fishnet.api.userAnalysisExists(pov.gameId)),
+            pov.game.metadata.analysed.not.so(env.fishnet.api.userAnalysisExists(Analysis.Id(pov.gameId))),
             pov.game.simulId.so(env.simul.repo.find),
             roundC.getWatcherChat(pov.game),
             ctx.noBlind.so(env.game.crosstableApi.withMatchup(pov.game)),

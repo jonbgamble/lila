@@ -58,6 +58,24 @@
       }
     }
 
+    :has(.ask-container) {
+      .daily-feed__update__day {
+        display: none;
+      }
+    }
+
+    &__discuss {
+      margin-inline-start: 10px;
+      font-size: 0.85em;
+      color: $c-link;
+
+      @media (hover: hover) and (pointer: fine) {
+        &:hover {
+          color: $c-link-hover;
+        }
+      }
+    }
+
     @include rendered-markdown(
       $element-margin: 0.6em,
       $h1: false,
@@ -75,6 +93,10 @@
 
     h4 {
       font-size: 1.15em;
+    }
+
+    .ask-container {
+      margin-inline-end: 24px;
     }
   }
 }

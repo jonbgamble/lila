@@ -12,11 +12,7 @@
   cursor: pointer;
   text-align: center;
   display: inline-block;
-  text-shadow: 0.5px 0.5px 0 rgb(from $c-dimmer r g b / calc(alpha * 0.8));
-
-  @include if-light {
-    text-shadow: 0.5px 0.5px 0 rgb(from $c-clearer r g b / calc(alpha * 0.7));
-  }
+  text-shadow: 0.5px 0.5px 0 $c-font-shadow;
 
   @include with-button-shadow(
     hsl(from $c-primary h s calc(l + 32)),
@@ -100,16 +96,12 @@
 
     @include if-light {
       box-shadow: none;
-      text-shadow: 0.5px 0.5px 0 rgb(from $c-dimmer r g b / calc(alpha * 0.8));
+      text-shadow: 0.5px 0.5px 0 $c-font-shadow;
     }
 
     &,
     &:hover {
-      color: $c-primary;
-    }
-
-    &:not(.disabled):hover {
-      @extend %button-shadow;
+      color: $c-link-hover;
     }
 
     &,

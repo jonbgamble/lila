@@ -47,7 +47,8 @@ object config:
       crawlable: Boolean,
       rateLimit: RateLimit,
       email: EmailAddress,
-      logRequests: Boolean
+      logRequests: Boolean,
+      demo: Boolean
   ):
     def routeUrl(call: play.api.mvc.Call) = data.Url(s"${baseUrl}${call.url}")
 

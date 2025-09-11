@@ -28,6 +28,7 @@ object home:
       )
     Page("")
       .copy(fullTitle = s"$siteName • ${trans.site.freeOnlineChess.txt()}".some)
+      .copy(askFrags = lastUpdateAsks.map(views.askUi.render))
       .i18n(_.variant)
       .js(
         PageModule(
@@ -40,6 +41,7 @@ object home:
             .add("hasUnreadLichessMessage", hasUnreadLichessMessage)
             .add("bots", Granter.opt(_.Beta))
             .add("playban", playban.map(lila.playban.TempBan.lobbyJson))
+            .add("lobbyShortcuts", ctx.pref.lobbyShortcuts)
         )
       )
       .css("lobby")

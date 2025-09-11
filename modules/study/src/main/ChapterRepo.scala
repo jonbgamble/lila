@@ -115,7 +115,9 @@ final class ChapterRepo(val coll: AsyncColl)(using Executor, org.apache.pekko.st
     coll(_.updateField($id(chapterId) ++ $doc("relay.lastMoveAt".$exists(true)), "relay.path", path)).void
 
   def setTagsFor(chapter: Chapter) =
-    coll(_.updateField($id(chapter.id), "tags", chapter.tags)).void
+    coll(_.updateField($id(chapter.id), "tags", chapter.tags))
+      .addEffect(_ => updateElasticIndex(chapter.studyId))
+      .void
 
   def setShapes(shapes: lila.tree.Node.Shapes) =
     setNodeValue(F.shapes, shapes.value.nonEmpty.option(shapes))
@@ -146,7 +148,10 @@ final class ChapterRepo(val coll: AsyncColl)(using Executor, org.apache.pekko.st
 
   def forceVariation(force: Boolean) = setNodeValue(F.forceVariation, force.option(true))
 
-  def setName(id: StudyChapterId, name: StudyChapterName) = coll(_.updateField($id(id), "name", name)).void
+  def setName(chapter: Chapter, name: StudyChapterName) =
+    coll(_.updateField($id(chapter.id), "name", name))
+      .addEffect(_ => updateElasticIndex(chapter.studyId))
+      .void
 
   // insert node and its children
   // and updates chapter denormalization
@@ -291,7 +296,8 @@ final class ChapterRepo(val coll: AsyncColl)(using Executor, org.apache.pekko.st
         "serverEval",
         Chapter.ServerEval(
           path = chapter.root.mainlinePath,
-          done = false
+          done = false,
+          1.some
         )
       )
     .void
@@ -299,14 +305,49 @@ final class ChapterRepo(val coll: AsyncColl)(using Executor, org.apache.pekko.st
   def completeServerEval(chapter: Chapter) =
     coll(_.updateField($id(chapter.id) ++ "serverEval".$exists(true), "serverEval.done", true)).void
 
+  def updateServerEval(chapterId: StudyChapterId, done: Boolean, mainlinePath: Option[UciPath]) =
+    val update = mainlinePath match
+      case Some(path) => $set("serverEval" -> Chapter.ServerEval(path, done, 1.some))
+      case _ => $set("serverEval.done" -> done)
+    coll(_.update.one($id(chapterId), update)).void
+
   def countByStudyId(studyId: StudyId): Fu[Int] =
     coll(_.countSel($studyId(studyId)))
 
-  def insert(s: Chapter): Funit = coll(_.insert.one(s.updateDenorm)).void
+  def insert(s: Chapter): Funit =
+    coll(_.insert.one(s.updateDenorm)).void.addEffect(_ => updateElasticIndex(s.studyId))
 
   def update(c: Chapter): Funit = coll(_.update.one($id(c.id), c.updateDenorm)).void
 
   def delete(id: StudyChapterId): Funit = coll(_.delete.one($id(id))).void
-  def delete(c: Chapter): Funit = delete(c.id)
+  def delete(c: Chapter): Funit = delete(c.id).addEffect(_ => updateElasticIndex(c.studyId))
 
   def $studyId(id: StudyId) = $doc("studyId" -> id)
+
+  def stripEngineFields(chapter: Chapter): Funit =
+    val engineNodeFields = engineOnlySubtreeFields(chapter.root, UciPath.root)
+    engineNodeFields.nonEmpty.so:
+      val commentFields =
+        chapter.root.children
+          .nodesOn(chapter.root.mainlinePath)
+          .map((_, path) => s"${path.toDbField}.${F.comments}")
+      val commentPulls = $doc(commentFields.map(_ -> $doc("by" -> "l")))
+      coll(_.update.one($id(chapter.id), $doc($unset(engineNodeFields), $pull(commentPulls)))).void
+
+  private def engineOnlySubtreeFields(node: lila.tree.Node, path: UciPath): List[String] =
+    node.children.toList.flatMap: kid =>
+      val kidPath = path + kid.id
+      if hasUserData(kid) then engineOnlySubtreeFields(kid, kidPath)
+      else allDescendants(kid, kidPath)
+
+  private def allDescendants(branch: lila.tree.Branch, path: UciPath): List[String] =
+    (path.toDbField ::
+      branch.children.toList.flatMap(kid => allDescendants(kid, path + kid.id)))
+
+  private def hasUserData(node: lila.tree.Node): Boolean =
+    !node.comp ||
+      node.comments.value.exists(_.by != lila.tree.Node.Comment.Author.Lichess) ||
+      node.children.toList.exists(hasUserData)
+
+  private def updateElasticIndex(studyId: StudyId) =
+    lila.common.Bus.pub(lila.core.study.IndexStudySearch(studyId))

@@ -27,7 +27,7 @@ final class AnalysisRepo(val coll: Coll)(using Executor):
 
   private[analyse] def save(analysis: Analysis, workHash: Option[Array[Byte]]) =
     val bson = toBdoc(analysis).get ++ workHash.so(h => $doc("hash" -> h))
-    coll.insert.one(bson).void
+    coll.update.one($id(analysis.id), bson, upsert = true).void
 
   def remove(id: GameId) = coll.delete.one($id(Analysis.Id(id)))
 
@@ -37,4 +37,5 @@ final class AnalysisRepo(val coll: Coll)(using Executor):
   def remove(ids: List[GameId]) = coll.delete.one($inIds(ids.map(Analysis.Id(_))))
 
   def exists(id: GameId) = coll.exists($id(Analysis.Id(id)))
+  def exists(id: Analysis.Id) = coll.exists($id(id))
   def chapterExists(id: StudyChapterId) = coll.exists($id(id.value))

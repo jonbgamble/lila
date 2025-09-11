@@ -43,10 +43,12 @@ object page:
   def apply(p: Page)(using ctx: PageContext): RenderedPage =
     import ctx.pref
     val anonOnboarding = ctx.isAnon.so(lila.security.EmailConfirm.cookie.get(ctx.req))
+    val hasAsks = p.askFrags.nonEmpty
     val allModules = p.modules ++
       p.pageModule.so(module => esmPage(module.name)) ++
       ctx.needsFp.so(fingerprintTag) ++
-      anonOnboarding.isDefined.so(esmInitBit("emailErrorCheck"))
+      anonOnboarding.isDefined.so(esmInitBit("emailErrorCheck")) ++
+      hasAsks.so(esmInit("bits.ask"))
     val zenable = p.flags(PageFlags.zen)
     val playing = p.flags(PageFlags.playing)
     val pageFrag = frag(
@@ -73,6 +75,7 @@ object page:
           ctx.impersonatedBy.isDefined.option(cssTag("mod.impersonate")),
           ctx.blind.option(cssTag("bits.blind")),
           p.cssKeys.map(cssTag),
+          hasAsks.option(cssTag("bits.ask")),
           meta(
             content := p.openGraph.fold(trans.site.siteDescription.txt())(o => o.description),
             name := "description"
@@ -102,23 +105,20 @@ object page:
             .so(systemThemeScript(ctx.nonce))
         ).pipe(p.transformHead),
         st.body(
-          cls := {
-            val baseClass = s"${pref.currentBg} coords-${pref.coordsClass}"
-            List(
-              baseClass -> true,
-              "simple-board" -> pref.simpleBoard,
-              "piece-letter" -> pref.pieceNotationIsLetter,
-              "blind-mode" -> ctx.blind,
-              "kid" -> ctx.kid.yes,
-              "mobile" -> lila.common.HTTPRequest.isMobileBrowser(ctx.req),
-              "playing fixed-scroll" -> playing,
-              "no-rating" -> (!pref.showRatings || (playing && pref.hideRatingsInGame)),
-              "no-flair" -> !pref.flairs,
-              "zen" -> (zenable && (pref.isZen || (playing && pref.isZenAuto))),
-              "zenable" -> zenable,
-              "zen-auto" -> (zenable && pref.isZenAuto)
-            )
-          },
+          cls := List(
+            s"coords-${pref.coordsClass}" -> true,
+            "simple-board" -> pref.simpleBoard,
+            "piece-letter" -> pref.pieceNotationIsLetter,
+            "blind-mode" -> ctx.blind,
+            "kid" -> ctx.kid.yes,
+            "mobile" -> lila.common.HTTPRequest.isMobileBrowser(ctx.req),
+            "playing fixed-scroll" -> playing,
+            "no-rating" -> (!pref.showRatings || (playing && pref.hideRatingsInGame)),
+            "no-flair" -> !pref.flairs,
+            "zen" -> (zenable && (pref.isZen || (playing && pref.isZenAuto))),
+            "zenable" -> zenable,
+            "zen-auto" -> (zenable && pref.isZenAuto)
+          ),
           dataVapid := (ctx.isAuth && env.security.lilaCookie.isRememberMe(ctx.req))
             .option(env.push.vapidPublicKey),
           dataUser := ctx.userId,
@@ -168,7 +168,11 @@ object page:
               "is2d" -> pref.is2d,
               "is3d" -> pref.is3d
             )
-          )(p.transform(p.body)),
+          )(
+            p.transform(p.body)
+              .pipe: body =>
+                if hasAsks then views.askUi.renderEncodedFrag(body, p.askFrags) else body
+          ),
           bottomHtml,
           ctx.nonce.map(inlineJs(_, allModules)),
           modulesInit(allModules, ctx.nonce),

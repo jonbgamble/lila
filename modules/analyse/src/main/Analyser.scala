@@ -15,13 +15,15 @@ final class Analyser(
 
   export analysisRepo.{ byId, byGame as get }
 
-  def save(analysis: Analysis, workHash: => Array[Byte]): Funit = for
-    _ <- analysisRepo.save(analysis, analysis.studyId.isDefined.option(workHash))
+  def save(analysis: Analysis, workHash: Option[() => Array[Byte]] = none): Funit = for
+    _ <- analysisRepo.save(analysis, analysis.studyId.flatMap(_ => workHash.map(_())))
     _ <- analysis.id.gameId.so: id =>
       gameRepo.game(id).flatMapz { prev =>
         val game = prev.focus(_.metadata.analysed).replace(true)
         for _ <- gameRepo.setAnalysed(game.id, true)
-        yield Bus.pub(actorApi.AnalysisReady(game, analysis))
+        yield
+          Bus.pub(lila.core.game.GameAnalysed(game))
+          Bus.pub(actorApi.AnalysisReady(game, analysis))
       }
     _ <- sendAnalysisProgress(analysis, complete = true)
   yield ()
@@ -29,7 +31,7 @@ final class Analyser(
   def progress(analysis: Analysis): Funit = sendAnalysisProgress(analysis, complete = false)
 
   def foundSameHash(forId: Analysis.Id, same: Analysis, workHash: Array[Byte]): Funit =
-    save(same.copy(id = forId), workHash)
+    save(same.copy(id = forId), (() => workHash).some)
 
   private def sendAnalysisProgress(analysis: Analysis, complete: Boolean): Funit =
     analysis.id match

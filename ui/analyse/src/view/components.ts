@@ -1,7 +1,7 @@
 import { parseFen } from 'chessops/fen';
 import { h } from 'snabbdom';
 
-import { defined } from 'lib';
+import { defined, frag } from 'lib';
 import { renderEval as normalizeEval } from 'lib/ceval';
 import { dispatchChessgroundResize } from 'lib/chessgroundResize';
 import { isMobile } from 'lib/device';
@@ -99,6 +99,7 @@ export function renderMain(
           forceInnerCoords(ctrl, needsInnerCoords);
           if (!relay && !!playerBars !== document.body.classList.contains('header-margin'))
             $('body').toggleClass('header-margin', !!playerBars);
+          insertPresentationModeControls(ctrl);
         },
         update(_, _2) {
           forceInnerCoords(ctrl, needsInnerCoords);
@@ -118,6 +119,7 @@ export function renderMain(
         'analyse-hunter': ctrl.opts.hunter,
         'analyse--wiki': !!ctrl.wiki && !ctrl.study,
         'relay-in-variation': !!ctrl.study?.isRelayAndInVariation(),
+        'presentation-mode': ctrl.presentationMode(),
       },
     },
     kids,
@@ -355,4 +357,24 @@ function renderPlayerStrips(ctrl: AnalyseCtrl): [VNode, VNode] | undefined {
     renderPlayerStrip('top', materialDiffs[0], clocks?.[whitePov ? 1 : 0]),
     renderPlayerStrip('bottom', materialDiffs[1], clocks?.[whitePov ? 0 : 1]),
   ];
+}
+
+function insertPresentationModeControls(ctrl: AnalyseCtrl) {
+  const controlsEl = frag<HTMLElement>($html`
+    <span class="presentation-controls">
+      <button class="button button-empty exit-presentation-mode" data-icon="${licon.Back}">
+    </span>
+  `);
+  controlsEl.querySelector<HTMLElement>('.exit-presentation-mode')?.addEventListener('click', () => {
+    ctrl.presentationMode(false);
+    if ('exitFullscreen' in document) document.exitFullscreen().catch(() => {});
+  });
+  if ('fullscreenEnabled' in document && document.fullscreenEnabled) {
+    const screencastButton = frag<HTMLButtonElement>(
+      `<button class="button button-empty screencast-mode" data-icon="${licon.Expand}">`,
+    );
+    screencastButton.onclick = () => document.body.requestFullscreen().catch(() => {});
+    controlsEl.append(screencastButton);
+  }
+  document.querySelector('header')?.before(controlsEl);
 }
