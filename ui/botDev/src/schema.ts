@@ -291,7 +291,7 @@ const moveDecay: [string, FilterSpec] = [
 
 export const schema: () => Schema = memoize(() => {
   const withFilters = structuredClone(base);
-  const filterEntries = [...Bot.filterEntries(), moveDecay]; // moveDecay is applied last so it appears last
+  const filterEntries = [...Bot.registeredFilters(), moveDecay]; // moveDecay is applied last so it appears last
   Object.defineProperties(
     withFilters.bot_filters,
     Object.fromEntries(

@@ -28,7 +28,24 @@ import type {
 export type * from './types';
 
 export class Bot implements BotInfo, MoveSource {
-  private static filterRegistry: Map<string, FilterSpec>;
+  static rating(bot: BotInfo | undefined, speed: LocalSpeed): number {
+    return bot?.ratings?.[speed] ?? bot?.ratings?.classical ?? 1500;
+  }
+  static isValid(maybeBot: any): boolean {
+    return Boolean(maybeBot?.zero || maybeBot?.fish);
+  }
+  static registerFilter(name: string, spec: FilterSpec): void {
+    Bot.filterRegistry.set(name, spec);
+  }
+  static registeredFilters(): [string, FilterSpec][] {
+    return [...Bot.filterRegistry.entries()];
+  }
+  private static get filterRegistry(): Map<string, FilterSpec> {
+    Bot.filterMap ??= new Map();
+    return Bot.filterMap;
+  }
+  private static filterMap: Map<string, FilterSpec>;
+
   private openings: Promise<OpeningBook[]>;
   private stats: { cplMoves: number; cpl: number };
   private traces: string[];
@@ -48,22 +65,6 @@ export class Bot implements BotInfo, MoveSource {
   filters?: Filters;
   zero?: ZeroSearch;
   fish?: FishSearch;
-
-  static rating(bot: BotInfo | undefined, speed: LocalSpeed): number {
-    return bot?.ratings?.[speed] ?? bot?.ratings?.classical ?? 1500;
-  }
-
-  static isValid(maybeBot: any): boolean {
-    return Boolean(maybeBot?.zero || maybeBot?.fish);
-  }
-
-  static registerFilter(name: string, spec: FilterSpec): void {
-    Bot.registry.set(name, spec);
-  }
-
-  static filterEntries(): [string, FilterSpec][] {
-    return [...Bot.registry.entries()];
-  }
 
   constructor(info: BotInfo, ctrl: BotLoader) {
     Object.assign(this, structuredClone(info));
@@ -146,11 +147,6 @@ export class Bot implements BotInfo, MoveSource {
       }
     }
     return 1;
-  }
-
-  private static get registry(): Map<string, FilterSpec> {
-    Bot.filterRegistry ??= new Map();
-    return Bot.filterRegistry;
   }
 
   private hasFilter(op: FilterType): boolean {
@@ -306,9 +302,9 @@ export class Bot implements BotInfo, MoveSource {
       (f): f is FilterType => !['cplTarget', 'cplStdev', 'lc0bias', 'moveDecay'].includes(f),
     );
     for (const key of filterKeys) {
-      const spec = Bot.registry.get(key);
+      const spec = Bot.filterRegistry.get(key);
       if (!spec) {
-        console.error(`is ${key} a filter?`, stringify(Bot.registry));
+        console.error(`is ${key} a filter?`, stringify(Bot.filterRegistry));
         continue;
       }
       spec.score?.(sorted, args, this.applyFilter(key, args) ?? 0);
