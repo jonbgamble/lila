@@ -312,6 +312,7 @@ export class Bot implements BotInfo, MoveSource {
         continue;
       }
       spec.score?.(sorted, args, this.applyFilter(key, args) ?? 0);
+      console.log(args.chess.turn, 'how?');
       this.trace(`[scoreByFilters] - ${spec.info.label ?? key} scored = ${stringify(sorted)}`);
     }
   }

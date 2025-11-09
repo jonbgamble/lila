@@ -29,7 +29,7 @@ function score(moves: SearchMove[], args: MoveArgs, limiter: number): void {
   for (const mv of moves) {
     const chess = args.chess.clone();
     chess.play(normalMove(chess, mv.uci)!.move);
-    const score = pawnStructure(chess);
+    const score = pawnStructure(chess, args.chess.turn);
     mv.weights.pawnStructure = clamp(score * limiter, { min: 0, max: 1 });
   }
   const grouped = moves.reduce((groups, mv) => {
@@ -48,35 +48,33 @@ function score(moves: SearchMove[], args: MoveArgs, limiter: number): void {
 
 // michael's python algorithm: https://hq.lichess.ovh/#narrow/channel/8-dev/topic/Fancy.20Bots/near/3803327
 
-function pawnStructure(b: co.Position): number {
-  const color: Color = co.opposite(b.turn);
-  const pawns: co.SquareSet = b.board.pieces(color, 'pawn');
-  const fc: Record<number, number> = {};
+function pawnStructure(b: co.Position, color: Color): number {
+  const pawnSquares: co.SquareSet = b.board.pieces(color, 'pawn');
+  const pawnsOnFile = Array<number>(8).fill(0);
   const pos: [number, number][] = [];
   let score = 0;
 
   // Advancement score
-  for (const sq of pawns) {
-    const f = co.squareFile(sq),
-      r = co.squareRank(sq);
-    fc[f] = (fc[f] ?? 0) + 1;
-    pos.push([f, r]);
-    score += (color === 'white' ? r : 7 - r) / 7.0;
+  for (const sq of pawnSquares) {
+    const [file, rank] = [co.squareFile(sq), co.squareRank(sq)];
+    pawnsOnFile[file]++;
+    pos.push([file, rank]);
+    score += (color === 'white' ? rank : 7 - rank) / 7.0;
   }
   // Penalize doubled pawns
-  for (const c of Object.values(fc)) if (c > 1) score -= 0.75 * (c - 1);
+  for (const pawns of pawnsOnFile) if (pawns > 1) score -= 0.75 * (pawns - 1);
 
   // Reward tightly connected pawns (within 1 square including diagonally)
-  let conn = 0;
   for (let i = 0; i < pos.length; i++) {
-    const [fx, fy] = pos[i];
+    const [iFile, iRank] = pos[i];
     for (let j = i + 1; j < pos.length; j++) {
-      const [sx, sy] = pos[j];
-      if (Math.abs(fx - sx) === 1 && Math.abs(fy - sy) <= 1) conn++;
+      const [jFile, jRank] = pos[j];
+
+      if (Math.abs(iFile - jFile) === 1 && Math.abs(iRank - jRank) < 2) {
+        // same rank 0.5, supporting diagonal 0.75. because we want to march them
+        score += iRank === jRank ? 0.5 : 0.75;
+      }
     }
   }
-
-  score += 0.5 * conn;
-
   return Math.max(0, Math.min(1, (score + 2) / 12.5));
 }
