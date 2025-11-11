@@ -1,5 +1,5 @@
 import type { DrawShape } from '@lichess-org/chessground/draw';
-import { prop, defined, propWithEffect } from 'lib';
+import { prop, defined } from 'lib';
 import { debounce, throttle, throttlePromiseDelay } from 'lib/async';
 import type AnalyseCtrl from '../ctrl';
 import { StudyMemberCtrl } from './studyMembers';
@@ -122,9 +122,7 @@ export default class StudyCtrl {
     const sticked = data.features.sticky && !ctrl.initialPath && !isManualChapter && !practiceData;
     this.vm = {
       loading: false,
-      tab: propWithEffect<Tab>(!relayData && data.chapters?.[1] ? 'chapters' : 'members', tab => {
-        if (tab === 'chapters') this.vm.revealActiveChapter = true;
-      }),
+      tab: prop<Tab>(!relayData && data.chapters?.[1] ? 'chapters' : 'members'),
       toolTab: prop<ToolTab>(relayData ? 'multiBoard' : 'tags'),
       chapterId: sticked ? data.position.chapterId : data.chapter.id,
       // path is at ctrl.path
@@ -137,7 +135,7 @@ export default class StudyCtrl {
       // how stale is the study
       updatedAt: Date.now() - data.secondsSinceUpdate * 1000,
       gamebookOverride: undefined,
-      revealActiveChapter: false,
+      scrollToActiveChapter: 'instant',
     };
 
     this.members = new StudyMemberCtrl({
@@ -265,6 +263,7 @@ export default class StudyCtrl {
   };
 
   setTab = (tab: Tab) => {
+    if (tab === 'chapters') this.vm.scrollToActiveChapter = 'instant';
     this.vm.tab(tab);
     this.redraw();
   };
@@ -484,6 +483,7 @@ export default class StudyCtrl {
       this.redraw();
       return true;
     }
+    this.vm.scrollToActiveChapter = 'smooth';
     this.vm.nextChapterId = id;
     this.vm.justSetChapterId = id;
     if (this.vm.mode.sticky && this.makeChange('setChapter', id)) {
