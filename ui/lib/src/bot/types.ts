@@ -1,9 +1,8 @@
 import type { Position } from '@lichess-org/zerofish';
 import type { Chess } from 'chessops';
-import type { Filter, FilterType, FilterFacet, FilterInfo, Filters, Point } from './filter';
-import type { BotLoader } from './botLoader';
+import type { Filters } from './filter';
 
-export type { Filter, FilterType, FilterFacet, FilterInfo, Filters, Point, BotLoader };
+//export type { Filter, FilterName, FilterFacetKey, FilterInfo, Filters, BotLoader };
 
 export type Sound = { key: string; chance: number; delay: Seconds; mix: number };
 export type SoundEvents = { [key in SoundEvent]?: Sound[] };
@@ -14,8 +13,6 @@ export type LocalSpeed = Exclude<Speed, 'correspondence'>;
 export type Ratings = { [speed in LocalSpeed]?: number };
 export type AssetType = 'image' | 'book' | 'sound' | 'net';
 export type BotUid = string;
-export type FilterScoreFunction = (moves: SearchMove[], args: MoveArgs, limiter: number) => void;
-export type FilterSpec = { info: FilterInfo; score?: FilterScoreFunction };
 
 export interface BotInfo {
   readonly uid: BotUid;
@@ -39,17 +36,17 @@ export interface MoveSource {
 export interface MoveArgs {
   pos: Position;
   chess: Chess;
-  ply: number; // can exceed moves.length depending on setupFen
-  avoid: Uci[];
+  ply: number; // this is metainfo, not an index. it can exceed moves.length if initial fen isn't default
+  avoid: Uci[]; // moves that would 3fold
   initial: Seconds;
   increment: Seconds;
   remaining: Seconds;
   opponentRemaining: Seconds;
-  movetime?: Seconds;
+  movetime?: Seconds; // recommended movetime based on bot rating and time control
 }
 
 export interface MoveResult {
-  uci: string;
+  uci: Uci;
   movetime: Seconds;
 }
 

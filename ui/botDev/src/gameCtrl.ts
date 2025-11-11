@@ -131,12 +131,12 @@ export class GameCtrl {
     this.playSounds(moveCtx);
     env.round.apiMove(moveCtx);
 
-    if (moveCtx.move?.promotion)
+    if (moveCtx.move && 'promotion' in moveCtx.move)
       env.round.chessground?.setPieces(
         new Map([
           [
             uci.slice(2, 4) as Key,
-            { color: this.live.awaiting, role: moveCtx.move.promotion, promoted: true },
+            { color: this.live.awaiting, role: moveCtx.move.promotion!, promoted: true },
           ],
         ]),
       );

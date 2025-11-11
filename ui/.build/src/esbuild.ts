@@ -26,6 +26,7 @@ export async function esbuild(): Promise<any> {
     entryNames: '[name].[hash]',
     chunkNames: 'lib.[hash]',
     conditions: ['source'],
+    loader: { '.raw.js': 'text' },
     plugins,
   };
 

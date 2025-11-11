@@ -1,8 +1,8 @@
 import * as co from 'chessops';
 import { zip } from '../algo';
-import { clockToSpeed } from '@/game';
-import type { FilterValue } from './filter';
-import { quantizeFilter, evaluateFilter, filterFacets, combine } from './filter';
+import { clockToSpeed, normalMove } from '@/game';
+import type { FilterFacetValue, FilterSpec, FilterName, Filters } from './filter';
+import { quantizeFilter, evaluateFilter, filterFacetKeys, combine } from './filter';
 import type { SearchResult } from '@lichess-org/zerofish';
 import type { OpeningBook } from '../game/polyglot';
 import { movetime as getMovetime } from './movetime';
@@ -11,9 +11,6 @@ import type {
   BotInfo,
   FishSearch,
   ZeroSearch,
-  Filters,
-  FilterType,
-  FilterSpec,
   Book,
   MoveSource,
   MoveArgs,
@@ -28,6 +25,7 @@ import type {
 export type * from './types';
 
 export class Bot implements BotInfo, MoveSource {
+  private static filterRegistryMap: Map<string, FilterSpec>;
   static rating(bot: BotInfo | undefined, speed: LocalSpeed): number {
     return bot?.ratings?.[speed] ?? bot?.ratings?.classical ?? 1500;
   }
@@ -35,22 +33,15 @@ export class Bot implements BotInfo, MoveSource {
     return Boolean(maybeBot?.zero || maybeBot?.fish);
   }
   static registerFilter(name: string, spec: FilterSpec): void {
-    Bot.filterRegistry.set(name, spec);
+    Bot.filterRegistry.set(name, spec); // TODO move this
   }
   static registeredFilters(): [string, FilterSpec][] {
-    return [...Bot.filterRegistry.entries()];
+    return [...Bot.filterRegistry.entries()]; // TODO move this
   }
   private static get filterRegistry(): Map<string, FilterSpec> {
-    Bot.filterMap ??= new Map();
-    return Bot.filterMap;
+    Bot.filterRegistryMap ??= new Map(); // TODO move this
+    return Bot.filterRegistryMap;
   }
-  private static filterMap: Map<string, FilterSpec>;
-
-  private openings: Promise<OpeningBook[]>;
-  private stats: { cplMoves: number; cpl: number };
-  private traces: string[];
-  private cp: number;
-  private ctrl: BotLoader;
 
   readonly uid: string;
   readonly version: number = 0;
@@ -65,6 +56,12 @@ export class Bot implements BotInfo, MoveSource {
   filters?: Filters;
   zero?: ZeroSearch;
   fish?: FishSearch;
+
+  private openings: Promise<OpeningBook[]>;
+  private stats: { cplMoves: number; cpl: number };
+  private traces: string[];
+  private cp: number;
+  private ctrl: BotLoader;
 
   constructor(info: BotInfo, ctrl: BotLoader) {
     Object.assign(this, structuredClone(info));
@@ -88,10 +85,6 @@ export class Bot implements BotInfo, MoveSource {
 
   get statsText(): string {
     return this.stats.cplMoves ? `acpl ${Math.round(this.stats.cpl / this.stats.cplMoves)}` : '';
-  }
-
-  get needsScore(): boolean {
-    return Object.values(this.filters ?? {}).some(o => o.score?.length);
   }
 
   async move(args: MoveArgs): Promise<MoveResult> {
@@ -122,7 +115,7 @@ export class Bot implements BotInfo, MoveSource {
     ]);
     this.cp = fishResults.lines[fishResults.lines.length - 1][0].score;
 
-    const { uci, cpl, movetime } = this.chooseMove(fishResults, fish?.depth ?? 0, zeroResults, args);
+    const { uci, cpl, movetime } = await this.chooseMove(fishResults, fish?.depth ?? 0, zeroResults, args);
     if (cpl !== undefined && cpl < 1000) {
       this.stats.cplMoves++; // debug stats
       this.stats.cpl += cpl;
@@ -149,16 +142,16 @@ export class Bot implements BotInfo, MoveSource {
     return 1;
   }
 
-  private hasFilter(op: FilterType): boolean {
+  private hasFilter(op: FilterName): boolean {
     const f = this.filters?.[op];
     return Boolean(f && (f.move?.length || f.score?.length || f.time?.length));
   }
 
-  private applyFilter(op: FilterType, { chess, movetime }: MoveArgs): number | undefined {
+  private facetWeight(op: FilterName, { chess, movetime }: MoveArgs): number | undefined {
     if (!this.hasFilter(op)) return undefined;
     const f = this.filters![op];
-    const x: FilterValue = Object.fromEntries(
-      filterFacets
+    const x: FilterFacetValue = Object.fromEntries(
+      filterFacetKeys
         .filter(k => f[k])
         .map(k => {
           if (k === 'move') return [k, chess.fullmoves];
@@ -205,20 +198,21 @@ export class Bot implements BotInfo, MoveSource {
     return undefined;
   }
 
-  private chooseMove(
+  private async chooseMove(
     fishResults: SearchResult,
     fishDepth: number,
     zeroResults: SearchResult | undefined,
     args: MoveArgs,
-  ): { uci: Uci; cpl?: number; movetime: number } {
+  ): Promise<{ uci: Uci; cpl?: number; movetime: number }> {
     const moves = this.parseMoves(fishResults, fishDepth, zeroResults, args);
     const movetime = args.movetime ?? 0;
 
     this.trace(`[chooseMove] - parsed = ${stringify(moves)}`);
 
-    this.scoreByFilters(moves, args);
+    await this.scoreByFilters(moves, args);
 
     moves.sort(weightSort);
+
     if (args.pos.moves?.length) {
       const last = args.pos.moves[args.pos.moves.length - 1].slice(2, 4);
       // if the current favorite is a capture of the opponent's last moved piece,
@@ -231,7 +225,7 @@ export class Bot implements BotInfo, MoveSource {
     const filtered = moves.filter(mv => !args.avoid.includes(mv.uci));
     this.trace(`[chooseMove] - sorted & filtered = ${stringify(filtered)}`);
     const decayed =
-      this.scoreByMoveQualityDecay(filtered, this.applyFilter('moveDecay', args) ?? 0) ??
+      this.scoreByMoveQualityDecay(filtered, this.facetWeight('moveDecay', args) ?? 0) ??
       filtered[0] ??
       moves[0];
     return { ...decayed, movetime };
@@ -251,7 +245,7 @@ export class Bot implements BotInfo, MoveSource {
       return [{ uci: '0000', weights: {} }];
     }
     const parsed: SearchMove[] = [];
-    const lc0bias = this.applyFilter('lc0bias', args) ?? 0;
+    const lc0bias = this.facetWeight('lc0bias', args) ?? 0;
     const cp = fishDepth ? fish.lines[fishDepth - 1][0].score : this.cp;
     this.trace(`[parseMoves] - cp = ${cp.toFixed(2)}, lc0bias = ${lc0bias.toFixed(2)}`);
     if (fishDepth)
@@ -277,15 +271,15 @@ export class Bot implements BotInfo, MoveSource {
     return parsed;
   }
 
-  private scoreByCpl(sorted: SearchMove[], args: MoveArgs) {
+  private scoreByCpl(moves: SearchMove[], args: MoveArgs) {
     if (!this.filters?.cplTarget) return;
-    const mean = this.applyFilter('cplTarget', args)!;
-    const stdev = this.applyFilter('cplStdev', args) ?? 80;
+    const mean = this.facetWeight('cplTarget', args)!;
+    const stdev = this.facetWeight('cplStdev', args) ?? 80;
     const cplTarget = Math.abs(mean + stdev * getNormal());
     // folding the normal at zero skews the distribution mean a bit further from the target
     const gain = 0.06;
     const threshold = 80; // something like clamp(stdev, { min: 50, max: 100 }) here?
-    for (const mv of sorted) {
+    for (const mv of moves) {
       if (mv.cpl === undefined) continue;
       const distance = Math.abs((mv.cpl ?? 0) - cplTarget);
       // cram cpl into [0, 1] with sigmoid
@@ -293,23 +287,30 @@ export class Bot implements BotInfo, MoveSource {
     }
   }
 
-  private scoreByFilters(sorted: SearchMove[], args: MoveArgs) {
+  private async scoreByFilters(moves: SearchMove[], args: MoveArgs): Promise<void> {
     if (this.hasFilter('cplTarget')) {
-      this.scoreByCpl(sorted, args);
-      this.trace(`[chooseMove] - cpl scored = ${stringify(sorted)}`);
+      this.scoreByCpl(moves, args);
+      this.trace(`[chooseMove] - cpl scored = ${stringify(moves)}`);
     }
-    const filterKeys = Object.keys(this.filters ?? {}).filter(
-      (f): f is FilterType => !['cplTarget', 'cplStdev', 'lc0bias', 'moveDecay'].includes(f),
+    const customFilterKeys = Object.keys(this.filters ?? {}).filter(
+      key => this.hasFilter(key) && !['cplTarget', 'cplStdev', 'lc0bias', 'moveDecay'].includes(key),
     );
-    for (const key of filterKeys) {
-      const spec = Bot.filterRegistry.get(key);
-      if (!spec) {
-        console.error(`is ${key} a filter?`, stringify(Bot.filterRegistry));
-        continue;
+    for (const key of customFilterKeys) {
+      const { info, score } = Bot.filterRegistry.get(key) ?? {};
+      if (!info || !score) {
+        throw new Error(`undefined filter: ${key}, registry: ${stringify(Bot.filterRegistry)}`);
       }
-      spec.score?.(sorted, args, this.applyFilter(key, args) ?? 0);
-      console.log(args.chess.turn, 'how?');
-      this.trace(`[scoreByFilters] - ${spec.info.label ?? key} scored = ${stringify(sorted)}`);
+      const filterResult = await score(moves, args, this.facetWeight(key, args)!);
+      for (const [uci, result] of Object.entries(filterResult)) {
+        const existing = moves.find(mv => mv.uci === uci);
+        if (existing) existing.weights[key] = result.weight;
+        else if (normalMove(args.chess, uci)) moves.unshift({ uci, ...result });
+        else
+          this.trace(
+            `[scoreByFilters] - ${info.label ?? key} IGNORED: uci '${uci}' result '${stringify(result)}'`,
+          );
+      }
+      this.trace(`[scoreByFilters] - ${info.label ?? key} scored = ${stringify(moves)}`);
     }
   }
 

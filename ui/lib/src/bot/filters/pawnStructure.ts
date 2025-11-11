@@ -1,49 +1,46 @@
 import * as co from 'chessops';
-import type { SearchMove, MoveArgs, FilterInfo } from '../types';
+import type { SearchMove, MoveArgs } from '../types';
+import type { FilterResult } from '../filter';
 import { Bot } from '../bot';
 import { clamp } from '@/algo';
 import { normalMove } from '@/game';
 
-const info: FilterInfo = {
-  label: 'pawn structure',
-  type: 'filter',
-  class: ['filter'],
-  value: { range: { min: 0, max: 1 }, by: 'avg' },
-  requires: {
-    some: [
-      'behavior_fish_multipv > 1',
-      'behavior_zero_multipv > 1',
-      { every: ['behavior_zero', 'behavior_fish'] },
-    ],
-  },
-  title: $trim`
+Bot.registerFilter('pawnStructure', {
+  score,
+  info: {
+    label: 'pawn structure',
+    type: 'filter',
+    class: ['filter'],
+    value: { range: { min: 0, max: 1 }, by: 'avg' },
+    requires: {
+      some: [
+        'behavior_fish_multipv > 1',
+        'behavior_zero_multipv > 1',
+        { every: ['behavior_zero', 'behavior_fish'] },
+      ],
+    },
+    title: $trim`
     pawn structure assigns weights up to the graph value for pawns that support each other, control the center,
     and are not doubled or isolated.
     
     This filter assigns a weight between 0 and 1.`,
-};
+  },
+});
 
-Bot.registerFilter('pawnStructure', { info, score });
-
-function score(moves: SearchMove[], args: MoveArgs, limiter: number): void {
-  for (const mv of moves) {
+function score(moves: SearchMove[], args: MoveArgs, limiter: number): Promise<FilterResult> {
+  const rawScores: { [uci: Uci]: number } = {};
+  for (const { uci } of moves) {
     const chess = args.chess.clone();
-    chess.play(normalMove(chess, mv.uci)!.move);
-    const score = pawnStructure(chess, args.chess.turn);
-    mv.weights.pawnStructure = clamp(score * limiter, { min: 0, max: 1 });
+    chess.play(normalMove(chess, uci)!.move);
+    rawScores[uci] = pawnStructure(chess, args.chess.turn);
   }
-  const grouped = moves.reduce((groups, mv) => {
-    const group = groups.get(mv.weights.pawnStructure!) ?? [];
-    group.push(mv);
-    groups.set(mv.weights.pawnStructure!, group);
-    return groups;
-  }, new Map<number, SearchMove[]>());
-  const vals = [...grouped.keys()].sort((a, b) => b - a);
-  vals.forEach((val, i) => {
-    for (const mv of grouped.get(val)!) {
-      mv.weights.pawnStructure = (vals.length - i) / vals.length;
-    }
-  });
+  const distinct = Array.from(new Set<number>(Object.values<number>(rawScores))).sort((a, b) => a - b);
+  const stepped = new Map<number, number>(distinct.map((raw, i) => [raw, (i + 1) / distinct.length]));
+  const result: FilterResult = {};
+  for (const { uci } of moves) {
+    result[uci] = { weight: Math.round(stepped.get(rawScores[uci])! * limiter * 100) / 100 };
+  }
+  return Promise.resolve(result);
 }
 
 // michael's python algorithm: https://hq.lichess.ovh/#narrow/channel/8-dev/topic/Fancy.20Bots/near/3803327
@@ -76,5 +73,5 @@ function pawnStructure(b: co.Position, color: Color): number {
       }
     }
   }
-  return Math.max(0, Math.min(1, (score + 2) / 12.5));
+  return clamp((score + 2) / 12.5, { min: 0, max: 1 });
 }

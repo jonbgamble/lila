@@ -20,7 +20,7 @@ export interface GameContext extends GameStatus {
   uci: Uci;
   san: San;
   turn: Color;
-  move?: co.NormalMove;
+  move?: co.Move;
   fen: string;
   ply: number;
   dests: { [from: string]: string };

@@ -3,7 +3,7 @@
 import { uciChar } from './uciChar';
 import { shuffle } from '../algo';
 import { normalizeMove } from 'chessops/chess';
-import { type Chess, type NormalMove, parseUci, makeUci } from 'chessops';
+import { type Chess, type Move, parseUci, makeUci } from 'chessops';
 
 export const fixCrazySan = (san: San): San => (san[0] === 'P' ? san.slice(1) : san);
 
@@ -52,10 +52,9 @@ export function fen960(): string {
   return `${board.join('')}/pppppppp/8/8/8/8/PPPPPPPP/${board.join('').toUpperCase()}`;
 }
 
-export function normalMove(chess: Chess, uci: Uci): { uci: Uci; move: NormalMove } | undefined {
+export function normalMove(chess: Chess, uci: Uci): { uci: Uci; move: Move } | undefined {
   const bareMove = parseUci(uci);
-  const move =
-    bareMove && 'from' in bareMove ? { ...bareMove, ...normalizeMove(chess, bareMove) } : undefined;
+  const move = bareMove && 'from' in bareMove ? { ...bareMove, ...normalizeMove(chess, bareMove) } : bareMove;
   return move && chess.isLegal(move) ? { uci: makeUci(move), move } : undefined;
 }
 

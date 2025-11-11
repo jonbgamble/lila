@@ -1,5 +1,6 @@
 import * as co from 'chessops';
 import type { SearchMove, MoveArgs } from '../types';
+import type { FilterResult } from '../filter';
 import { Bot } from '../bot';
 import { normalMove } from '@/game';
 
@@ -17,18 +18,20 @@ Bot.registerFilter('aggression', {
       ],
     },
     title: $trim`
-    aggression assigns weights to moves that remove opponent material from the board.
+      aggression assigns weights to moves that remove opponent material from the board.
 
-    a value of 1 will increase the likelihood of captures, 0 is neutral, and -1 will avoid
-    captures.
-    
-    this one should be combined with other filters.`,
+      a value of 1 will increase the likelihood of captures, 0 is neutral, and -1 will avoid
+      captures.
+      
+      this one should be combined with other filters.`,
   },
-  score: (moves: SearchMove[], args: MoveArgs, limiter: number): void => {
-    for (const mv of moves) {
+  score: (moves: SearchMove[], args: MoveArgs, limiter: number): Promise<FilterResult> => {
+    const result: FilterResult = {};
+    for (const { uci } of moves) {
       const chess = args.chess.clone();
-      const normal = normalMove(chess, mv.uci)!.move;
-      mv.weights.aggressionBias = co.san.makeSan(chess, normal).includes('x') ? limiter : 0;
+      const normal = normalMove(chess, uci)!.move;
+      result[uci] = co.san.makeSan(chess, normal).includes('x') ? limiter : 0;
     }
+    return Promise.resolve(result);
   },
 });

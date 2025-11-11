@@ -1,6 +1,7 @@
 import type { Schema, InfoKey, PropertyValue } from './devTypes';
 import { memoize } from 'lib';
-import { type FilterSpec, Bot } from 'lib/bot/bot';
+import { Bot } from 'lib/bot/bot';
+import type { FilterSpec } from 'lib/bot/filter';
 import { deepFreeze } from 'lib/algo';
 
 // describe dialog content, define constraints, maps to Bot instance data
@@ -251,7 +252,7 @@ const base: Schema = {
   },
 };
 
-const moveDecay: [string, FilterSpec] = [
+const appendix: [string, Omit<FilterSpec, 'score'>] = [
   'moveDecay',
   {
     info: {
@@ -291,7 +292,7 @@ const moveDecay: [string, FilterSpec] = [
 
 export const schema: () => Schema = memoize(() => {
   const withFilters = structuredClone(base);
-  const filterEntries = [...Bot.registeredFilters(), moveDecay]; // moveDecay is applied last so it appears last
+  const filterEntries = [...Bot.registeredFilters(), appendix]; // moveDecay is applied last so it appears last
   Object.defineProperties(
     withFilters.bot_filters,
     Object.fromEntries(
