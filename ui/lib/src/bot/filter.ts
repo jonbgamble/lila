@@ -7,13 +7,9 @@ export type FilterBy = 'max' | 'min' | 'avg';
 export type FilterFacetValue = { [key in FilterFacetKey]?: number };
 export type FilterName = 'cplTarget' | 'cplStdev' | 'lc0bias' | 'moveDecay' | string;
 export type Filters = Record<string, Filter>;
-export type FilterResult<T = any> = Record<Uci, { weight: number } & T>;
-export type FilterFunction<T> = (
-  moves: SearchMove[],
-  args: MoveArgs,
-  limiter: number,
-) => Promise<FilterResult<T>>;
-export type FilterSpec<T = any> = { info: FilterInfo; score: FilterFunction<T>; terminate?: () => void };
+export type FilterResult = Record<Uci, number>;
+export type FilterFunction = (moves: SearchMove[], args: MoveArgs, limiter: number) => Promise<FilterResult>;
+export type FilterSpec = { info: FilterInfo; score: FilterFunction; terminate?: () => void };
 export type Requirement = string | { every: Requirement[] } | { some: Requirement[] };
 
 export interface Filter {

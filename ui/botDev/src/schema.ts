@@ -252,7 +252,7 @@ const base: Schema = {
   },
 };
 
-const appendix: [string, Omit<FilterSpec, 'score'>] = [
+const lastFilters: [string, Omit<FilterSpec, 'score'>] = [
   'moveDecay',
   {
     info: {
@@ -292,7 +292,7 @@ const appendix: [string, Omit<FilterSpec, 'score'>] = [
 
 export const schema: () => Schema = memoize(() => {
   const withFilters = structuredClone(base);
-  const filterEntries = [...Bot.registeredFilters(), appendix]; // moveDecay is applied last so it appears last
+  const filterEntries = [...Bot.registeredFilters(), lastFilters]; // moveDecay is applied last so it appears last
   Object.defineProperties(
     withFilters.bot_filters,
     Object.fromEntries(

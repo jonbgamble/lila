@@ -131,7 +131,7 @@ export class GameCtrl {
     this.playSounds(moveCtx);
     env.round.apiMove(moveCtx);
 
-    if (moveCtx.move && 'promotion' in moveCtx.move)
+    if (moveCtx.move && 'promotion' in moveCtx.move && moveCtx.move.promotion)
       env.round.chessground?.setPieces(
         new Map([
           [

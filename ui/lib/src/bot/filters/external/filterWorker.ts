@@ -2,7 +2,7 @@ import type { SearchMove, MoveArgs } from '@/bot/types';
 import type { FilterResult, FilterSpec } from '@/bot/filter';
 import { frag } from '@/index';
 import iframeBootstrap from './iframeBootstrap.raw.js';
-import thirdPartyPrefix from './thirdPartyPrefix.raw.js';
+import sandboxPrefix from './sandboxPrefix.raw.js';
 
 //import { Bot } from '@/bot/bot';
 // third party filter:
@@ -20,34 +20,40 @@ const nonce =
   '';
 
 export async function makeFilterWorker(userJs: string): Promise<FilterSpec> {
-  const scriptText = `${thirdPartyPrefix}\n${userJs}`;
+  const iframeWorkerScript = `${sandboxPrefix}\n${userJs}`;
   const worker = await new Promise<PortWrapper>((resolve, reject) => {
     const iframe = frag<HTMLIFrameElement>('<iframe sandbox="allow-scripts" style="display:none">');
-    const bootstrap = `<!doctype html><meta charset="utf-8"><script nonce="${nonce}">${iframeBootstrap}<\/script>`;
+    const bootstrap = $trim`
+      <!doctype html>
+      <meta charset="utf-8">
+      <meta http-equiv="Content-Security-Policy" content="
+        default-src 'none';
+        connect-src 'none';
+        script-src 'nonce-${nonce}';
+        worker-src blob:
+      ">
+      <script nonce="${nonce}">${iframeBootstrap}<\/script>`;
 
     iframe.srcdoc = bootstrap;
     iframe.onload = () => {
-      const ch = new MessageChannel();
-      const portParent = ch.port1;
-      const portIframe = ch.port2;
+      const { port1: pagePort, port2: iframePort } = new MessageChannel();
 
-      const onPortMsg = (ev: MessageEvent<any>) => {
-        if (ev.data?.type === 'ready') {
-          console.log(ev.data.origin);
-          portParent.removeEventListener('message', onPortMsg);
-          const proxy = new PortWrapper(iframe, portParent);
+      const onMsgFromIframe = (ev: MessageEvent<any>) => {
+        if (ev.data.type === 'iframeWorkerIsReady') {
+          pagePort.removeEventListener('message', onMsgFromIframe);
+          const proxy = new PortWrapper(iframe, pagePort);
           resolve(proxy);
-        } else if (ev.data?.type === 'error') {
-          portParent.removeEventListener('message', onPortMsg);
+        } else if (ev.data.type === 'error') {
+          pagePort.removeEventListener('message', onMsgFromIframe);
           iframe.remove();
           reject(new Error(ev.data?.message || 'sandbox bootstrap error'));
         }
       };
-      portParent.addEventListener('message', onPortMsg);
-      portParent.start();
+      pagePort.addEventListener('message', onMsgFromIframe);
+      pagePort.start();
       if (iframe.contentWindow) {
-        iframe.contentWindow.postMessage({}, '*', [portIframe]); // { type: 'init' }, 'null' or '*' here?
-        portParent.postMessage({ type: 'boot', code: scriptText });
+        iframe.contentWindow.postMessage({}, '*', [iframePort]);
+        pagePort.postMessage({ type: 'boot', iframeWorkerScript });
       } else reject(new Error('no iframe.contentWindow'));
     };
 
@@ -56,13 +62,7 @@ export async function makeFilterWorker(userJs: string): Promise<FilterSpec> {
 
   return {
     score: async (moves: SearchMove[], args: MoveArgs, limiter: number): Promise<FilterResult> => {
-      const raw = await worker.score({ moves, args, limiter });
-
-      const result: FilterResult = {};
-      for (const [uci, { weight }] of Object.entries(raw)) {
-        result[uci] = typeof weight === 'number' ? { weight } : { weight: 0 };
-      }
-      return result;
+      return worker.score({ moves, args, limiter });
     },
     terminate: () => worker.terminate(),
     info: {

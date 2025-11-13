@@ -38,7 +38,7 @@ function score(moves: SearchMove[], args: MoveArgs, limiter: number): Promise<Fi
   const stepped = new Map<number, number>(distinct.map((raw, i) => [raw, (i + 1) / distinct.length]));
   const result: FilterResult = {};
   for (const { uci } of moves) {
-    result[uci] = { weight: Math.round(stepped.get(rawScores[uci])! * limiter * 100) / 100 };
+    result[uci] = Math.round(stepped.get(rawScores[uci])! * limiter * 100) / 100;
   }
   return Promise.resolve(result);
 }

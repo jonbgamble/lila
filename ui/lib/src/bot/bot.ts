@@ -33,6 +33,7 @@ export class Bot implements BotInfo, MoveSource {
     return Boolean(maybeBot?.zero || maybeBot?.fish);
   }
   static registerFilter(name: string, spec: FilterSpec): void {
+    console.log('registering', name);
     Bot.filterRegistry.set(name, spec); // TODO move this
   }
   static registeredFilters(): [string, FilterSpec][] {
@@ -210,8 +211,9 @@ export class Bot implements BotInfo, MoveSource {
     this.trace(`[chooseMove] - parsed = ${stringify(moves)}`);
 
     await this.scoreByFilters(moves, args);
-
+    console.log('before', moves.map(mv => `${mv.uci}=${mv.weights.example}`).join(','));
     moves.sort(weightSort);
+    console.log('after', moves.map(mv => `${mv.uci}=${mv.weights.example}`).join(','));
 
     if (args.pos.moves?.length) {
       const last = args.pos.moves[args.pos.moves.length - 1].slice(2, 4);
@@ -301,14 +303,20 @@ export class Bot implements BotInfo, MoveSource {
         throw new Error(`undefined filter: ${key}, registry: ${stringify(Bot.filterRegistry)}`);
       }
       const filterResult = await score(moves, args, this.facetWeight(key, args)!);
-      for (const [uci, result] of Object.entries(filterResult)) {
+      console.log('filterResult', filterResult);
+      for (const [uci, weight] of Object.entries(filterResult)) {
         const existing = moves.find(mv => mv.uci === uci);
-        if (existing) existing.weights[key] = result.weight;
-        else if (normalMove(args.chess, uci)) moves.unshift({ uci, ...result });
-        else
+        if (existing) {
+          existing.weights[key] = weight;
+        } else if (normalMove(args.chess, uci)) {
+          const weights: Record<string, number> = {};
+          weights[key] = weight;
+          moves.unshift({ uci, weights });
+        } else {
           this.trace(
-            `[scoreByFilters] - ${info.label ?? key} IGNORED: uci '${uci}' result '${stringify(result)}'`,
+            `[scoreByFilters] - ${info.label ?? key} IGNORED: uci '${uci}' weight '${stringify(weight)}'`,
           );
+        }
       }
       this.trace(`[scoreByFilters] - ${info.label ?? key} scored = ${stringify(moves)}`);
     }
