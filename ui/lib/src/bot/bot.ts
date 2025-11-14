@@ -1,11 +1,12 @@
 import * as co from 'chessops';
 import { zip } from '../algo';
 import { clockToSpeed, normalMove } from '@/game';
-import type { FilterFacetValue, FilterSpec, FilterName, Filters } from './filter';
+import type { FilterFacetValue, FilterName, FilterSpec, Filters } from './filter';
 import { quantizeFilter, evaluateFilter, filterFacetKeys, combine } from './filter';
 import type { SearchResult } from '@lichess-org/zerofish';
 import type { OpeningBook } from '../game/polyglot';
 import { movetime as getMovetime } from './movetime';
+import { filterRegistry } from './filters';
 import type { BotLoader } from './botLoader';
 import type {
   BotInfo,
@@ -25,23 +26,11 @@ import type {
 export type * from './types';
 
 export class Bot implements BotInfo, MoveSource {
-  private static filterRegistryMap: Map<string, FilterSpec>;
   static rating(bot: BotInfo | undefined, speed: LocalSpeed): number {
     return bot?.ratings?.[speed] ?? bot?.ratings?.classical ?? 1500;
   }
   static isValid(maybeBot: any): boolean {
     return Boolean(maybeBot?.zero || maybeBot?.fish);
-  }
-  static registerFilter(name: string, spec: FilterSpec): void {
-    console.log('registering', name);
-    Bot.filterRegistry.set(name, spec); // TODO move this
-  }
-  static registeredFilters(): [string, FilterSpec][] {
-    return [...Bot.filterRegistry.entries()]; // TODO move this
-  }
-  private static get filterRegistry(): Map<string, FilterSpec> {
-    Bot.filterRegistryMap ??= new Map(); // TODO move this
-    return Bot.filterRegistryMap;
   }
 
   readonly uid: string;
@@ -62,20 +51,21 @@ export class Bot implements BotInfo, MoveSource {
   private stats: { cplMoves: number; cpl: number };
   private traces: string[];
   private cp: number;
-  private ctrl: BotLoader;
+  private loader: BotLoader;
 
-  constructor(info: BotInfo, ctrl: BotLoader) {
+  constructor(info: BotInfo, loader: BotLoader) {
     Object.assign(this, structuredClone(info));
+
     if (this.filters) Object.values(this.filters).forEach(quantizeFilter);
 
     // keep these from being stored or cloned with the bot
     Object.defineProperties(this, {
+      loader: { value: loader },
       cp: { value: 0, writable: true },
       stats: { value: { cplMoves: 0, cpl: 0 } },
-      ctrl: { value: ctrl },
       traces: { value: [], writable: true },
       openings: {
-        get: () => Promise.all(this.books?.flatMap(b => ctrl.getBook(b.key)) ?? []),
+        get: () => Promise.all(this.books?.flatMap(b => loader.getBook(b.key)) ?? []),
       },
     });
   }
@@ -87,7 +77,15 @@ export class Bot implements BotInfo, MoveSource {
   get statsText(): string {
     return this.stats.cplMoves ? `acpl ${Math.round(this.stats.cpl / this.stats.cplMoves)}` : '';
   }
-
+  async filterSpecs(): Promise<Map<FilterName, FilterSpec>> {
+    const filterSpecs: Map<FilterName, FilterSpec> = new Map();
+    await Promise.all(
+      [...Object.keys(this.filters ?? {})]
+        ?.filter(f => this.asyncFilter(f))
+        .map(async k => filterSpecs.set(k, (await filterRegistry().getSpec(k))!)),
+    );
+    return filterSpecs;
+  }
   async move(args: MoveArgs): Promise<MoveResult> {
     const { pos, chess } = args;
     const { fish, zero } = this;
@@ -102,7 +100,7 @@ export class Bot implements BotInfo, MoveSource {
       ? {
           nodes: zero.nodes,
           multipv: Math.max(zero.multipv, args.avoid.length + 1), // avoid threefold
-          net: { key: this.name + '-' + zero.net, fetch: () => this.ctrl.getNet(zero.net) },
+          net: { key: this.name + '-' + zero.net, fetch: () => this.loader.getNet(zero.net) },
         }
       : undefined;
     if (zeroSearch) this.trace(`[move] - zero: ${stringify(zeroSearch)}`);
@@ -111,8 +109,8 @@ export class Bot implements BotInfo, MoveSource {
     if (fish) this.trace(`[move] - fish: ${stringify(fish)}`);
 
     const [fishResults, zeroResults] = await Promise.all([
-      this.ctrl.zerofish.goFish(pos, fishSearch),
-      zeroSearch && this.ctrl.zerofish.goZero(pos, zeroSearch),
+      this.loader.zerofish.goFish(pos, fishSearch),
+      zeroSearch && this.loader.zerofish.goZero(pos, zeroSearch),
     ]);
     this.cp = fishResults.lines[fishResults.lines.length - 1][0].score;
 
@@ -135,17 +133,12 @@ export class Bot implements BotInfo, MoveSource {
         // right now we play at most one sound per move, might want to revisit this.
         // also definitely need cancelation of the timeout
         site.sound
-          .load(key, this.ctrl.getSoundUrl(key))
+          .load(key, this.loader.getSoundUrl(key))
           .then(() => setTimeout(() => site.sound.play(key, Math.min(1, mix * 2)), delay * 1000));
         return Math.min(1, (1 - mix) * 2);
       }
     }
     return 1;
-  }
-
-  private hasFilter(op: FilterName): boolean {
-    const f = this.filters?.[op];
-    return Boolean(f && (f.move?.length || f.score?.length || f.time?.length));
   }
 
   private facetWeight(op: FilterName, { chess, movetime }: MoveArgs): number | undefined {
@@ -294,16 +287,12 @@ export class Bot implements BotInfo, MoveSource {
       this.scoreByCpl(moves, args);
       this.trace(`[chooseMove] - cpl scored = ${stringify(moves)}`);
     }
-    const customFilterKeys = Object.keys(this.filters ?? {}).filter(
-      key => this.hasFilter(key) && !['cplTarget', 'cplStdev', 'lc0bias', 'moveDecay'].includes(key),
-    );
-    for (const key of customFilterKeys) {
-      const { info, score } = Bot.filterRegistry.get(key) ?? {};
+    const filterSpecs = await this.filterSpecs();
+    for (const [key, { info, score }] of filterSpecs.entries()) {
       if (!info || !score) {
-        throw new Error(`undefined filter: ${key}, registry: ${stringify(Bot.filterRegistry)}`);
+        throw new Error(`undefined filter: ${key}`);
       }
       const filterResult = await score(moves, args, this.facetWeight(key, args)!);
-      console.log('filterResult', filterResult);
       for (const [uci, weight] of Object.entries(filterResult)) {
         const existing = moves.find(mv => mv.uci === uci);
         if (existing) {
@@ -329,6 +318,15 @@ export class Bot implements BotInfo, MoveSource {
 
     let variate = sorted.reduce((sum, mv, i) => (sum += mv.P = decay ** i), 0) * Math.random();
     return sorted.find(mv => (variate -= mv.P!) <= 0);
+  }
+
+  private hasFilter(key: FilterName): boolean {
+    const f = this.filters?.[key];
+    return Boolean(f && (f.move?.length || f.score?.length || f.time?.length));
+  }
+
+  private asyncFilter(key: FilterName): boolean {
+    return this.hasFilter(key) && !['cplTarget', 'cplStdev', 'lc0bias', 'moveDecay'].includes(key);
   }
 
   private trace(msg: string | string[]) {

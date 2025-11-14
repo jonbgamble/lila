@@ -1,11 +1,10 @@
 import * as co from 'chessops';
 import type { SearchMove, MoveArgs } from '../types';
-import type { FilterResult } from '../filter';
-import { Bot } from '../bot';
+import type { FilterResult, FilterSpec } from '../filter';
 import { clamp } from '@/algo';
 import { normalMove } from '@/game';
 
-Bot.registerFilter('pawnStructure', {
+export const pawnStructure: FilterSpec = {
   score,
   info: {
     label: 'pawn structure',
@@ -25,14 +24,14 @@ Bot.registerFilter('pawnStructure', {
     
     This filter assigns a weight between 0 and 1.`,
   },
-});
+};
 
 function score(moves: SearchMove[], args: MoveArgs, limiter: number): Promise<FilterResult> {
   const rawScores: { [uci: Uci]: number } = {};
   for (const { uci } of moves) {
     const chess = args.chess.clone();
     chess.play(normalMove(chess, uci)!.move);
-    rawScores[uci] = pawnStructure(chess, args.chess.turn);
+    rawScores[uci] = positionScore(chess, args.chess.turn);
   }
   const distinct = Array.from(new Set<number>(Object.values<number>(rawScores))).sort((a, b) => a - b);
   const stepped = new Map<number, number>(distinct.map((raw, i) => [raw, (i + 1) / distinct.length]));
@@ -45,7 +44,7 @@ function score(moves: SearchMove[], args: MoveArgs, limiter: number): Promise<Fi
 
 // michael's python algorithm: https://hq.lichess.ovh/#narrow/channel/8-dev/topic/Fancy.20Bots/near/3803327
 
-function pawnStructure(b: co.Position, color: Color): number {
+function positionScore(b: co.Position, color: Color): number {
   const pawnSquares: co.SquareSet = b.board.pieces(color, 'pawn');
   const pawnsOnFile = Array<number>(8).fill(0);
   const pos: [number, number][] = [];

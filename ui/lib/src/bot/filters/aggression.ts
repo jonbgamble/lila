@@ -1,10 +1,9 @@
 import * as co from 'chessops';
 import type { SearchMove, MoveArgs } from '../types';
-import type { FilterResult } from '../filter';
-import { Bot } from '../bot';
+import type { FilterResult, FilterSpec } from '../filter';
 import { normalMove } from '@/game';
 
-Bot.registerFilter('aggression', {
+export const aggression: FilterSpec = {
   info: {
     label: 'aggression',
     type: 'filter',
@@ -34,4 +33,4 @@ Bot.registerFilter('aggression', {
     }
     return Promise.resolve(result);
   },
-});
+};

@@ -1,8 +1,7 @@
 import type { Schema, InfoKey, PropertyValue } from './devTypes';
-import { memoize } from 'lib';
-import { Bot } from 'lib/bot/bot';
-import type { FilterSpec } from 'lib/bot/filter';
+import type { FilterName, FilterInfo } from 'lib/bot/filter';
 import { deepFreeze } from 'lib/algo';
+import { pubsub } from 'lib/pubsub';
 
 // describe dialog content, define constraints, maps to Bot instance data
 
@@ -252,57 +251,48 @@ const base: Schema = {
   },
 };
 
-const lastFilters: [string, Omit<FilterSpec, 'score'>] = [
-  'moveDecay',
-  {
-    info: {
-      label: 'move quality decay',
-      type: 'filter',
-      class: ['filter'],
-      value: { range: { min: 0, max: 1 }, by: 'max' },
-      requires: {
-        some: [
-          'behavior_fish_multipv > 1',
-          'behavior_zero_multipv > 1',
-          { every: ['behavior_zero', 'behavior_fish'] },
-        ],
-      },
-      title: $trim`
-        move quality decay is an optional final stage of move selection.
-
-        if any previous filter assigns weights, they are first used to sort moves in
-        descending order
-        of the weight sums. when move quality decay is off or zero,
-        the first move in that sort order is chosen. if move quality decay is non-zero,
-        each move's quality weight is equal to that decay raised to the power of the move's
-        sort order index (counting from zero). a random number between
-        0 and the sum of all quality weights will then select the final move.
-
-        for example, with a decay of 0.5, the first move has a 50% chance of being chosen,
-        the second move 25%, the third 12.5%, and so on. with a decay of 1, all moves
-        are equally likely (ultrabullet).
-        
-        move quality decay is engine independent and can be used to resolve between
-        scored stockfish and unscored lc0 moves.
-        it operates on the full list provided by both engines and pairs well
-        with the think time facet and a crisp chardonnay.`,
+const lastFilter: { [key: FilterName]: FilterInfo } = {
+  moveDecay: {
+    label: 'move quality decay',
+    type: 'filter',
+    class: ['filter'],
+    value: { range: { min: 0, max: 1 }, by: 'max' },
+    requires: {
+      some: [
+        'behavior_fish_multipv > 1',
+        'behavior_zero_multipv > 1',
+        { every: ['behavior_zero', 'behavior_fish'] },
+      ],
     },
-  },
-];
+    title: $trim`
+      move quality decay is an optional final stage of move selection.
 
-export const schema: () => Schema = memoize(() => {
-  const withFilters = structuredClone(base);
-  const filterEntries = [...Bot.registeredFilters(), lastFilters]; // moveDecay is applied last so it appears last
-  Object.defineProperties(
-    withFilters.bot_filters,
-    Object.fromEntries(
-      filterEntries.map(([key, { info }]) => [key, { enumerable: true, value: structuredClone(info) }]),
-    ),
-  );
-  return deepFreeze<Schema>(withFilters);
+      if any previous filter assigns weights, they are first used to sort moves in
+      descending order
+      of the weight sums. when move quality decay is off or zero,
+      the first move in that sort order is chosen. if move quality decay is non-zero,
+      each move's quality weight is equal to that decay raised to the power of the move's
+      sort order index (counting from zero). a random number between
+      0 and the sum of all quality weights will then select the final move.
+
+      for example, with a decay of 0.5, the first move has a 50% chance of being chosen,
+      the second move 25%, the third 12.5%, and so on. with a decay of 1, all moves
+      are equally likely (ultrabullet).
+      
+      move quality decay is engine independent and can be used to resolve between
+      scored stockfish and unscored lc0 moves.
+      it operates on the full list provided by both engines and pairs well
+      with the think time facet and a crisp chardonnay.`,
+  },
+};
+
+export let schema: Schema;
+
+pubsub.on('botdev.update.filters', (filters: { [key: FilterName]: FilterInfo }[]) => {
+  schema = deepFreeze<Schema>(Object.assign(structuredClone(base), { ...filters, lastFilter }));
 });
 
 export function getSchemaDefault(id: string): PropertyValue {
-  const setting = schema()[id] ?? id.split('_').reduce((obj, key) => obj[key], schema());
+  const setting = schema[id] ?? id.split('_').reduce((obj, key) => obj[key], schema);
   return typeof setting === 'object' && 'value' in setting ? setting.value : undefined;
 }

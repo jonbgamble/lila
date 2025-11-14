@@ -6,7 +6,7 @@ import * as xhr from '../xhr';
 import { definedMap } from '../algo';
 import { makeLichessBook } from './lichessBook';
 import { myUserId, myUsername } from '../index';
-import './filters';
+import { filterRegistry } from './filters';
 
 export { makeZerofish, type Zerofish };
 
@@ -37,6 +37,7 @@ export class BotLoader {
         makeZerofish({
           locator: (file: string) => site.asset.url(`npm/${file}`, { documentOrigin: file.endsWith('js') }),
         }).then(zf => (this.zerofish = zf)),
+      filterRegistry().notify(),
     ]);
     for (const b of [...bots].filter(Bot.isValid)) {
       this.bots.set(b.uid, new Bot(b, this));
