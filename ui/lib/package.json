@@ -16,7 +16,7 @@
   },
   "build": {
     "bundle": {
-      "iife": "src/bot/filters/external/chessops.iife.ts"
+      "iife": "src/bot/filters/sandbox/chessops.iife.ts"
     },
     "sync": {
       "node_modules/stockfish*/*.{js,wasm}": "/public/npm",

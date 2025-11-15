@@ -4,7 +4,7 @@ import type { FilterSpec, FilterInfo } from './filter';
 import { pubsub } from '@/pubsub';
 import { memoize } from '@/index';
 import { isEquivalent } from '@/algo';
-import { makeFilterWorker } from './filters/external/filterWorker';
+import { makeSandboxFilter } from './filters/sandbox/sandboxFilter';
 
 export const filterRegistry: () => FilterRegistry = memoize(() => new FilterRegistry());
 
@@ -52,4 +52,4 @@ const exampleInfo: FilterInfo = {
 
 filterRegistry().register('aggression', aggression);
 filterRegistry().register('pawnStructure', pawnStructure);
-filterRegistry().register('example', makeFilterWorker(example, exampleInfo));
+filterRegistry().register('example', makeSandboxFilter(example, exampleInfo));

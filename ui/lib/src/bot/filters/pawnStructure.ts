@@ -22,7 +22,7 @@ export const pawnStructure: FilterSpec = {
     pawn structure assigns weights up to the graph value for pawns that support each other, control the center,
     and are not doubled or isolated.
     
-    This filter assigns a weight between 0 and 1.`,
+    This filter assigns a weight between 0 and the limiter.`,
   },
 };
 

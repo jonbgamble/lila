@@ -2,7 +2,7 @@ import type { SearchMove, MoveArgs } from '@/bot/types';
 import type { FilterResult, FilterSpec, FilterInfo } from '@/bot/filter';
 import { frag } from '@/index';
 import iframeBootstrap from './iframeBootstrap.raw.js';
-import sandboxPrefix from './sandboxPrefix.raw.js';
+import iframeWorkerPrefix from './iframeWorkerPrefix.raw.js';
 
 // third party filter:
 // - spawns a Web Worker inside an opaque-origin sandboxed iframe
@@ -13,11 +13,11 @@ import sandboxPrefix from './sandboxPrefix.raw.js';
 // - must provide a 'score' function of type FilterFunction which gets called on each bot move
 // - can't do much else
 
-export function makeFilterWorker(filterJs: string, info: FilterInfo): FilterSpec {
-  let worker: Promise<PortWrapper>;
+export function makeSandboxFilter(filterJs: string, info: FilterInfo): FilterSpec {
+  let worker: Promise<IframeWorkerProxy>;
   return {
     score: async (moves: SearchMove[], args: MoveArgs, limiter: number): Promise<FilterResult> => {
-      worker ??= makePortWrapper(filterJs);
+      worker ??= makeIframeWorkerProxy(filterJs);
       return worker.then(w => w.score({ moves, args, limiter }));
     },
     terminate: () => worker.then(w => w.terminate()),
@@ -27,15 +27,13 @@ export function makeFilterWorker(filterJs: string, info: FilterInfo): FilterSpec
 
 let chessopsIife: Promise<string>;
 
-function makePortWrapper(filterJs: string) {
-  if (!chessopsIife) {
-    chessopsIife = fetch(site.asset.url(site.asset.jsModule('chessops.iife'))).then(res => res.text());
-  }
+async function makeIframeWorkerProxy(filterJs: string): Promise<IframeWorkerProxy> {
+  chessopsIife ??= fetch(site.asset.url(site.asset.jsModule('chessops.iife'))).then(res => res.text());
   return chessopsIife.then(
-    chessopsScript =>
-      new Promise<PortWrapper>((resolve, reject) => {
+    chessops =>
+      new Promise<IframeWorkerProxy>((resolve, reject) => {
         const iframe = frag<HTMLIFrameElement>('<iframe sandbox="allow-scripts" style="display:none">');
-        const iframeWorkerScript = `${sandboxPrefix}\n${chessopsScript}\n${filterJs}`;
+        const workerScript = `${iframeWorkerPrefix}\n${chessops}\n${filterJs}`;
         const bootstrap = $trim`
         <!doctype html>
         <meta charset="utf-8">
@@ -54,7 +52,7 @@ function makePortWrapper(filterJs: string) {
           const onMsgFromIframe = (ev: MessageEvent<any>) => {
             if (ev.data.type === 'iframeWorkerIsReady') {
               pagePort.removeEventListener('message', onMsgFromIframe);
-              const proxy = new PortWrapper(iframe, pagePort);
+              const proxy = new IframeWorkerProxy(iframe, pagePort);
               resolve(proxy);
             } else if (ev.data.type === 'error') {
               pagePort.removeEventListener('message', onMsgFromIframe);
@@ -66,7 +64,7 @@ function makePortWrapper(filterJs: string) {
           pagePort.start();
           if (iframe.contentWindow) {
             iframe.contentWindow.postMessage({}, '*', [iframePort]);
-            pagePort.postMessage({ type: 'boot', iframeWorkerScript });
+            pagePort.postMessage({ type: 'boot', workerScript });
           } else reject(new Error('no iframe.contentWindow'));
         };
 
@@ -75,7 +73,7 @@ function makePortWrapper(filterJs: string) {
   );
 }
 
-class PortWrapper {
+class IframeWorkerProxy {
   private pending?: {
     resolve: (r: FilterResult) => void;
     reject: (e: string) => void;
