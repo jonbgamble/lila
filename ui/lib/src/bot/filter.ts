@@ -1,11 +1,10 @@
 import { clamp, quantize } from '../algo';
 import type { SearchMove, MoveArgs } from './types';
 
-type Point = [number, number];
 export type FilterFacetKey = keyof typeof filterFacets;
 export type FilterBy = 'max' | 'min' | 'avg';
 export type FilterFacetValue = { [key in FilterFacetKey]?: number };
-export type FilterName = 'cplTarget' | 'cplStdev' | 'lc0bias' | 'moveDecay' | string;
+export type FilterName = 'cplTarget' | 'cplStdev' | 'lc0bias' | 'moveDecay';
 export type Filters = Record<string, Filter>;
 export type FilterResult = Record<Uci, number>;
 export type FilterFunction = (moves: SearchMove[], args: MoveArgs, limiter: number) => Promise<FilterResult>;
@@ -19,6 +18,7 @@ export interface Filter {
   score?: Point[];
   time?: Point[];
 }
+
 export interface FilterInfo {
   type: 'filter';
   value: Filter;
@@ -112,3 +112,5 @@ export function combine(v: FilterFacetValue, by: FilterBy): number {
       return Object.values(v).reduce((sum, w) => sum + w, 0) / Object.keys(v).length;
   }
 }
+
+type Point = [number, number];

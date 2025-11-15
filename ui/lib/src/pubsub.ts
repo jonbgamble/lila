@@ -1,6 +1,6 @@
 import type { Line } from '@/chat/interfaces';
 import type { Data as WatchersData } from '@/view/watchers';
-//import type { FilterName, FilterInfo } from '@/bot/filter';
+import type { FilterInfo } from '@/bot/filter';
 
 export type PubsubEventKey = keyof PubsubEvents;
 
@@ -20,7 +20,7 @@ export interface PubsubEvents {
   flip: (flip: boolean) => void;
   jump: (ply: string) => void;
   'botdev.import.book': (key: string, oldKey?: string) => void;
-  'botdev.update.filters': (filters: { [key: string]: any }[]) => void;
+  'botdev.update.filters': (filters: { [key: string]: FilterInfo }) => void;
   'notify-app.set-read': (user: string) => void;
   'voiceChat.toggle': (enabled: boolean) => void;
   ply: (ply: number, isMainline?: boolean) => void;

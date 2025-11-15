@@ -1,5 +1,5 @@
 import type { Schema, InfoKey, PropertyValue } from './devTypes';
-import type { FilterName, FilterInfo } from 'lib/bot/filter';
+import type { FilterInfo } from 'lib/bot/filter';
 import { deepFreeze } from 'lib/algo';
 import { pubsub } from 'lib/pubsub';
 
@@ -251,7 +251,7 @@ const base: Schema = {
   },
 };
 
-const lastFilter: { [key: FilterName]: FilterInfo } = {
+const lastFilter: { [key: string]: FilterInfo } = {
   moveDecay: {
     label: 'move quality decay',
     type: 'filter',
@@ -288,11 +288,13 @@ const lastFilter: { [key: FilterName]: FilterInfo } = {
 
 export let schema: Schema;
 
-pubsub.on('botdev.update.filters', (filters: { [key: FilterName]: FilterInfo }[]) => {
-  schema = deepFreeze<Schema>(Object.assign(structuredClone(base), { ...filters, lastFilter }));
-});
-
 export function getSchemaDefault(id: string): PropertyValue {
   const setting = schema[id] ?? id.split('_').reduce((obj, key) => obj[key], schema);
   return typeof setting === 'object' && 'value' in setting ? setting.value : undefined;
 }
+
+pubsub.on('botdev.update.filters', (filters: { [key: string]: FilterInfo }) => {
+  const withFilters = structuredClone(base);
+  Object.assign(withFilters['bot_filters']!, { ...filters, lastFilter });
+  schema = deepFreeze<Schema>(withFilters);
+});

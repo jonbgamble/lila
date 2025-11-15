@@ -15,6 +15,7 @@ export interface Package {
 interface Bundle {
   module?: string; // file glob for esm modules (esbuild entry points)
   inline?: string; // inject this script into response html
+  iife?: string; // bundled as iife with no code splitting.
 }
 
 interface Hash {

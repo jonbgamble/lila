@@ -1,79 +1,78 @@
 import type { SearchMove, MoveArgs } from '@/bot/types';
-import type { FilterResult, FilterSpec } from '@/bot/filter';
+import type { FilterResult, FilterSpec, FilterInfo } from '@/bot/filter';
 import { frag } from '@/index';
 import iframeBootstrap from './iframeBootstrap.raw.js';
 import sandboxPrefix from './sandboxPrefix.raw.js';
 
-//import { Bot } from '@/bot/bot';
 // third party filter:
 // - spawns a Web Worker inside an opaque-origin sandboxed iframe
-// - no access to origin's cookies, localStorage, idb, opfs, etc
+// - no access to real origin's goodies (cookies, localStorage, sessionStorage, cache, idb)
 //
 // third party script inside the worker:
 // - can init with top level setup statements
 // - must provide a 'score' function of type FilterFunction which gets called on each bot move
 // - can't do much else
 
-const nonce =
-  (document.querySelector('script[nonce]') as HTMLScriptElement | null)?.nonce ||
-  document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') ||
-  '';
-
-export async function makeFilterWorker(userJs: string): Promise<FilterSpec> {
-  const iframeWorkerScript = `${sandboxPrefix}\n${userJs}`;
-  const worker = await new Promise<PortWrapper>((resolve, reject) => {
-    const iframe = frag<HTMLIFrameElement>('<iframe sandbox="allow-scripts" style="display:none">');
-    const bootstrap = $trim`
-      <!doctype html>
-      <meta charset="utf-8">
-      <meta http-equiv="Content-Security-Policy" content="
-        default-src 'none';
-        connect-src 'none';
-        script-src 'nonce-${nonce}';
-        worker-src blob:
-      ">
-      <script nonce="${nonce}">${iframeBootstrap}<\/script>`;
-
-    iframe.srcdoc = bootstrap;
-    iframe.onload = () => {
-      const { port1: pagePort, port2: iframePort } = new MessageChannel();
-
-      const onMsgFromIframe = (ev: MessageEvent<any>) => {
-        if (ev.data.type === 'iframeWorkerIsReady') {
-          pagePort.removeEventListener('message', onMsgFromIframe);
-          const proxy = new PortWrapper(iframe, pagePort);
-          resolve(proxy);
-        } else if (ev.data.type === 'error') {
-          pagePort.removeEventListener('message', onMsgFromIframe);
-          iframe.remove();
-          reject(new Error(ev.data?.message || 'sandbox bootstrap error'));
-        }
-      };
-      pagePort.addEventListener('message', onMsgFromIframe);
-      pagePort.start();
-      if (iframe.contentWindow) {
-        iframe.contentWindow.postMessage({}, '*', [iframePort]);
-        pagePort.postMessage({ type: 'boot', iframeWorkerScript });
-      } else reject(new Error('no iframe.contentWindow'));
-    };
-
-    document.documentElement.appendChild(iframe);
-  });
-
+export function makeFilterWorker(filterJs: string, info: FilterInfo): FilterSpec {
+  let worker: Promise<PortWrapper>;
   return {
     score: async (moves: SearchMove[], args: MoveArgs, limiter: number): Promise<FilterResult> => {
-      return worker.score({ moves, args, limiter });
+      worker ??= makePortWrapper(filterJs);
+      return worker.then(w => w.score({ moves, args, limiter }));
     },
-    terminate: () => worker.terminate(),
-    info: {
-      type: 'filter',
-      class: ['filter'],
-      value: { range: { min: -1, max: 1 }, by: 'avg' },
-      label: 'third party demo',
-      title: $trim`
-        this is a third party yada yada`,
-    },
+    terminate: () => worker.then(w => w.terminate()),
+    info,
   };
+}
+
+let chessopsIife: Promise<string>;
+
+function makePortWrapper(filterJs: string) {
+  if (!chessopsIife) {
+    chessopsIife = fetch(site.asset.url(site.asset.jsModule('chessops.iife'))).then(res => res.text());
+  }
+  return chessopsIife.then(
+    chessopsScript =>
+      new Promise<PortWrapper>((resolve, reject) => {
+        const iframe = frag<HTMLIFrameElement>('<iframe sandbox="allow-scripts" style="display:none">');
+        const iframeWorkerScript = `${sandboxPrefix}\n${chessopsScript}\n${filterJs}`;
+        const bootstrap = $trim`
+        <!doctype html>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Security-Policy" content="
+          default-src 'none';
+          connect-src 'none';
+          script-src 'nonce-${nonce}';
+          worker-src blob:
+        ">
+        <script nonce="${nonce}">${iframeBootstrap}<\/script>`;
+
+        iframe.srcdoc = bootstrap;
+        iframe.onload = () => {
+          const { port1: pagePort, port2: iframePort } = new MessageChannel();
+
+          const onMsgFromIframe = (ev: MessageEvent<any>) => {
+            if (ev.data.type === 'iframeWorkerIsReady') {
+              pagePort.removeEventListener('message', onMsgFromIframe);
+              const proxy = new PortWrapper(iframe, pagePort);
+              resolve(proxy);
+            } else if (ev.data.type === 'error') {
+              pagePort.removeEventListener('message', onMsgFromIframe);
+              iframe.remove();
+              reject(new Error(ev.data?.message || 'sandbox bootstrap error'));
+            }
+          };
+          pagePort.addEventListener('message', onMsgFromIframe);
+          pagePort.start();
+          if (iframe.contentWindow) {
+            iframe.contentWindow.postMessage({}, '*', [iframePort]);
+            pagePort.postMessage({ type: 'boot', iframeWorkerScript });
+          } else reject(new Error('no iframe.contentWindow'));
+        };
+
+        document.documentElement.appendChild(iframe);
+      }),
+  );
 }
 
 class PortWrapper {
@@ -132,3 +131,8 @@ class PortWrapper {
     });
   }
 }
+
+const nonce =
+  (document.querySelector('script[nonce]') as HTMLScriptElement | null)?.nonce ||
+  document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') ||
+  '';

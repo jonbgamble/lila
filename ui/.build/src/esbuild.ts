@@ -33,6 +33,7 @@ export async function esbuild(): Promise<any> {
   await fs.promises.mkdir(env.jsOutDir).catch(() => {});
   return Promise.all([
     inlineTask(),
+    iifeTask(options),
     makeTask({
       key: 'bundle',
       ctx: 'esbuild',
@@ -102,6 +103,31 @@ function inlineTask() {
           }
         }),
       ).then(() => updateManifest({ js })),
+  });
+}
+
+function iifeTask(options: es.BuildOptions) {
+  return makeTask({
+    key: 'monolith',
+    debounce: 300,
+    includes: env.building.flatMap(pkg =>
+      definedMap(
+        pkg.bundle.map(b => b.iife),
+        path => ({ cwd: pkg.root, path }),
+      ),
+    ),
+    execute: async entryPoints => {
+      entryPoints.sort();
+      const result = await es.build({
+        ...options,
+        splitting: false,
+        format: 'iife',
+        globalName: 'co',
+        plugins: [],
+        entryPoints,
+      });
+      bundleManifest(result.metafile);
+    },
   });
 }
 

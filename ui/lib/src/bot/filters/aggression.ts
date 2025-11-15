@@ -24,13 +24,13 @@ export const aggression: FilterSpec = {
       
       this one should be combined with other filters.`,
   },
-  score: (moves: SearchMove[], args: MoveArgs, limiter: number): Promise<FilterResult> => {
+  async score(moves: SearchMove[], args: MoveArgs, limiter: number): Promise<FilterResult> {
     const result: FilterResult = {};
     for (const { uci } of moves) {
       const chess = args.chess.clone();
       const normal = normalMove(chess, uci)!.move;
       result[uci] = co.san.makeSan(chess, normal).includes('x') ? limiter : 0;
     }
-    return Promise.resolve(result);
+    return result;
   },
 };

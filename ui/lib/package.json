@@ -15,6 +15,9 @@
     "tablesort": "5.5.0"
   },
   "build": {
+    "bundle": {
+      "iife": "src/bot/filters/external/chessops.iife.ts"
+    },
     "sync": {
       "node_modules/stockfish*/*.{js,wasm}": "/public/npm",
       "node_modules/@lichess-org/stockfish-web/*.{js,wasm}": "/public/npm/stockfish-web",

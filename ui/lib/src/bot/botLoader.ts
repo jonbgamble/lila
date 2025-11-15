@@ -6,6 +6,7 @@ import * as xhr from '../xhr';
 import { definedMap } from '../algo';
 import { makeLichessBook } from './lichessBook';
 import { myUserId, myUsername } from '../index';
+import type { FilterSpec } from './filter';
 import { filterRegistry } from './filters';
 
 export { makeZerofish, type Zerofish };
@@ -107,6 +108,10 @@ export class BotLoader {
     return bookPromise;
   }
 
+  getFilter(key: string | undefined): FilterSpec | undefined {
+    if (!key) return undefined;
+    return filterRegistry().getFilter(key);
+  }
   getImageUrl(key: string): string {
     return botAssetUrl('image', key);
   }
