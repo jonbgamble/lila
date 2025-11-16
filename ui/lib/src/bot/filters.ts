@@ -1,5 +1,6 @@
 import { aggression } from './filters/aggression';
 import { pawnStructure } from './filters/pawnStructure';
+import { fuzz } from './filters/fuzz';
 import type { FilterSpec, FilterInfo } from './filter';
 import { pubsub } from '@/pubsub';
 import { memoize } from '@/index';
@@ -23,7 +24,6 @@ class FilterRegistry {
       'botdev.update.filters',
       Object.fromEntries([...this.registry.entries()].map(([k, spec]) => [k, spec.info])),
     );
-    console.log(this.registry);
     this.running = true;
   }
   getFilter(key: string): FilterSpec | undefined {
@@ -52,4 +52,5 @@ const exampleInfo: FilterInfo = {
 
 filterRegistry().register('aggression', aggression);
 filterRegistry().register('pawnStructure', pawnStructure);
+filterRegistry().register('fuzz', fuzz);
 filterRegistry().register('example', makeSandboxFilter(example, exampleInfo));
