@@ -4,17 +4,22 @@ import { frag } from '@/index';
 import iframeBootstrap from './iframeBootstrap.raw.js';
 import iframeWorkerPrefix from './iframeWorkerPrefix.raw.js';
 
-// third party filter:
-// - spawns a Web Worker inside an opaque-origin sandboxed iframe
-// - no access to real origin's goodies (cookies, localStorage, sessionStorage, cache, idb)
-//
-// third party script inside the worker:
-// - can init with top level setup statements
-// - must provide a 'score' function of type FilterFunction which gets called on each bot move
-// - can't do much else
+/**
+sandboxFilter:
+- spawns a Web Worker inside an opaque-origin sandboxed iframe to run untrusted code
+- no access to real origin's goodies (cookies, localStorage, sessionStorage, cache, idb)
+
+third party script inside the worker:
+- can init with top level setup statements
+- must provide a 'score' function of type FilterFunction which gets called for each bot move
+  with the current movelist, weights, args, and limiter value
+- can use chessops via provided co global
+- must return a { [uci: string]: number } object that gives existing (or new) uci moves and their weights
+- can't do much else
+*/
 
 export function makeSandboxFilter(filterJs: string, info: FilterInfo): FilterSpec {
-  let worker: Promise<IframeWorkerProxy>;
+  let worker: Promise<SandboxWorkerProxy>;
   return {
     score: async (moves: SearchMove[], args: MoveArgs, limiter: number): Promise<FilterResult> => {
       worker ??= makeIframeWorkerProxy(filterJs);
@@ -25,46 +30,46 @@ export function makeSandboxFilter(filterJs: string, info: FilterInfo): FilterSpe
   };
 }
 
+const nonce = document.querySelector<HTMLScriptElement>('script[nonce]')?.nonce ?? '';
 let chessopsIife: Promise<string>;
 
-async function makeIframeWorkerProxy(filterJs: string): Promise<IframeWorkerProxy> {
+async function makeIframeWorkerProxy(filterJs: string): Promise<SandboxWorkerProxy> {
   chessopsIife ??= fetch(site.asset.url(site.asset.jsModule('chessops.iife'))).then(res => res.text());
   return chessopsIife.then(
     chessops =>
-      new Promise<IframeWorkerProxy>((resolve, reject) => {
+      new Promise<SandboxWorkerProxy>((resolve, reject) => {
         const iframe = frag<HTMLIFrameElement>('<iframe sandbox="allow-scripts" style="display:none">');
-        const workerScript = `${iframeWorkerPrefix}\n${chessops}\n${filterJs}`;
-        const bootstrap = $trim`
-        <!doctype html>
-        <meta charset="utf-8">
-        <meta http-equiv="Content-Security-Policy" content="
-          default-src 'none';
-          connect-src 'none';
-          script-src 'nonce-${nonce}';
-          worker-src blob:
-        ">
-        <script nonce="${nonce}">${iframeBootstrap}<\/script>`;
 
-        iframe.srcdoc = bootstrap;
+        iframe.srcdoc = $html`
+          <!doctype html>
+          <meta charset="utf-8">
+          <meta http-equiv="Content-Security-Policy"
+                content="default-src 'none';connect-src 'none';script-src 'nonce-${nonce}';worker-src blob:">
+          <script nonce="${nonce}">${iframeBootstrap}<\/script>`;
+
         iframe.onload = () => {
-          const { port1: pagePort, port2: iframePort } = new MessageChannel();
+          const { port1: iframePort, port2: originPort } = new MessageChannel();
 
           const onMsgFromIframe = (ev: MessageEvent<any>) => {
             if (ev.data.type === 'iframeWorkerIsReady') {
-              pagePort.removeEventListener('message', onMsgFromIframe);
-              const proxy = new IframeWorkerProxy(iframe, pagePort);
+              iframePort.removeEventListener('message', onMsgFromIframe);
+              const proxy = new SandboxWorkerProxy(iframe, iframePort);
               resolve(proxy);
             } else if (ev.data.type === 'error') {
-              pagePort.removeEventListener('message', onMsgFromIframe);
+              iframePort.removeEventListener('message', onMsgFromIframe);
               iframe.remove();
               reject(new Error(ev.data?.message || 'sandbox bootstrap error'));
             }
           };
-          pagePort.addEventListener('message', onMsgFromIframe);
-          pagePort.start();
+          iframePort.addEventListener('message', onMsgFromIframe);
+          iframePort.start();
+
           if (iframe.contentWindow) {
-            iframe.contentWindow.postMessage({}, '*', [iframePort]);
-            pagePort.postMessage({ type: 'boot', workerScript });
+            iframe.contentWindow.postMessage({}, '*', [originPort]);
+            iframePort.postMessage({
+              type: 'boot',
+              workerScript: `${iframeWorkerPrefix}\n${chessops}\n${filterJs}`,
+            });
           } else reject(new Error('no iframe.contentWindow'));
         };
 
@@ -73,7 +78,7 @@ async function makeIframeWorkerProxy(filterJs: string): Promise<IframeWorkerProx
   );
 }
 
-class IframeWorkerProxy {
+class SandboxWorkerProxy {
   private pending?: {
     resolve: (r: FilterResult) => void;
     reject: (e: string) => void;
@@ -82,37 +87,31 @@ class IframeWorkerProxy {
 
   constructor(
     private iframe: HTMLIFrameElement,
-    private port: MessagePort,
+    private iframePort: MessagePort,
   ) {
-    this.port.onmessage = this.onMessage;
-    this.port.start();
+    this.iframePort.onmessage = this.onMessage;
+    this.iframePort.start();
   }
 
   onMessage = (ev: MessageEvent<any>) => {
-    console.log('onMessage', ev.data);
-    if (ev.data.type === 'result') {
-      console.log('hoo doggy!', ev.data);
-      this.resolve(ev.data.result);
-    } else if (ev.data.type === 'error') {
-      console.log('ohnoes', ev.data);
-      this.reject(ev.data.message);
-    } else this.reject(JSON.stringify(ev.data));
+    if (ev.data.type !== 'result') {
+      return this.onError(ev.data.type === 'error' ? ev.data.message : JSON.stringify(ev.data));
+    }
+    clearTimeout(this.pending?.timeout);
+    this.pending?.resolve(ev.data.result);
+    this.pending = undefined;
   };
 
-  resolve(r: FilterResult): void {
-    clearTimeout(this.pending?.timeout);
-    this.pending?.resolve(r);
-    this.pending = undefined;
-  }
-  reject(err: string): void {
+  onError(err: string): void {
     clearTimeout(this.pending?.timeout);
     this.pending?.reject(err);
     this.pending = undefined;
   }
+
   terminate(): void {
-    this.reject('terminated');
-    this.port.postMessage({ type: 'terminate' });
-    this.port.close();
+    this.onError('terminated');
+    this.iframePort.postMessage({ type: 'terminate' });
+    this.iframePort.close();
     this.iframe.remove();
   }
 
@@ -121,16 +120,11 @@ class IframeWorkerProxy {
 
     return new Promise<FilterResult>((resolve, reject) => {
       this.pending = {
-        timeout: setTimeout(() => this.reject('worker timed out'), timeoutMs),
+        timeout: setTimeout(() => this.onError('worker timed out'), timeoutMs),
         resolve,
         reject,
       };
-      this.port.postMessage({ type: 'score', params });
+      this.iframePort.postMessage({ type: 'score', params });
     });
   }
 }
-
-const nonce =
-  (document.querySelector('script[nonce]') as HTMLScriptElement | null)?.nonce ||
-  document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') ||
-  '';

@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  let iframeWorker = null;
-  let iframeWorkerBlobUrl = null;
-  let originPort = null;
+  let iframeWorker = undefined;
+  let iframeWorkerBlobUrl = undefined;
+  let originPort = undefined;
 
   const handlers = {
     boot(data) {
@@ -20,15 +20,14 @@
       iframeWorker?.terminate();
       originPort?.close();
       URL.revokeObjectURL(iframeWorkerBlobUrl);
-      iframeWorker = null;
-      originPort = null;
-      iframeWorkerBlobUrl = null;
+      iframeWorker = undefined;
+      originPort = undefined;
+      iframeWorkerBlobUrl = undefined;
     },
   };
   window.onmessage = e => {
     if (originPort || !e.ports?.[0]) return;
     originPort = e.ports[0];
-
     originPort.onmessage = ev => {
       try {
         handlers[ev.data.type](ev.data);
