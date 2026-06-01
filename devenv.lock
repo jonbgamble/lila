@@ -68,13 +68,45 @@
         "type": "github"
       }
     },
+    "nixpkgs-elasticsearch": {
+      "locked": {
+        "lastModified": 1787594537,
+        "narHash": "sha256-eEMVU1xG2qoFKZ9kt5ii/qzzsFKXK2dsZu6AV/FTAFc=",
+        "owner": "KiaraGrouwstra",
+        "repo": "nixpkgs",
+        "rev": "0638356fbf16ab929ea933bd11b37cf4cfa071de",
+        "type": "github"
+      },
+      "original": {
+        "owner": "KiaraGrouwstra",
+        "ref": "elasticsearch-8",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs-master": {
       "locked": {
+<<<<<<< HEAD
         "lastModified": 1791362603,
         "narHash": "sha256-RhYYF1lypBvnxPemIBOg7El2v8YmpQdf2ehsup2K2zs=",
         "owner": "NixOS",
         "repo": "nixpkgs",
         "rev": "de9bcce78bb93a8f7984edcf08ca7f0001f6b8a0",
+=======
+<<<<<<< HEAD
+        "lastModified": 1789804398,
+        "narHash": "sha256-0gUX2u5tQMPyu+MPh5cDLIO6sbrtB94EoVPljKjiLvI=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "5a43e367a47932f1c9cbc301b873b532a1bede5f",
+=======
+        "lastModified": 1789812517,
+        "narHash": "sha256-WlMvw8PGS6S75c793Ny6CXdMLEoPfvu2RS4tdFGknDs=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "6fa5c20832865b4d620d610058666b92b3ce71e4",
+>>>>>>> 5c4684ebd1 (devenv elasticsearch8)
+>>>>>>> 609d49552 (devenv elasticsearch8 (rebased devenv.lock contains conflict markers I cannot resolve due to unknown hash inputs))
         "type": "github"
       },
       "original": {
@@ -139,6 +171,7 @@
         "lila-db-seed": "lila-db-seed",
         "lila-ws": "lila-ws",
         "nixpkgs": "nixpkgs",
+        "nixpkgs-elasticsearch": "nixpkgs-elasticsearch",
         "nixpkgs-master": "nixpkgs-master",
         "nixpkgs-unstable": "nixpkgs-unstable",
         "sasso": "sasso"
