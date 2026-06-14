@@ -38,6 +38,7 @@ final class RelationApi(
     following as fetchFollowing,
     freshFollowersFromSecondary,
     filterBlocked,
+    filterBlocking,
     removeAllFollowers
   }
 
@@ -110,14 +111,6 @@ final class RelationApi(
     ).withNbResults(countFollowing(userId))
       .map(_.userId)
 
-  def followersPaginatorAdapter(userId: UserId) =
-    Adapter[Follower](
-      collection = coll,
-      selector = $doc("u2" -> userId, "r" -> Follow),
-      projection = $doc("u1" -> true, "_id" -> false).some,
-      sort = $empty
-    ).map(_.userId)
-
   def blockingPaginatorAdapter(userId: UserId) =
     Adapter[Blocked](
       collection = coll,
@@ -126,8 +119,8 @@ final class RelationApi(
       sort = $empty
     ).map(_.userId)
 
-  def follow(u1: User, u2: UserId): Funit =
-    (u1 != u2).so(prefApi.followable(u2).flatMapz {
+  def follow(u1: User, u2: UserId): Funit = (u1.id != u2).so:
+    prefApi.followable(u2).flatMapz {
       userApi.isEnabled(u2).flatMapz {
         fetchRelation(u1, u2).zip(fetchRelation(u2, u1)).flatMap {
           case (Some(Follow), _) => funit
@@ -139,12 +132,12 @@ final class RelationApi(
             yield
               countFollowingCache.update(u1.id, prev => (prev + 1).atMost(config.maxFollow.value))
               lila.mon.relation.follow.increment()
-              if !u1.marks.alt then
+              if !u1.marks.alt && !u1.marks.isolate then
                 lila.common.Bus.pub(Propagate(FollowUser(u1.id, u2)).toFriendsOf(u1.id))
                 Bus.pub(lila.core.relation.Follow(u1.id, u2))
         }
       }
-    })
+    }
 
   private def limitFollow(u: UserId) =
     countFollowing(u).flatMap: nb =>

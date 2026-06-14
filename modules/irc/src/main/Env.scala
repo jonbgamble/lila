@@ -5,7 +5,6 @@ import play.api.libs.ws.StandaloneWSClient
 import play.api.{ Configuration, Mode }
 
 import lila.common.Lilakka
-import lila.core.irc.Event
 import lila.core.plan.ChargeEvent
 
 @Module
@@ -15,7 +14,7 @@ final class Env(
     ws: StandaloneWSClient,
     shutdown: akka.actor.CoordinatedShutdown,
     mode: Mode,
-    getLightUser: lila.core.LightUser.Getter
+    lightUser: lila.core.LightUser.GetterSyncFallback
 )(using Executor):
 
   import ZulipClient.given
@@ -32,4 +31,3 @@ final class Env(
 
   // type can be inferred but clearer to leave it
   lila.common.Bus.sub[ChargeEvent](api.charge(_))
-  lila.common.Bus.sub[Event](api.publishEvent(_))

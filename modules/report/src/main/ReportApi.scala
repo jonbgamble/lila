@@ -11,6 +11,7 @@ import lila.db.dsl.{ *, given }
 import lila.memo.CacheApi.*
 import lila.memo.SettingStore.Text.given
 import lila.report.Room.Scores
+import lila.mon.extensions.*
 
 final class ReportApi(
     val coll: Coll,
@@ -25,8 +26,7 @@ final class ReportApi(
     snoozer: lila.memo.Snoozer[Report.SnoozeKey],
     thresholds: Thresholds,
     automodApi: Automod,
-    settingStore: lila.memo.SettingStore.Builder,
-    picfitApi: lila.memo.PicfitApi
+    settingStore: lila.memo.SettingStore.Builder
 )(using Executor, Scheduler, lila.core.config.NetDomain)
     extends lila.core.report.ReportApi:
 
@@ -126,11 +126,13 @@ final class ReportApi(
   def getLichessReporter: Fu[Reporter] =
     getLichessMod.map: l =>
       Reporter(l.user)
+
   lazy val automodReporter: Fu[Reporter] =
     userApi
       .byId(UserId.ai.into(ReporterId))
       .dmap2(Reporter.apply)
       .orFail("User ai is missing")
+
   def autoAltPrintReport(userId: UserId): Funit =
     coll
       .exists(
@@ -172,6 +174,15 @@ final class ReportApi(
             )
           )
         case _ => funit
+
+  def countClosedAutoCheatReport(userId: UserId): Fu[Int] =
+    coll.secondary.countSel:
+      $doc(
+        "user" -> userId,
+        "room" -> Room.Cheat.key,
+        "open" -> false,
+        "atoms.by" -> UserId.lichess
+      )
 
   def autoCheatDetectedReport(userId: UserId, cheatedGames: Int): Funit =
     userApi
@@ -260,7 +271,7 @@ final class ReportApi(
   // `seriousness` depends on the number of previous warnings, and number of games thrown away
   def autoBoostReport(winnerId: UserId, loserId: UserId, seriousness: Int): Funit =
     securityApi
-      .shareAnIpOrFp(winnerId, loserId)
+      .shareAnIpOrFp(winnerId -> loserId)
       .zip(userApi.pair(winnerId, loserId))
       .zip(getLichessReporter)
       .flatMap:
@@ -303,63 +314,68 @@ final class ReportApi(
     deletedAppeal <- deleteIfAppealInquiry(report)
     _ <- (!deletedAppeal).so:
       doProcessReport($id(report.id), unsetInquiry = true)
-  yield onReportClose()
+  yield onReportClose(report.room)
 
   def autoProcess(sus: Suspect, rooms: Set[Room])(using MyId): Funit =
-    val selector = $doc(
-      "user" -> sus.user.id,
-      "room".$in(rooms),
-      "open" -> true
-    )
-    for _ <- doProcessReport(selector, unsetInquiry = true)
-    yield onReportClose()
-
-  def automodComms(userText: String, url: String)(using me: Me): Funit =
-    val assessImages =
-      for
-        images <- automodApi.markdownImages(Markdown(userText))
-        _ <- picfitApi.setContext(url, images.map(_.id))
-      yield images
-    val assessText = automodApi
-      .text(
-        userText,
-        systemPrompt = commsPromptSetting.get(),
-        model = commsModelSetting.get()
-      )
-      .monSuccess(_.mod.report.automod.request)
+    val selector = $doc("user" -> sus.user.id, "room".$in(rooms), "open" -> true)
     for
-      (images, textResponse) <- assessImages.zip(assessText)
-      flaggedImages = images.flatMap(_.automod).flatMap(_.flagged)
-      suspectOpt <- getSuspect(me)
-      reporter <- automodReporter
-    yield for
-      res <- textResponse
-      fromLlm <- res.str("assessment")
-      hasFlaggedImages = flaggedImages.nonEmpty
-      kamonTag = if hasFlaggedImages then "image" else if fromLlm == "pass" then "ok" else fromLlm
-      _ = lila.mon.mod.report.automod.assessment(kamonTag).increment()
-      reason <- fromLlm match
-        case "pass" if hasFlaggedImages => Reason("comm")
-        case "other" => Reason("comm") // llm knows "other"
-        case r => Reason(r)
-      suspect <- suspectOpt
-      summary = (flaggedImages ++ res.str("reason")).mkString(", ")
-    yield create(
-      Candidate(
-        reporter = reporter,
-        suspect = suspect,
-        reason = reason,
-        text = s"[AUTO " + (hasFlaggedImages.option("IMG") ++ (fromLlm != "pass").option("TXT"))
-          .mkString("/") +
-          s"]: $summary $url"
-      )
-    ).recoverWith: e =>
-      logger.warn(s"Comms automod failed for ${me.username}: ${e.getMessage}", e)
-      funit
+      reports <- coll.list[Report](selector)
+      _ <- reports.sequentiallyVoid: report =>
+        onReportClose(report.room)
+        doProcessReport($id(report.id), unsetInquiry = true)
+    yield ()
 
-  private def onReportClose() =
+  def automodComms(
+      userText: String,
+      url: String,
+      onlyIfFlaggedImages: Boolean = false // if true, will not create an automod report based on text alone
+  )(using me: Me): Funit =
+    userText.trim.nonEmpty.so:
+      val assessText = automodApi
+        .text(
+          userText,
+          systemPrompt = commsPromptSetting.get(),
+          model = commsModelSetting.get()
+        )
+        .monSuccess(lila.mon.mod.report.automod.request)
+      val candidate = for
+        (images, textResponse) <- automodApi.markdownImages(Markdown(userText)).zip(assessText)
+        flaggedImages = images.flatMap(_.automod).flatMap(_.flagged)
+        suspectOpt <- getSuspect(me)
+        reporter <- automodReporter
+        fromLlm <- textResponse
+          .str("assessment")
+          .toTry(s"missing assessment in automod response: $textResponse. Input text: ${userText.take(400)}")
+          .toFuture
+        hasFlaggedImages = flaggedImages.nonEmpty
+        kamonTag = if hasFlaggedImages then "image" else if fromLlm == "pass" then "ok" else fromLlm
+        _ = lila.mon.mod.report.automod.assessment(kamonTag).increment()
+        reason = fromLlm match
+          case "pass" if hasFlaggedImages => Reason("comm")
+          case "other" => Reason("comm") // llm knows "other"
+          case r => Reason(r)
+        suspect <- suspectOpt.toTry(s"suspect $me not found").toFuture
+        summary = (flaggedImages ++ textResponse.str("reason")).mkString(", ")
+      yield reason
+        .ifTrue(hasFlaggedImages || !onlyIfFlaggedImages)
+        .map: reason =>
+          Candidate(
+            reporter = reporter,
+            suspect = suspect,
+            reason = reason,
+            text = s"[AUTO " + (hasFlaggedImages.option("IMG") ++ (fromLlm != "pass").option("TXT"))
+              .mkString("/") +
+              s"]: $summary $url"
+          )
+      candidate
+        .flatMapz(create(_))
+        .recoverWith: e =>
+          logger.warn(s"Comms automod failed for ${me.username} on $url: ${e.getMessage}", e)
+          funit
+
+  private def onReportClose(room: Room)(using me: MyId) =
     maxScoreCache.invalidateUnit()
-    lila.mon.mod.report.close.increment()
+    lila.mon.mod.report.close(me, room.key).increment()
 
   private def deleteIfAppealInquiry(report: Report)(using me: MyId): Fu[Boolean] =
     if report.isAppealInquiryByMe
@@ -504,7 +520,7 @@ final class ReportApi(
         "atoms.by",
         $doc(
           "user" -> sus.user.id,
-          "atoms.0.at".$gt(nowInstant.minusDays(3))
+          "atoms.0.at".$gt(nowInstant.minusDays(7))
         ),
         _.sec
       )
@@ -527,7 +543,7 @@ final class ReportApi(
 
   private def addSuspectsAndNotes(reports: List[Report]): Fu[List[Report.WithSuspect]] =
     userApi
-      .listWithPerfs(reports.map(_.user).distinct)
+      .listWithPerfs(reports.map(_.user).distinct, includeClosed = true)
       .map: users =>
         reports
           .flatMap: r =>
@@ -608,7 +624,7 @@ final class ReportApi(
       maxSize = Max(32),
       timeout = 20.seconds,
       name = "report.inquiries",
-      lila.log.asyncActorMonitor.full
+      lila.mon.asyncActorMonitor.full
     )
 
     def allBySuspect: Fu[Map[UserId, Report.Inquiry]] =

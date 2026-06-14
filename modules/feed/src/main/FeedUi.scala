@@ -84,22 +84,20 @@ final class FeedUi(helpers: Helpers, atomUi: AtomUi)(
 
   def edit(form: Form[?], update: Feed.Update)(using Context) =
     page(s"Lichess update ${update.id}", true):
-      main(cls := "daily-feed page-small")(
-        div(cls := "box box-pad")(
-          boxTop(
-            h1(
-              a(href := routes.Feed.index(1))("Lichess update"),
-              " • ",
-              semanticDate(update.at)
-            )
-          ),
-          standardFlash,
-          postForm(cls := "form3", action := routes.Feed.update(update.id)):
-            inForm(form)
-          ,
-          postForm(action := routes.Feed.delete(update.id))(cls := "daily-feed__delete"):
-            submitButton(cls := "button button-red button-empty yes-no-confirm")("Delete")
-        )
+      main(cls := "daily-feed page-small box box-pad")(
+        boxTop(
+          h1(
+            a(href := routes.Feed.index(1))("Lichess update"),
+            " • ",
+            semanticDate(update.at)
+          )
+        ),
+        standardFlash,
+        postForm(cls := "form3", action := routes.Feed.update(update.id)):
+          inForm(form)
+        ,
+        postForm(action := routes.Feed.delete(update.id))(cls := "daily-feed__delete"):
+          submitButton(cls := "button button-red button-empty yes-no-confirm")("Delete")
       )
 
   def atom(ups: List[Feed.Update]) =
@@ -110,7 +108,7 @@ final class FeedUi(helpers: Helpers, atomUi: AtomUi)(
       title = "Lichess updates feed",
       updated = ups.headOption.map(_.at)
     ): up =>
-      val url = s"$netBaseUrl${routes.Feed.index(1)}#${up.id}"
+      val url = s"${routeUrl(routes.Feed.index(1))}#${up.id}"
       frag(
         tag("id")(url),
         tag("author")(tag("name")("Lichess")),
@@ -165,7 +163,7 @@ final class FeedUi(helpers: Helpers, atomUi: AtomUi)(
           help = raw("Set in the future to schedule an update.").some,
           half = true
         )(form3.flatpickr(_, minDate = none)(required)),
-        form3.checkbox(form("public"), raw("Publish"), half = true)
+        form3.checkboxGroup(form("public"), "Publish", half = true)
       ),
       form3.group(
         form("content"),

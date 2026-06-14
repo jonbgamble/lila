@@ -97,7 +97,7 @@ final class TitleApi(
     coll.update.one($id(req.id), req.tryAgain).void
 
   def publicUserOf(fideId: FideId): Fu[Option[User]] = for
-    ids <- coll.primitive[UserId](
+    ids <- coll.secondary.primitive[UserId](
       $doc("data.fideId" -> fideId, s"$statusField.n" -> Status.approved.toString, "data.public" -> true),
       $sort.desc(updatedAtField),
       "userId"
@@ -107,24 +107,24 @@ final class TitleApi(
 
   object publicFideIdOf:
 
-    private val cache = cacheApi[UserId, Option[FideId]](8192, "title.publicFideIdOf"):
+    private val cache = cacheApi[UserId, Option[FideId]](8_192, "title.publicFideIdOf"):
       _.expireAfterWrite(1.hour).buildAsyncFuture: id =>
-        coll
+        coll.secondary
           .find(
             $doc(
               "userId" -> id,
-              "data.public" -> true,
-              "data.fideId".$exists(true),
               s"$statusField.n" -> Status.approved.toString
             ),
-            $doc("data.fideId" -> true).some
+            $doc("data.fideId" -> true, "data.public" -> true).some
           )
+          .sort($sort.desc("createdAt"))
           .one[Bdoc]
           .dmap: docOpt =>
             for
               doc <- docOpt
               data <- doc.child("data")
               fideId <- data.getAsOpt[FideId]("fideId")
+              if ~data.booleanLike("public")
             yield fideId
 
     def apply(user: LightUser): Fu[Option[FideId]] =
@@ -142,19 +142,24 @@ $baseUrl/verify-title
     lila.common.Bus.pub(SystemMsg(to, pm))
 
   object image:
-    def rel(req: TitleRequest, tag: String) =
+    def ref(req: TitleRequest, tag: String) =
       s"title-request.$tag:${req.id}"
 
     def upload(req: TitleRequest, picture: PicfitApi.FilePart, tag: String)(using me: Me): Fu[TitleRequest] =
       if !Set("idDocument", "selfie").contains(tag) then fufail(s"Invalid tag $tag")
       else
         for
-          image <- picfitApi.uploadFile(rel(req, tag), picture, userId = me.userId, requestAutomod = false)
+          image <- picfitApi.uploadFile(
+            picture,
+            userId = me.userId,
+            ref(req, tag).some,
+            requestAutomod = false
+          )
           _ <- coll.updateField($id(req.id), tag, image.id)
         yield req.focusImage(tag).replace(image.id.some)
 
     def delete(req: TitleRequest, tag: String): Fu[TitleRequest] = for
-      _ <- picfitApi.deleteByRel(rel(req, tag))
+      _ <- picfitApi.pullRef(ref(req, tag))
       _ <- coll.unsetField($id(req.id), tag)
     yield req.focusImage(tag).replace(none)
 

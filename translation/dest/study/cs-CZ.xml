@@ -16,6 +16,7 @@
   <string name="recentlyUpdated">Nedávno aktualizované</string>
   <string name="mostPopular">Nejoblíbenější</string>
   <string name="alphabetical">Abecedně</string>
+  <string name="relevant">Relevantní</string>
   <string name="addNewChapter">Přidat novou kapitolu</string>
   <plurals name="nbChapters">
     <item quantity="one">%s kapitola</item>
@@ -47,7 +48,6 @@
   <string name="youAreNowASpectator">Nyní jste divák</string>
   <string name="pgnTags">PGN tagy</string>
   <string name="like">To se mi líbí</string>
-  <string name="unlike">Už se mi nelíbí</string>
   <string name="newTag">Nový štítek</string>
   <string name="commentThisPosition">Komentář k tomuto příspěvku</string>
   <string name="commentThisMove">Komentář k tomuto tahu</string>
@@ -67,6 +67,7 @@
   <string name="studyPgn">PGN studie</string>
   <string name="chapterPgn">PGN kapitoly</string>
   <string name="copyChapterPgn">Kopírovat PGN</string>
+  <string name="copyRawChapterPgn">Kopírovat čisté PGN</string>
   <string name="downloadGame">Stáhnout hru</string>
   <string name="studyUrl">URL studie</string>
   <string name="currentChapterUrl">URL aktuální kapitoly</string>

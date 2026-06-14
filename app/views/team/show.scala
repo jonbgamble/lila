@@ -44,7 +44,7 @@ object show:
                 name = if t.isChatFor(_.Leaders) then trt.leadersChat.txt() else trans.site.chatRoom.txt(),
                 timeout = chat.timeout,
                 public = true,
-                resourceId = lila.chat.Chat.ResourceId(s"team/${chat.chat.id}"),
+                resource = lila.core.chat.PublicSource.Team(t.id),
                 localMod = havePerm(_.Comm)
               ))
         )
@@ -93,7 +93,7 @@ object show:
                 )
               ),
               bits.actions(t.team, info.member, info.myRequest, info.subscribed, asMod),
-              canSeeMembers.option(bits.members(t.team, members))
+              (canSeeMembers && !t.team.isClas).option(bits.members(t.team, members))
             ),
             div(cls := "team-show__content__col2")(
               standardFlash,
@@ -106,7 +106,7 @@ object show:
               log.nonEmpty.option(renderLog(log)),
               (t.enabled || canManage).option(
                 st.section(cls := "team-show__desc")(
-                  bits.markdown(t.team, t.descPrivate.ifTrue(info.mine) | t.description)
+                  bits.markdown(t.team, t.descPrivate.ifTrue(info.mine || canManage) | t.description)
                 )
               ),
               (t.enabled && info.hasRequests).option(
@@ -116,19 +116,11 @@ object show:
                 )
               ),
               div(
-                (t.enabled && info.simuls.nonEmpty).option(
-                  frag(
-                    st.section(cls := "team-show__tour team-events team-simuls")(
-                      h2(trans.site.simultaneousExhibitions()),
-                      views.simul.ui.allCreated(info.simuls)
-                    )
-                  )
-                ),
-                (t.enabled && info.tours.nonEmpty).option(
-                  frag(
-                    st.section(cls := "team-show__tour team-events team-tournaments")(
-                      h2(a(href := routes.Team.tournaments(t.id))(trans.site.tournaments())),
-                      table(cls := "slist")(
+                (t.enabled && canSeeMembers && info.tours.nonEmpty).option(
+                  st.section(cls := "team-show__tour team-events team-tournaments")(
+                    h2(a(href := routes.Team.tournaments(t.id))(trans.site.tournaments())),
+                    div(cls := "team-show__list-wrapper")(
+                      table(cls := "slist slist-resp")(
                         tournaments.renderList(
                           info.tours.next ::: info.tours.past.take(5 - info.tours.next.size)
                         )
@@ -139,19 +131,21 @@ object show:
                 info.forum.map: forumPosts =>
                   st.section(cls := "team-show__forum")(
                     h2(a(href := teamForumUrl(t.id))(trans.site.forum())),
-                    forumPosts.take(10).map { post =>
-                      a(cls := "team-show__forum__post", href := routes.ForumPost.redirect(post.post.id))(
-                        div(cls := "meta")(
-                          strong(post.topic.name),
-                          em(
-                            post.post.userId.map(titleNameOrId),
-                            " • ",
-                            momentFromNow(post.post.createdAt)
-                          )
-                        ),
-                        p(shorten(Markdown(post.post.text).unlink, 200))
-                      )
-                    },
+                    div(cls := "team-show__list-wrapper")(
+                      forumPosts.take(10).map { post =>
+                        a(cls := "team-show__forum__post", href := routes.ForumPost.redirect(post.post.id))(
+                          div(cls := "meta")(
+                            strong(post.topic.name),
+                            em(
+                              post.post.userId.map(titleNameOrId),
+                              span(" • "),
+                              momentFromNow(post.post.createdAt)
+                            )
+                          ),
+                          p(shorten(Markdown(post.post.text).unlink, 210))
+                        )
+                      }
+                    ),
                     a(cls := "more", href := teamForumUrl(t.id))(t.name, " ", trans.site.forum(), " »")
                   )
               )

@@ -1,9 +1,11 @@
 import { type Chess, makeUci, type Move, parseUci } from 'chessops';
-import type { MoveArgs, MoveSource } from 'lib/bot/types';
-import type { Game } from '../game';
 import { INITIAL_FEN } from 'chessops/fen';
 import { parseSan } from 'chessops/san';
+
+import type { MoveArgs, MoveSource } from 'lib/bot/types';
 import { hashBoard } from 'lib/game/hash';
+
+import type { Game } from '../game';
 
 export const requestBotMove = async (source: MoveSource, game: Game): Promise<Move> => {
   const now = performance.now();
@@ -14,7 +16,7 @@ export const requestBotMove = async (source: MoveSource, game: Game): Promise<Mo
 
   const moveRequest: MoveArgs = {
     pos: { fen: game.data.initialFen || INITIAL_FEN, moves: ucis },
-    chess: chess,
+    chess,
     avoid: threefoldMoves,
     initial: Infinity,
     remaining: Infinity,
@@ -31,7 +33,7 @@ export const requestBotMove = async (source: MoveSource, game: Game): Promise<Mo
       const waitTime = Math.max(0, res.movetime * 1000 - (performance.now() - now));
       setTimeout(() => resolve(uci), waitTime);
     });
-  else return Promise.reject('no move');
+  else return Promise.reject(new Error('no move'));
 };
 
 const makeUcisAndHashes = (game: Game): [Uci[], bigint[], Chess] => {
@@ -42,7 +44,7 @@ const makeUcisAndHashes = (game: Game): [Uci[], bigint[], Chess] => {
     const move = parseSan(chess, node.san)!;
     chess.play(move);
     ucis.push(makeUci(move));
-    if (chess.halfmoves == 0) hashes.length = 0;
+    if (chess.halfmoves === 0) hashes.length = 0;
     else hashes.push(hashBoard(chess.board));
   }
   return [ucis, hashes, chess];
@@ -55,7 +57,7 @@ const makeThreefoldMoves = (chess: Chess, hashes: bigint[]): Uci[] => {
       const next = chess.clone();
       next.play({ from, to });
       const moveHash = hashBoard(next.board);
-      if (hashes.filter(h => h == moveHash).length > 1) tfms.push(makeUci({ from, to }));
+      if (hashes.filter(h => h === moveHash).length > 1) tfms.push(makeUci({ from, to }));
     }
   }
   return tfms;

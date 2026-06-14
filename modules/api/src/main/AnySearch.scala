@@ -9,7 +9,9 @@ final class AnySearch(
     puzzleEnv: lila.puzzle.Env,
     tourEnv: lila.tournament.Env,
     swissEnv: lila.swiss.Env,
-    ublogApi: lila.ublog.UblogApi
+    ublogApi: lila.ublog.UblogApi,
+    teamEnv: lila.team.Env,
+    fideEnv: lila.fide.Env
 )(using Executor):
 
   private val idRegex = """^[a-zA-Z0-9]{4,12}$""".r
@@ -21,7 +23,7 @@ final class AnySearch(
         def game = gameEnv.gameRepo.exists(GameId(id)).map(_.option(s"/$id"))
 
         def broadcastRound = relayEnv.api.byIdWithTour(RelayRoundId(id)).map2(_.path)
-        def broadcastTour = relayEnv.api.tourById(RelayTourId(id)).map2(_.path)
+        def broadcastTour = relayEnv.api.tourById(RelayTourId(id)).map2(_.call.url)
 
         def study = studyEnv.studyRepo.exists(StudyId(id)).map(_.option(routes.Study.show(StudyId(id)).url))
         def chapter =
@@ -35,6 +37,12 @@ final class AnySearch(
 
         def ublog = ublogApi.getPost(UblogPostId(id)).map2(_ => routes.Ublog.redirect(UblogPostId(id)).url)
 
+        def team = teamEnv.teamRepo.enabled(TeamId(id)).map2(_ => routes.Team.show(TeamId(id)).url)
+
+        def fideplayer = chess.FideId
+          .from(str.toIntOption)
+          .so(id => fideEnv.playerApi.fetch(id).map2(p => routes.Fide.show(id, p.slug).url))
+
         game
           .orElse(broadcastRound)
           .orElse(broadcastTour)
@@ -44,3 +52,5 @@ final class AnySearch(
           .orElse(tour)
           .orElse(swiss)
           .orElse(ublog)
+          .orElse(team)
+          .orElse(fideplayer)

@@ -1,7 +1,6 @@
 package lila.study
 
 import chess.format.pgn.{ PgnStr, Tags }
-import chess.{ Node as PgnNode, Tree }
 import monocle.syntax.all.*
 import alleycats.Zero
 
@@ -47,20 +46,15 @@ object Helpers:
 
   extension (newBranch: NewBranch)
     def toBranch(children: Option[NewTree]): Branch = Branch(
-      newBranch.id,
       newBranch.ply,
       newBranch.move,
       newBranch.fen,
-      newBranch.check,
-      newBranch.dests,
-      newBranch.drops,
       newBranch.eval,
       newBranch.shapes,
       newBranch.comments,
       newBranch.gamebook,
       newBranch.glyphs,
       children.fold(Branches.empty)(_.toBranches),
-      newBranch.opening,
       newBranch.comp,
       newBranch.clock,
       newBranch.crazyData,
@@ -81,16 +75,12 @@ object Helpers:
       Root(
         root.ply,
         root.fen,
-        root.check,
-        root.dests,
-        root.drops,
         root.eval,
         root.shapes,
         root.comments,
         root.gamebook,
         root.glyphs,
         root.tree.fold(Branches.empty)(_.toBranches),
-        root.opening,
         root.clock,
         root.crazyData
       )
@@ -122,5 +112,3 @@ object Helpers:
         .replace(none)
         .focus(_.metas.comments)
         .modify(_.cleanup)
-
-  def sanStr(node: Tree[NewBranch]): String = node.value.move.san.value

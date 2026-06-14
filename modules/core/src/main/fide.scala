@@ -1,12 +1,10 @@
 package lila.core
 package fide
 
-import _root_.chess.{ FideId, PlayerName, PlayerTitle }
+import _root_.chess.{ FideId, FideTC, PlayerName, PlayerTitle }
 import _root_.chess.rating.{ Elo, KFactor }
+import play.api.libs.json.JsObject
 import lila.core.userId.UserId
-
-enum FideTC:
-  case standard, rapid, blitz
 
 object Federation:
 
@@ -15,8 +13,9 @@ object Federation:
 
   type Name = String
   type ByFideIds = Map[FideId, Id]
-  type NamesOf = List[FideId] => Fu[Map[Federation.Id, Federation.Name]]
   type FedsOf = List[FideId] => Fu[Federation.ByFideIds]
+  type Guess = String => Option[Federation.Id]
+  type GetName = Id => Fu[Option[Federation.Name]]
 
   case class Stats(rank: Int, nbPlayers: Int, top10Rating: Int)
 
@@ -27,6 +26,7 @@ trait Player:
   def title: Option[PlayerTitle]
   def year: Option[Int]
   def ratingOf(tc: FideTC): Option[Elo]
+  def ratingOfOrStandard(tc: FideTC): Option[Elo]
   def kFactorOf(tc: FideTC): KFactor
   def ratingsMap: Map[FideTC, Elo]
 
@@ -35,7 +35,20 @@ type GuessPlayer = (Option[FideId], Option[PlayerName], Option[PlayerTitle]) => 
 type GetPlayer = FideId => Fu[Option[Player]]
 type GetPlayerFollowers = FideId => Fu[Set[UserId]]
 
+opaque type PhotosJson = JsObject
+object PhotosJson extends TotalWrapper[PhotosJson, JsObject]:
+  type Get = Set[FideId] => Fu[PhotosJson]
+
 type Tokenize = String => PlayerToken
+
+enum FidePlayerOrder:
+  case name, standard, rapid, blitz, year, follow
+  def key = toString
+
+object FidePlayerOrder:
+  def all: List[FidePlayerOrder] = values.toList
+  val byKey = values.mapBy(_.key)
+  val default: FidePlayerOrder = standard
 
 // FIDE's weird way of not supporting unicode
 object diacritics:

@@ -1,10 +1,9 @@
 db.event.createIndex({ startsAt: 1 });
-db.picfit_image.createIndex({ rel: 1 }, { unique: true });
+db.picfit_image.createIndex({ refs: 1 });
 db.picfit_image.createIndex(
   { 'automod.flagged': 1 },
   { partialFilterExpression: { 'automod.flagged': { $exists: true } } },
 );
-db.tutor_report.createIndex({ at: -1 });
 db.swiss_pairing.createIndex({ s: 1, p: 1, r: 1 });
 db.swiss_pairing.createIndex({ t: 1 }, { partialFilterExpression: { t: true } });
 db.oauth2_authorization.createIndex({ expires: 1 }, { expireAfterSeconds: 0 });
@@ -84,10 +83,16 @@ db.fide_player.createIndex({ fed: 1, standard: -1 });
 db.fide_player.createIndex({ fed: 1, rapid: -1 });
 db.fide_player.createIndex({ fed: 1, blitz: -1 });
 db.fide_player.createIndex({ standard: -1 });
+db.fide_player.createIndex({ rapid: -1 });
+db.fide_player.createIndex({ blitz: -1 });
+db.fide_player.createIndex({ name: 1 });
+db.fide_player.createIndex({ fed: 1 });
+db.fide_player.createIndex({ year: -1 });
 db.fide_player.createIndex(
   { _fts: 'text', _ftsx: 1, standard: -1 },
   { weights: { token: 1 }, default_language: 'english', language_override: 'language', textIndexVersion: 3 },
 );
+db.fide_player_follower.createIndex({ u: 1 });
 db.note.createIndex({ to: 1, date: -1 });
 db.note.createIndex({ from: 1 }, { partialFilterExpression: { mod: false } });
 db.note.createIndex(
@@ -117,7 +122,10 @@ db.user4.createIndex(
 db.f_topic.createIndex({ categId: 1, troll: 1 });
 db.f_topic.createIndex({ categId: 1, updatedAt: -1, troll: 1 });
 db.f_topic.createIndex({ categId: 1, slug: 1 });
-db.f_topic.createIndex({ categId: 1 }, { partialFilterExpression: { sticky: true } });
+db.f_topic.createIndex(
+  { categId: 1, troll: 1, sticky: 1 },
+  { partialFilterExpression: { sticky: { $exists: 1 } } },
+);
 db.seek_archive.createIndex({ archivedAt: 1 }, { expireAfterSeconds: 604800 });
 db.seek_archive.createIndex({ gameId: 1 });
 db.swiss_player.createIndex({ s: 1, c: -1 });
@@ -196,7 +204,6 @@ db.tournament_leaderboard.createIndex({ u: 1, d: -1 });
 db.tournament_leaderboard.createIndex({ u: 1, w: 1 });
 db.coach.createIndex({ 'user.seenAt': -1 });
 db.coach.createIndex({ 'user.rating': -1 });
-db.coach.createIndex({ nvReviews: -1 });
 db.streamer.createIndex({ liveAt: -1 });
 db.streamer.createIndex(
   { 'approval.granted': 1, listed: 1 },
@@ -216,14 +223,18 @@ db.relay.createIndex(
 );
 db.oauth2_access_token.createIndex({ userId: 1 });
 db.oauth2_access_token.createIndex({ expires: 1 }, { expireAfterSeconds: 0 });
+db.oauth2_access_token.createIndex(
+  { clientOrigin: 1, used: 1 },
+  { partialFilterExpression: { clientOrigin: 'https://auth.taketaketake.com' } },
+);
 db.cache.createIndex({ e: 1 }, { expireAfterSeconds: 0 });
 db.forecast.createIndex({ date: 1 }, { expireAfterSeconds: 1296000 });
 db.msg_thread.createIndex({ users: 1, 'lastMsg.date': -1 });
 db.msg_thread.createIndex({ users: 1 }, { partialFilterExpression: { 'lastMsg.read': false } });
 db.msg_thread.createIndex({ users: 1, 'maskWith.date': -1 });
-db.video.createIndex({ 'metadata.likes': -1 });
-db.video.createIndex({ tags: 1, 'metadata.likes': -1 });
-db.video.createIndex({ author: 1, 'metadata.likes': -1 });
+db.video.createIndex({ 'metadata.refreshedAt': -1 });
+db.video.createIndex({ tags: 1, 'metadata.refreshedAt': -1 });
+db.video.createIndex({ author: 1, 'metadata.publishedAt': -1 });
 db.video.createIndex(
   { _fts: 'text', _ftsx: 1 },
   {
@@ -258,7 +269,6 @@ db.f_post.createIndex({ categId: 1, createdAt: -1 });
 db.f_post.createIndex({ topicId: 1, createdAt: -1 });
 db.external_engine.createIndex({ userId: 1 });
 db.external_engine.createIndex({ oauthToken: 1 });
-db.tutor_queue.createIndex({ requestedAt: 1 });
 db.clas_clas.createIndex({ teachers: 1, viewedAt: -1 });
 db.clas_student.createIndex({ clasId: 1, userId: 1 });
 db.clas_student.createIndex({ userId: 1 });
@@ -310,15 +320,19 @@ db.title_request.createIndex(
   { partialFilterExpression: { 'history.0.status.n': 'approved', 'data.fideId': { $exists: 1 } } },
 );
 
-// you may want to run these on the insight database
-// if it's a different one
-db.insight.createIndex({ mr: 1, p: 1, c: 1 });
-db.insight.createIndex({ mr: 1, a: 1 }, { partialFilterExpression: { mr: { $exists: true } } });
-db.insight.createIndex({ u: 1, d: -1 });
+// you may want to run these on the insight database if it's a different one
+// u{ser}, p{erf}, c{color}, a{nalysed}, mr{ating} (stable), d{ate}, c{color}, of{opening family}
+db.insight.createIndex({ u: 1, d: -1 }); // for insights
+// for tutor. We can't index by opening family, because it sorts the game by opening
+// and then requests about multiple openings are fully biased towards the first one alphabetically.
+db.insight.createIndex({ mr: 1, p: 1, a: 1, c: 1 }, { partialFilterExpression: { mr: { $exists: true } } });
 db.kaladin_queue.createIndex(
   { 'response.at': 1, 'response.read': 1 },
   { partialFilterExpression: { 'response.at': { $exists: true } } },
 );
+db.tutor_queue.createIndex({ requestedAt: 1 });
+db.tutor_report.createIndex({ 'config.user': 1, at: -1 });
+db.tutor_report.createIndex({ at: -1 }); // for duration estimation
 
 // you may want to run these on the puzzle database
 db.puzzle2_round.createIndex({ p: 1 }, { partialFilterExpression: { t: { $exists: true } } });
@@ -338,3 +352,4 @@ db.puzzle2_path.createIndex({ min: 1, max: -1 });
 db.relay_delay.createIndex({ at: 1 }, { expireAfterSeconds: 7200 });
 db.ranking.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 db.ranking.createIndex({ perf: 1, rating: -1 }, { partialFilterExpression: { stable: true } });
+db.ranking.createIndex({ perf: 1, rating: -1, expiresAt: -1 }, { partialFilterExpression: { stable: true } });

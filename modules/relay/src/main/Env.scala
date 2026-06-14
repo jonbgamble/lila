@@ -3,16 +3,12 @@ package lila.relay
 import com.softwaremill.macwire.*
 import com.softwaremill.tagging.*
 import play.api.libs.ws.StandaloneWSClient
-import scalalib.paginator.Paginator
-
 import scala.util.matching.Regex
 
 import lila.core.config.*
-
 import lila.common.Bus
 import lila.memo.SettingStore
 import lila.memo.SettingStore.Formable.given
-import lila.relay.RelayTour.WithLastRound
 import lila.core.id.RelayRoundId
 
 @Module
@@ -32,18 +28,22 @@ final class Env(
     guessPlayer: lila.core.fide.GuessPlayer,
     getPlayer: lila.core.fide.GetPlayer,
     getPlayerFollowers: lila.core.fide.GetPlayerFollowers,
+    getPhotosJson: lila.core.fide.PhotosJson.Get,
     cacheApi: lila.memo.CacheApi,
     settingStore: SettingStore.Builder,
     irc: lila.core.irc.IrcApi,
-    baseUrl: BaseUrl,
+    routeUrl: RouteUrl,
     notifyApi: lila.core.notify.NotifyApi,
     picfitApi: lila.memo.PicfitApi,
     picfitUrl: lila.memo.PicfitUrl,
     lightUserSync: lila.core.LightUser.GetterSync,
     langList: lila.core.i18n.LangList,
     baker: lila.core.security.LilaCookie,
-    markdownCache: lila.memo.MarkdownCache
-)(using Executor, akka.stream.Materializer, play.api.Mode)(using scheduler: Scheduler):
+    markdownCache: lila.memo.MarkdownCache,
+    viewerCount: lila.memo.ViewerCountApi
+)(using lila.core.fide.Federation.Guess, Executor, akka.stream.Materializer, play.api.Mode)(using
+    scheduler: Scheduler
+):
 
   lazy val roundForm = wire[RelayRoundForm]
   lazy val groupForm = wire[RelayGroupForm]
@@ -71,7 +71,9 @@ final class Env(
 
   lazy val markdown = wire[RelayMarkdown]
 
-  lazy val jsonView = wire[JsonView]
+  lazy val jsonView = wire[RelayJsonView]
+
+  lazy val defaults = wire[RelayDefaults]
 
   lazy val listing = wire[RelayListing]
 
@@ -87,7 +89,11 @@ final class Env(
 
   lazy val pgnStream = wire[RelayPgnStream]
 
+  lazy val groupApi = wire[RelayGroupApi]
+
   lazy val teamTable = wire[RelayTeamTable]
+
+  lazy val teamLeaderboard = wire[RelayTeamLeaderboard]
 
   lazy val playerTour = wire[RelayPlayerTour]
 
@@ -95,10 +101,7 @@ final class Env(
 
   lazy val videoEmbed = wire[lila.relay.RelayVideoEmbedStore]
 
-  def top(page: Int): Fu[(List[RelayCard], Paginator[WithLastRound])] =
-    (page == 1).so(listing.active).zip(pager.inactive(page))
-
-  val topJson = (page: Int) => (_: JsonView.Config) ?=> top(page).map(jsonView.top)
+  lazy val home = wire[lila.relay.RelayHomeApi]
 
   private lazy val sync = wire[RelaySync]
 
@@ -114,8 +117,7 @@ final class Env(
   export delay.delayedUntil
 
   // eager init to start the scheduler
-  private val stats = wire[RelayStatsApi]
-  export stats.getJson as statsJson
+  val stats = wire[RelayStatsApi]
 
   import SettingStore.CredentialsOption.given
   val proxyCredentials = settingStore[Option[Credentials]](
@@ -168,10 +170,6 @@ final class Env(
     case lila.study.Kick(studyId, userId, who) =>
       roundRepo.tourIdByStudyId(studyId).flatMapz(api.kickBroadcast(userId, _, who))
 
-  Bus.sub[lila.study.BecomeStudyAdmin]:
-    case lila.study.BecomeStudyAdmin(studyId, me) =>
-      api.becomeStudyAdmin(studyId, me)
-
   Bus.sub[lila.study.IsOfficialRelay]:
     case lila.study.IsOfficialRelay(studyId, promise) =>
       promise.completeWith(api.isOfficial(studyId.into(RelayRoundId)))
@@ -185,6 +183,14 @@ final class Env(
 
   Bus.sub[lila.core.relay.GetActiveRounds]:
     _.promise.completeWith(listing.active.map(_.map(_.asIdName)))
+
+  lila.common.Cli.handle:
+    case "relay" :: "owner" :: id :: user :: Nil =>
+      UserStr
+        .read(user)
+        .fold(fuccess("Invalid username")): username =>
+          for tourIds <- api.setOwnerOfGroupOrTour(id, username.id)
+          yield s"Added ${username} as owner to ${tourIds.size} tours: ${tourIds.mkString(", ")}"
 
 private final class RelayColls(mainDb: lila.db.Db, yoloDb: lila.db.AsyncDb @@ lila.db.YoloDb):
   val round = mainDb(CollName("relay"))

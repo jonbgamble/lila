@@ -3,7 +3,7 @@ import type { SearchMove, MoveArgs } from './types';
 
 export type FilterFacetKey = keyof typeof filterFacets;
 export type FilterBy = 'max' | 'min' | 'avg';
-export type FilterFacetValue = { [key in FilterFacetKey]?: number };
+export type FilterFacetValue = Partial<Record<FilterFacetKey, number>>;
 export type FilterName = 'cplTarget' | 'cplStdev' | 'lc0bias' | 'moveDecay';
 export type Filters = Record<string, Filter>;
 export type FilterResult = Record<Uci, number>;
@@ -18,7 +18,6 @@ export interface Filter {
   score?: Point[];
   time?: Point[];
 }
-
 export interface FilterInfo {
   type: 'filter';
   value: Filter;

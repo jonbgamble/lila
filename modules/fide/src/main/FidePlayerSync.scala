@@ -2,13 +2,15 @@ package lila.fide
 
 import akka.stream.contrib.ZipInputStreamSource
 import akka.stream.scaladsl.*
-import chess.{ FideId, PlayerName, PlayerTitle }
+import chess.{ FideId, FideTC, PlayerName, PlayerTitle }
 import chess.rating.{ Elo, KFactor }
 import play.api.libs.ws.StandaloneWSClient
 import reactivemongo.api.bson.*
 import java.util.zip.ZipInputStream
+import java.time.YearMonth
 
-import lila.core.fide.{ Federation, FideTC }
+import lila.mon.extensions.*
+import lila.core.fide.Federation
 import lila.db.dsl.{ *, given }
 
 final private class FidePlayerSync(repo: FideRepo, ws: StandaloneWSClient)(using
@@ -21,10 +23,12 @@ final private class FidePlayerSync(repo: FideRepo, ws: StandaloneWSClient)(using
   // the file is big. We want to stream the http response into the zip reader,
   // and stream the zip output into the database as it's being extracted.
   // Don't load the whole thing in memory.
-  def apply(): Funit = for
-    _ <- playersFromHttpFile()
-    _ <- federationsFromPlayers()
-  yield ()
+  def apply(): Funit = {
+    for
+      _ <- playersFromHttpFile()
+      _ <- federationsFromPlayers()
+    yield ()
+  }.logFailure(logger)
 
   private object federationsFromPlayers:
     def apply(): Funit = for
@@ -37,7 +41,7 @@ final private class FidePlayerSync(repo: FideRepo, ws: StandaloneWSClient)(using
           for
             obj <- objs
             code <- obj.getAsOpt[Federation.Id]("_id")
-            name <- lila.fide.Federation.names.get(code)
+            name <- lila.fide.Federation.names.get(code).map(_._1)
             nbPlayers <- obj.int("count")
             if nbPlayers >= 5
           yield (code, name, nbPlayers)
@@ -113,10 +117,12 @@ final private class FidePlayerSync(repo: FideRepo, ws: StandaloneWSClient)(using
                 .drop(1) // first line is a header
                 .map(parseLine)
                 .mapConcat(_.toList)
+                .filter(validatePlayer)
                 .grouped(200)
+                .map(_.toList)
                 .mapAsync(1)(saveIfChanged)
                 .runWith(lila.common.LilaStream.sinkSum)
-                .monSuccess(_.fideSync.time)
+                .monSuccess(lila.mon.fideSync.time)
             nbAll <- repo.player.countAll
           yield
             lila.mon.fideSync.updated.update(nbUpdated)
@@ -125,11 +131,12 @@ final private class FidePlayerSync(repo: FideRepo, ws: StandaloneWSClient)(using
     yield ()
 
     /*
-  6502938        Acevedo Mendez, Lisseth                                      ISL F   WIM  WIM                     1795  0   20 1767  14  20 1740  0   20 1993  w
-  6504450        Acevedo Mendez, Oscar                                        CRC M                                1779  0   40              1640  0   20 1994  i
+6502938        Acevedo Mendez, Lisseth                                      ISL F   WIM  WIM                     1795  0   20 1767  14  20 1740  0   20 1993  w
+6504450        Acevedo Mendez, Oscar                                        CRC M                                1779  0   40              1640  0   20 1994  i
      */
     private def parseLine(line: String): Option[FidePlayer] =
-      def string(start: Int, end: Int) = line.substring(start, end).trim.some.filter(_.nonEmpty)
+      def char(at: Int) = line.substring(at, at + 1).headOption
+      def string(start: Int, end: Int) = line.substring(start, end).trim.nonEmptyOption
       def number(start: Int, end: Int) = string(start, end).flatMap(_.toIntOption)
       def rating(start: Int) = Elo.from(number(start, start + 4).filter(_ >= 1400))
       def kFactor(start: Int) = KFactor.from(number(start, start + 2).filter(_ > 0))
@@ -149,6 +156,7 @@ final private class FidePlayerSync(repo: FideRepo, ws: StandaloneWSClient)(using
         id = FideId(id),
         name = PlayerName(name),
         token = token,
+        photo = none,
         fed = Federation.Id.from(string(76, 79).map(_.toUpperCase).filter(_ != "NON")),
         title = PlayerTitle.mostValuable(title, wTitle),
         standard = rating(113),
@@ -158,24 +166,40 @@ final private class FidePlayerSync(repo: FideRepo, ws: StandaloneWSClient)(using
         blitz = rating(139),
         blitzK = kFactor(149),
         year = year,
+        gender = FidePlayer.Gender.from(char(80)),
         inactive = flags.exists(_.contains("i"))
       )
 
-    private def saveIfChanged(players: Seq[FidePlayer]): Future[Int] =
+    private def validatePlayer(p: FidePlayer): Boolean =
+      p.age.exists: age =>
+        age > 9 || (age > 5 && p.ratingsMap.nonEmpty)
+
+    private def saveIfChanged(players: List[FidePlayer]): Future[Int] =
       repo.player
         .fetch(players.map(_.id))
         .flatMap: inDb =>
           val inDbMap: Map[FideId, FidePlayer] = inDb.mapBy(_.id)
-          val changed = players.filter: p =>
-            inDbMap.get(p.id).fold(true)(i => !i.isSame(p))
+          val changed = players.flatMap: fromFide =>
+            val inDb = inDbMap.get(fromFide.id)
+            inDb
+              .forall(i => !i.isSame(fromFide))
+              .option:
+                fromFide.copy(photo = inDb.flatMap(_.photo))
+          logger.info(s"FidePlayerSync.saveIfChanged: ${changed.size} changes out of ${players.size} players")
           changed.nonEmpty.so:
             val update = repo.playerColl.update(ordered = false)
             for
-              elements <- changed.toList.sequentially: p =>
+              elements <- changed.sequentially: p =>
                 update.element(
                   q = $id(p.id),
                   u = repo.player.handler.writeOpt(p).get,
                   upsert = true
                 )
               _ <- elements.nonEmpty.so(update.many(elements).void)
+              _ <- updateRatingHistories(changed)
             yield elements.size
+
+    private def updateRatingHistories(players: List[FidePlayer]): Funit =
+      val now = YearMonth.now
+      players.sequentiallyVoid: p =>
+        repo.rating.set(p.id, now, p.ratingsMap)

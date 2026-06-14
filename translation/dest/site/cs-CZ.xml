@@ -2,10 +2,14 @@
 <resources>
   <string name="gameSetup">Vytvořit hru</string>
   <string name="challengeAFriend" comment="be mindful how 'friend' translates in gendered languages. look for a more neutral term if there's an issue, or base your translation on a different phrase like 'invite to a game'. keep it short and convey the button's meaning without offense.">Vyzvi přítele</string>
+  <string name="playAgainstComputer">Hrát proti počítači</string>
+  <string name="gameMode">Herní mód</string>
+  <string name="createLobbyGame">Vytvořit hru v lobby</string>
   <string name="toInviteSomeoneToPlayGiveThisUrl">Pro pozvání někoho ke hře využijte tento odkaz</string>
   <string name="gameOver">Konec hry</string>
   <string name="waitingForOpponent">Čekání na soupeře</string>
   <string name="orLetYourOpponentScanQrCode">Nebo nechte soupeře naskenovat tento QR kód</string>
+  <string name="reusableChallengeUrl">Znovupoužitelné URL výzvy</string>
   <string name="waiting">Čeká se</string>
   <string name="yourTurn">Jste na tahu</string>
   <string name="aiNameLevelAiLevel">AI %1$s úrovně %2$s</string>
@@ -46,15 +50,17 @@
   </plurals>
   <string name="opponentLeftChoices">Soupeř opustil hru. Můžete vynutit remízu nebo jeho vzdání partie či na něj počkat.</string>
   <string name="forceResignation">Vynutit vzdání partie</string>
-  <string name="forceDraw">Vynutit remízu</string>
-  <string name="talkInChat">Pro povídání v chatu pište sem</string>
-  <string name="theFirstPersonToComeOnThisUrlWillPlayWithYou">První kdo přijde pomocí tohoto odkazu, bude s Vámi hrát</string>
+  <string name="forceDraw">Nabídnout remízu</string>
+  <string name="talkInChat">Prosím, chovejte se v chatu slušně!</string>
+  <string name="theFirstPersonToComeOnThisUrlWillPlayWithYou">První, kdo přijde pomocí tohoto odkazu, bude s Vámi hrát.</string>
   <string name="whiteResigned">Bílý se vzdal</string>
   <string name="blackResigned">Černý se vzdal</string>
   <string name="whiteLeftTheGame">Bílý opustil hru</string>
   <string name="blackLeftTheGame">Černý opustil hru</string>
   <string name="whiteDidntMove">Bílý netáhl</string>
   <string name="blackDidntMove">Černý netáhl</string>
+  <string name="whiteAborted">Bílý opustil hru</string>
+  <string name="blackAborted">Černý opustil hru</string>
   <string name="requestAComputerAnalysis">Vyžádat počítačovou analýzu</string>
   <string name="computerAnalysis">Počítačová analýza</string>
   <string name="computerAnalysisAvailable">Analýza počítače k dispozici</string>
@@ -92,6 +98,8 @@
   <string name="database">Databáze</string>
   <string name="whiteDrawBlack">Bílý / Remíza / Černý</string>
   <string name="averageRatingX">Průměrný rating: %s</string>
+  <string name="minRatingX">Minimální rating: %s</string>
+  <string name="maxRatingX">Maximální rating: %s</string>
   <string name="recentGames">Nedávné hry</string>
   <string name="topGames">Top hry</string>
   <string name="masterDbExplanation">Dva miliony her hráčů Ela FIDE %1$s+ od let %2$s do %3$s</string>
@@ -125,7 +133,9 @@
   <string name="enable">Povolit analýzu</string>
   <string name="bestMoveArrow">Šipka pro nejlepší tah</string>
   <string name="showVariationArrows">Zobrazit šipky variant</string>
-  <string name="evaluationGauge">Měřítko hodnocení</string>
+  <string name="visualMotifs">Vizuální motivy</string>
+  <string name="undefendedPieces">Nebráněné figury</string>
+  <string name="checkableKing">Král, kterého lze dát do šachu</string>
   <string name="multipleLines">Počet variant</string>
   <string name="cpus">Procesor(y)</string>
   <string name="memory">Paměť</string>
@@ -186,6 +196,7 @@
   <string name="drawByMutualAgreement">Remíza po vzájemné dohodě</string>
   <string name="fiftyMovesWithoutProgress">Padesát tahů bez progresu</string>
   <string name="currentGames">Právě probíhající partie</string>
+  <string name="joinedX">Zaregistrován %s</string>
   <plurals name="nbGames">
     <item quantity="one">%s partie</item>
     <item quantity="few">%s partie</item>
@@ -224,6 +235,7 @@
   <string name="minutesPerSide">Minut pro každého hráče</string>
   <string name="variant">Varianta</string>
   <string name="variants">Varianty</string>
+  <string name="variantsDescription">Více způsobů, jak hrát</string>
   <string name="timeControl">Tempo hry</string>
   <string name="realTime">Skutečný čas</string>
   <string name="correspondence">Korespondenčně</string>
@@ -256,7 +268,7 @@
   <string name="changeUsernameNotSame">Můžete změnit pouze velikost písmen. Např. z \"petrnovak\" na \"PetrNovak\".</string>
   <string name="changeUsernameDescription">Změňte své uživatelské jméno. To lze provést pouze jednou, a můžete změnit pouze velikost písmen.</string>
   <string name="signupUsernameHint">Zvolte si vhodné a nezávadné uživatelské jméno. Později ho nelze změnit a účty s nevhodnými uživatelskými jmény budou uzavřeny!</string>
-  <string name="signupEmailHint">Bude použit pouze pro obnovení hesla.</string>
+  <string name="signupEmailPromise">Pošleme vám pouze e-maily týkající se vašeho účtu a váš e-mail nikdy nikomu nesdílíme.</string>
   <string name="password">Heslo</string>
   <string name="changePassword">Změnit heslo</string>
   <string name="changeEmail">Změnit email</string>
@@ -280,9 +292,7 @@
   <string name="emailCanTakeSomeTime">Může to chvíli trvat.</string>
   <string name="refreshInboxAfterFiveMinutes">Počkejte 5 minut a obnovte vaši e-mailovou schránku.</string>
   <string name="checkSpamFolder">Také zkontrolujte složku nevyžádané pošty. Pokud ano, označte mail jako vyžádaný.</string>
-  <string name="emailForSignupHelp">Pokud všechno ostatní selže, pošlete nám tento e-mail:</string>
-  <string name="copyTextToEmail">Zkopírujte a vložte výše uvedený text a pošlete jej na %s</string>
-  <string name="waitForSignupHelp">Brzy se k vám ozveme, abychom vám pomohli dokončit registraci.</string>
+  <string name="sendEmailForAccountVerification">Pokud nemůžete najít svůj potvrzovací e-mail, pošlete nám e-mail na adresu %s a potvrdíme vám váš účet.</string>
   <string name="accountConfirmed">Uživatel %s byl úspěšně potvrzen.</string>
   <string name="accountCanLogin">Nyní se můžete přihlásit jako %s.</string>
   <string name="accountConfirmationEmailNotNeeded">Nepotřebujete potvrzovací e-mail.</string>
@@ -386,6 +396,7 @@
     <item quantity="other">%s se hraje</item>
   </plurals>
   <string name="exportGames">Exportovat partie</string>
+  <string name="ratingFilter">Filtr ratingu</string>
   <plurals name="giveNbSeconds">
     <item quantity="one">Přidat %s sekundu</item>
     <item quantity="few">Přidat %s sekundy</item>
@@ -479,10 +490,11 @@
   <string name="leaderboard">Žebříček</string>
   <string name="screenshotCurrentPosition">Screenshot pozice</string>
   <string name="gameAsGIF">Uložit jako GIF</string>
+  <string name="playerNames">Jména hráčů</string>
+  <string name="moveAnnotations">Anotace tahů</string>
   <string name="pasteTheFenStringHere">Zde vložte FEN řetězec</string>
   <string name="pasteThePgnStringHere">Zde vložte PGN řetězec</string>
   <string name="orUploadPgnFile">Nebo nahrajte soubor PGN</string>
-  <string name="fromPosition">Z pozice</string>
   <string name="continueFromHere">Pokračovat zde</string>
   <string name="toStudy">Do studie</string>
   <string name="importGame">Importuj hru</string>
@@ -537,12 +549,6 @@
   <string name="player">Hráč</string>
   <string name="list">Seznam</string>
   <string name="graph">Graf</string>
-  <plurals name="lessThanNbMinutes">
-    <item quantity="one">Méně než %s minuta</item>
-    <item quantity="few">Méně než %s minuty</item>
-    <item quantity="many">Méně než %s minut</item>
-    <item quantity="other">Méně než %s minut</item>
-  </plurals>
   <string name="required">Vyžadováno.</string>
   <string name="openTournaments">Otevřené turnaje</string>
   <string name="duration">Trvání</string>
@@ -580,6 +586,7 @@
   <string name="popularOpenings">Populární zahájení</string>
   <string name="endgamePositions">Pozice koncovek</string>
   <string name="chess960StartPosition">Základní postavení Chess960: %s</string>
+  <string name="randomChess960Position">Náhodná pozice Chess960</string>
   <string name="startPosition">Základní postavení</string>
   <string name="clearBoard">Prázdná šachovnice</string>
   <string name="loadPosition">Nahrát pozici</string>
@@ -658,6 +665,8 @@
   <string name="invalidUsernameOrPassword">Špatné jméno nebo heslo</string>
   <string name="incorrectPassword">Nesprávné heslo</string>
   <string name="invalidAuthenticationCode">Neplatný ověřovací kód</string>
+  <string name="orSeparator">Nebo</string>
+  <string name="logInByEmail">Přihlásit se e-mailem</string>
   <string name="emailMeALink">Pošlete mi odkaz e-mailem</string>
   <string name="currentPassword">Současné heslo</string>
   <string name="newPassword">Nové heslo</string>
@@ -790,11 +799,6 @@
   <string name="keyCycleSelectedVariation">Projdi zkrze vybranou variaci</string>
   <string name="keyShowOrHideComments">zobrazte/skryjte komentáře</string>
   <string name="keyEnterOrExitVariation">Zobraz variantu</string>
-  <string name="keyRequestComputerAnalysis">Vyžádejte si počítačovou analýzu, poučte se ze svých chyb</string>
-  <string name="keyNextLearnFromYourMistakes">Další (poučit se z chyb)</string>
-  <string name="keyNextBlunder">Další hrubá chyba</string>
-  <string name="keyNextMistake">Další chyba</string>
-  <string name="keyNextInaccuracy">Další nepřesnost</string>
   <string name="keyPreviousBranch">Předchozí větev</string>
   <string name="keyNextBranch">Další větev</string>
   <string name="toggleVariationArrows">Přepnout šipky variant</string>
@@ -873,6 +877,8 @@
   <string name="xHostsY">%1$s založil %2$s</string>
   <string name="xJoinsY">%1$s se přidal k %2$s</string>
   <string name="xLikesY">%1$s lajknul %2$s</string>
+  <string name="like">To se mi líbí</string>
+  <string name="liked">Líbí se mi</string>
   <string name="quickPairing">Rychlá hra</string>
   <string name="lobby">Výzvy</string>
   <string name="anonymous">Anonymní</string>
@@ -889,6 +895,7 @@
   <string name="size">Velikost</string>
   <string name="opacity">Průhlednost</string>
   <string name="brightness">Jas</string>
+  <string name="contrast">Kontrast</string>
   <string name="hue">Hue</string>
   <string name="boardReset">Vrátit barvy na původní nastavení</string>
   <string name="pieceSet">Vzhled figur</string>
@@ -907,6 +914,7 @@
   <string name="notifications">Oznámení</string>
   <string name="notificationsX">Oznámení: %1$s</string>
   <string name="perfRatingX">Rating: %s</string>
+  <string name="yourRatingIsX">Tvůj rating je %s</string>
   <plurals name="nbSecondsToPlayTheFirstMove">
     <item quantity="one">%s sekunda na první tah</item>
     <item quantity="few">%s sekundy na první tah</item>
@@ -962,6 +970,7 @@
   <string name="playVariationToCreateConditionalPremoves">Hrajte variantu k vytvoření podmíněných předtahů</string>
   <string name="noConditionalPremoves">Žádné podmíněné předtahy</string>
   <string name="playX">Hrajte %s</string>
+  <string name="challengeX">Vyzvat %s</string>
   <plurals name="andSaveNbPremoveLines">
     <item quantity="one">a uložit %s předtaženou variantu</item>
     <item quantity="few">a uložit %s předtažené varianty</item>
@@ -988,11 +997,11 @@
   <string name="agreementAssistance">Přísahám, že nikdy nevyužiji jiné pomoci při mých hrách (počítače, knihy, databáze nebo jiné osoby).</string>
   <string name="agreementNice">Přísahám, že budu vždy respektovat ostatní hráče.</string>
   <string name="agreementMultipleAccounts" comment="%s will be replaced with the translation of 'termsOfService'">Souhlasím s tím, že nebudu vytvářet více účtů (s výjimkou důvodů uvedených v %s).</string>
-  <string name="agreementPolicy">Souhlasím, že se budu řídit všemi pravidly Lichessu.</string>
   <string name="searchOrStartNewDiscussion">Začněte nebo vyhledejte konverzaci</string>
   <string name="edit">Upravit</string>
+  <string name="ultraBullet" comment="Probably best left untranslated. Leave it as 'UltraBullet' unless your language has a better word for it.">UltraBullet</string>
   <string name="bullet" comment="Probably best left untranslated. Leave it as 'Bullet' unless your language has a better word for it.">Bullet</string>
-  <string name="blitz" comment="Probably best left untranslated. Leave it as 'Blitz' unless your language has a better word for it.">Bleskové šachy</string>
+  <string name="blitz" comment="Probably best left untranslated. Leave it as 'Blitz' unless your language has a better word for it.">Blitz</string>
   <string name="rapid">Rapid</string>
   <string name="classical">Klasické</string>
   <string name="ultraBulletDesc">Šíleně rychlé hry: méně než 30 sekund</string>
@@ -1011,6 +1020,7 @@
   <string name="tryTheContactPage">vyzkoušejte stránku s kontakty</string>
   <string name="makeSureToRead">Určitě si přečtěte %1$s</string>
   <string name="theForumEtiquette">pravidla chování ve fórech</string>
+  <string name="pleaseBeNiceInTheForum">Prosím, ve fóru buďte milí.</string>
   <string name="thisTopicIsArchived">Toto téma se archivovalo a nelze na něj dále odpovídat.</string>
   <string name="joinTheTeamXToPost">Připojte se k %1$s, chcete-li přidávat příspěvky na toto fórum</string>
   <string name="teamNamedX">%1$s tým</string>
@@ -1054,6 +1064,7 @@ Nechte toto pole prázdné, pokud chcete začínat z běžného základního pos
   <string name="simulFeaturedHelp">Zobrazit vaši simultánní hru všem na %s. Vypnout pro soukromé simultánní hry.</string>
   <string name="simulDescription">Popis simultánky</string>
   <string name="simulDescriptionHelp">Je tu něco co by jste chtěli sdělit účastníkům?</string>
+  <string name="markdownIsAvailable">%s je k dispozici k formátování.</string>
   <string name="embedsAvailable">Vložte URL hry nebo kapitoly studie pro zobrazení.</string>
   <string name="inYourLocalTimezone">Ve vašem časovém pásmu</string>
   <string name="tournChat">Turnajový chat</string>
@@ -1093,4 +1104,12 @@ Veškeré provozní náklady, vývoj a obsah jsou financovány výhradně z př�
   <string name="accessibility">Přístupnost</string>
   <string name="enableBlindMode">Zapnout režim sleposti</string>
   <string name="disableBlindMode">Vypnout režim sleposti</string>
+  <string name="copyToClipboard">Zkopíruj do schránky</string>
+  <string name="online" comment="status of a user">online</string>
+  <string name="offline" comment="status of a user">offline</string>
+  <string name="search">Hledat</string>
+  <string name="clearSearch">Vymazat vyhledávání</string>
+  <string name="thereAreNoResultsForX">Žádné výsledky pro „%s“</string>
+  <string name="tags">Štítky</string>
+  <string name="enPassant">Braní mimochodem</string>
 </resources>

@@ -1,7 +1,7 @@
-/* eslint no-restricted-syntax:"error" */ // no side effects allowed due to re-export by index.ts
+// no side effects allowed due to re-export by index.ts
 
-import { type Dialog, domDialog } from './dialog';
 import { escapeHtml } from '../index';
+import { type Dialog, domDialog } from './dialog';
 
 // non-blocking window.alert-alike
 export async function alert(msg: string): Promise<void> {
@@ -26,7 +26,7 @@ export async function info(msg: string, autoDismiss?: Millis): Promise<Dialog> {
     htmlText: escapeHtmlAddBreaks(msg),
     noCloseButton: true,
   });
-  if (!!autoDismiss) setTimeout(() => dlg.close(), autoDismiss);
+  if (autoDismiss) setTimeout(() => dlg.close(), autoDismiss);
   return dlg.show();
 }
 
@@ -36,38 +36,37 @@ export async function confirm(
   ok: string = i18n.site.ok,
   cancel: string = i18n.site.cancel,
 ): Promise<boolean> {
-  return (
-    (
-      await domDialog({
-        htmlText: $html`<div>${escapeHtmlAddBreaks(msg)}</div>
-          <span><button class="button button-empty cancel">${cancel}</button>
-          <button class="button ok">${ok}</button></span>`,
-        class: 'alert',
-        noCloseButton: true,
-        noClickAway: true,
-        modal: true,
-        show: true,
-        focus: '.ok',
-        actions: [
-          { selector: '.cancel', result: 'cancel' },
-          { selector: '.ok', result: 'ok' },
-        ],
-      })
-    ).returnValue === 'ok'
-  );
+  const confirmDialog = await domDialog({
+    htmlText: $html`<div>${escapeHtmlAddBreaks(msg)}</div>
+      <span><button class="button button-empty cancel">${cancel}</button>
+      <button class="button ok">${ok}</button></span>`,
+    class: 'alert',
+    noCloseButton: true,
+    noClickAway: true,
+    modal: true,
+    show: true,
+    focus: '.ok',
+    actions: [
+      { selector: '.cancel', result: 'cancel' },
+      { selector: '.ok', result: 'ok' },
+    ],
+  });
+  return confirmDialog.returnValue === 'ok';
 }
 
 // non-blocking window.prompt-alike
 export async function prompt(
   msg: string,
-  def: string = '',
+  def = '',
   valid: (text: string) => boolean = () => true,
 ): Promise<string | null> {
   const res = await domDialog({
     htmlText: $html`<div>${escapeHtmlAddBreaks(msg)}</div>
       <input type="text"${valid(def) ? '' : ' class="invalid"'} value="${escapeHtml(def)}">
-      <span><button class="button button-empty cancel">${i18n.site.cancel}</button>
-      <button class="button ok${valid(def) ? '"' : ' disabled" disabled'}>${i18n.site.ok}</button></span>`,
+      <span>
+        <button class="button button-empty cancel">${i18n.site.cancel}</button>
+        <button class="button ok${valid(def) ? '"' : ' disabled" disabled'}>${i18n.site.ok}</button>
+      </span>`,
     class: 'alert',
     noCloseButton: true,
     noClickAway: true,
@@ -105,6 +104,49 @@ export async function prompt(
   return res.returnValue === 'ok' ? res.view.querySelector('input')!.value : null;
 }
 
+export async function choose(
+  msg: string,
+  options: string[],
+  initial?: string,
+  mustChoose = false,
+): Promise<string | undefined> {
+  const res = await domDialog({
+    htmlText:
+      $html`
+      <div>${escapeHtmlAddBreaks(msg)}</div>
+      <select ${initial ? 'value="' + initial + '"' : ''}>` +
+      options.map(
+        option => $html`
+          <option value="${escapeHtml(option)}"${option === initial ? ' selected' : ''}>
+            ${escapeHtml(option)}
+          </option>`,
+      ) +
+      $html`
+      </select>
+      <span>` +
+      (mustChoose
+        ? ''
+        : $html`
+        <button class="button button-empty cancel">${i18n.site.cancel}</button>`) +
+      $html`
+        <button class="button ok">${i18n.site.ok}</button>
+      </span>`,
+    class: 'alert',
+    noCloseButton: mustChoose,
+    noClickAway: true,
+    modal: true,
+    show: true,
+    actions: [
+      {
+        selector: '.ok',
+        listener: (_, dlg) => dlg.close(dlg.view.querySelector<HTMLSelectElement>('select')?.value),
+      },
+      { selector: '.cancel', result: 'cancel' },
+    ],
+  });
+  return res.returnValue === 'cancel' ? undefined : res.returnValue;
+}
+
 export const makeLinkPopups = (dom: HTMLElement | Cash, selector = 'a[href^="http"]'): void => {
   const $el = $(dom);
   if (!$el.hasClass('link-popup-ready'))
@@ -113,7 +155,7 @@ export const makeLinkPopups = (dom: HTMLElement | Cash, selector = 'a[href^="htt
     });
 };
 
-export const onClick = (a: HTMLLinkElement): boolean => {
+const onClick = (a: HTMLLinkElement): boolean => {
   const url = new URL(a.href);
   if (isPassList(url)) return true;
 

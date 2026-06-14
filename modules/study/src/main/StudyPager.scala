@@ -3,17 +3,39 @@ package lila.study
 import scalalib.paginator.Paginator
 
 import lila.core.i18n.I18nKey
-import lila.core.study.Order
+import lila.core.study.StudyOrder
 import lila.db.dsl.{ *, given }
 import lila.db.paginator.{ Adapter, CachedAdapter }
+import lila.memo.SettingStore
 
 final class StudyPager(
     studyRepo: StudyRepo,
-    chapterRepo: ChapterRepo
+    chapterRepo: ChapterRepo,
+    settingStore: SettingStore.Builder
 )(using Executor):
 
   val maxPerPage = MaxPerPage(16)
   val defaultNbChaptersPerStudy = 4
+
+  object featured:
+    import scalalib.Iso
+    import lila.core.data.Strings
+    import reactivemongo.api.bson.BSONHandler
+    private type Ids = List[StudyId]
+    private given Iso[String, Ids] = lila.common.Iso
+      .strings("\n")
+      .map[Ids](
+        s => StudyId.from(s.value.filter(_.nonEmpty).map(_.takeRight(8))),
+        s => Strings(StudyId.raw(s))
+      )
+    private given BSONHandler[Ids] = lila.db.dsl.isoHandler
+    private given SettingStore.StringReader[Ids] = SettingStore.StringReader.fromIso
+    private given SettingStore.Formable[Ids] = SettingStore.Formable.stringIsoForm
+    val setting = settingStore[Ids](
+      "studyFeatured",
+      text = "Featured studies, one URL per line".some,
+      default = Nil
+    )
 
   import BSONHandlers.given
   import studyRepo.{
@@ -22,96 +44,107 @@ final class StudyPager(
     selectOwnerId,
     selectPrivateOrUnlisted,
     selectPublic,
+    selectPublicFeaturable,
+    selectUnlisted,
     selectTopic
   }
 
-  def all(order: Order, page: Int)(using me: Option[Me]) =
+  def all(order: StudyOrder, page: Int)(using Option[Me]) =
     paginator(
-      noRelaySelect ++ accessSelect,
+      accessSelect(),
       order,
       page,
       fuccess(9999).some
-    )
+    ).flatMap: pager =>
+      if (order == StudyOrder.hot || order == StudyOrder.popular) && page == 1 then
+        for
+          studies <- studyRepo.byOrderedIds(featured.setting.get())
+          extra <- withChaptersAndLiking()(studies)
+        yield pager.withCurrentPageResults:
+          extra ++ pager.currentPageResults.filterNot(s => extra.exists(_.study.id == s.study.id))
+      else fuccess(pager)
 
-  def byOwner(owner: User, order: Order, page: Int)(using me: Option[Me]) =
+  def byOwner(owner: User, order: StudyOrder, page: Int)(using Option[Me]) =
     paginator(
-      selectOwnerId(owner.id) ++ accessSelect,
+      selectOwnerId(owner.id) ++ accessSelect(trash = true),
       order,
       page
     )
 
-  def mine(order: Order, page: Int)(using me: Me) =
+  def mine(order: StudyOrder, page: Int)(using me: Me) =
     paginator(
       selectOwnerId(me),
       order,
       page
     )
 
-  def minePublic(order: Order, page: Int)(using me: Me) =
+  def minePublic(order: StudyOrder, page: Int)(using me: Me) =
     paginator(
       selectOwnerId(me) ++ selectPublic,
       order,
       page
     )
 
-  def minePrivate(order: Order, page: Int)(using me: Me) =
+  def minePrivate(order: StudyOrder, page: Int)(using me: Me) =
     paginator(
       selectOwnerId(me) ++ selectPrivateOrUnlisted,
       order,
       page
     )
 
-  def mineMember(order: Order, page: Int)(using me: Me) =
+  def mineMember(order: StudyOrder, page: Int)(using me: Me) =
     paginator(
       selectMemberId(me) ++ $doc("ownerId".$ne(me.userId)),
       order,
       page
     )
 
-  def mineLikes(order: Order, page: Int)(using me: Me) =
+  def mineLikes(order: StudyOrder, page: Int)(using me: Me) =
     paginator(
-      selectLiker(me) ++ accessSelect ++ $doc("ownerId".$ne(me.userId)),
+      selectLiker(me) ++ accessSelect(unlisted = true, trash = true) ++ $doc("ownerId".$ne(me.userId)),
       order,
       page
     )
 
-  def byTopic(topic: StudyTopic, order: Order, page: Int)(using me: Option[Me]) =
-    val onlyMine = me.ifTrue(order == Order.mine)
+  def byTopic(topic: StudyTopic, order: StudyOrder, page: Int)(using me: Option[Me]) =
+    val onlyMine = me.ifTrue(order == StudyOrder.mine)
     paginator(
-      selectTopic(topic) ++ onlyMine.fold(accessSelect)(selectMemberId(_)),
+      selectTopic(topic) ++ onlyMine.fold(accessSelect())(selectMemberId(_)),
       order,
       page,
       hint = onlyMine.isDefined.option($doc("uids" -> 1, "rank" -> -1))
     )
 
-  private def accessSelect(using me: Option[Me]) =
-    me.fold(selectPublic): u =>
-      $or(selectPublic, selectMemberId(u))
-
-  private val noRelaySelect = $doc("from".$ne("relay"))
+  private def accessSelect(unlisted: Boolean = false, trash: Boolean = false)(using
+      me: Option[Me]
+  ) =
+    val public = if trash then selectPublic else selectPublicFeaturable
+    me.fold(public): u =>
+      if unlisted then $or(public, selectMemberId(u), selectUnlisted)
+      else $or(public, selectMemberId(u))
 
   private def paginator(
       selector: Bdoc,
-      order: Order,
+      order: StudyOrder,
       page: Int,
       nbResults: Option[Fu[Int]] = none,
       hint: Option[Bdoc] = none
   )(using Option[Me]): Fu[Paginator[Study.WithChaptersAndLiked]] = studyRepo.coll: coll =>
     val adapter = Adapter[Study](
       collection = coll,
-      selector = selector,
+      selector = selector ++ selector.contains("topics").not.so($doc("topics".$ne("Broadcast"))),
       projection = studyRepo.projection.some,
       sort = order match
-        case Order.hot => $sort.desc("rank")
-        case Order.newest => $sort.desc("createdAt")
-        case Order.oldest => $sort.asc("createdAt")
-        case Order.updated => $sort.desc("updatedAt")
-        case Order.popular => $sort.desc("likes")
-        case Order.alphabetical => $sort.asc("name")
+        case StudyOrder.hot => $sort.desc("rank")
+        case StudyOrder.newest => $sort.desc("createdAt")
+        case StudyOrder.oldest => $sort.asc("createdAt")
+        case StudyOrder.updated => $sort.desc("updatedAt")
+        case StudyOrder.popular => $sort.desc("likes")
+        case StudyOrder.alphabetical => $sort.asc("name")
         // mine filter for topic view
-        case Order.mine => $sort.desc("rank")
+        case StudyOrder.mine => $sort.desc("rank")
         // relevant not used here
-        case Order.relevant => $sort.desc("rank")
+        case StudyOrder.relevant => $sort.desc("rank")
       ,
       hint = hint
     ).mapFutureList(withChaptersAndLiking())
@@ -146,20 +179,21 @@ final class StudyPager(
         }
 
 object Orders:
-  import lila.core.study.Order
-  val default = Order.hot
-  val list = Order.all.filter(_ != Order.relevant)
-  val withoutMine = list.filterNot(_ == Order.mine)
-  val withoutSelector = withoutMine.filter(o => o != Order.oldest && o != Order.alphabetical)
-  val search = List(Order.hot, Order.newest, Order.popular, Order.alphabetical, Order.relevant)
+  import lila.core.study.StudyOrder
+  val default = StudyOrder.hot
+  val list = StudyOrder.all.filter(_ != StudyOrder.relevant)
+  val withoutMine = list.filterNot(_ == StudyOrder.mine)
+  val withoutSelector = withoutMine.filter(o => o != StudyOrder.oldest && o != StudyOrder.alphabetical)
+  val search =
+    List(StudyOrder.hot, StudyOrder.newest, StudyOrder.popular, StudyOrder.alphabetical, StudyOrder.relevant)
   private val byKey = list.mapBy(_.toString)
-  def apply(key: String): Order = byKey.getOrElse(key, default)
-  val name: Order => I18nKey =
-    case Order.hot => I18nKey.study.hot
-    case Order.newest => I18nKey.study.dateAddedNewest
-    case Order.oldest => I18nKey.study.dateAddedOldest
-    case Order.updated => I18nKey.study.recentlyUpdated
-    case Order.popular => I18nKey.study.mostPopular
-    case Order.alphabetical => I18nKey.study.alphabetical
-    case Order.mine => I18nKey.study.myStudies
-    case Order.relevant => I18nKey.study.relevant
+  def apply(key: String): StudyOrder = byKey.getOrElse(key, default)
+  val name: StudyOrder => I18nKey =
+    case StudyOrder.hot => I18nKey.study.hot
+    case StudyOrder.newest => I18nKey.study.dateAddedNewest
+    case StudyOrder.oldest => I18nKey.study.dateAddedOldest
+    case StudyOrder.updated => I18nKey.study.recentlyUpdated
+    case StudyOrder.popular => I18nKey.study.mostPopular
+    case StudyOrder.alphabetical => I18nKey.study.alphabetical
+    case StudyOrder.mine => I18nKey.study.myStudies
+    case StudyOrder.relevant => I18nKey.study.relevant

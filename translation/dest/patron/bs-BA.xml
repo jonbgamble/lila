@@ -3,7 +3,7 @@
   <string name="donate">Donirajte</string>
   <string name="donateAsX">Donirajte kao %s</string>
   <string name="lichessPatron">Lichess Pokrovitelj</string>
-  <string name="patronSince" comment="%s is a date e.g. &quot;21 Jan 2025&quot;,&#10;meaning the final text would be something like &quot;Patron since 21 Jan 2025&quot;.">Pokrovitelj od %s</string>
+  <string name="patronSince" comment="string is a date">Pokrovitelj od %s</string>
   <string name="freeAccount">Besplatni korisnički račun</string>
   <string name="becomePatron">Postanite Lichess Pokrovitelj</string>
   <string name="xBecamePatron">%s je postao/la Lichess Pokrovitelj</string>
@@ -41,8 +41,6 @@ Nakon toga plaćamo programera sa punim radnim vremenom: %s, koji je i osnivač 
   <string name="officialNonProfit">Je li Lichess i službeno neprofitna organizacija?</string>
   <string name="actOfCreation">Da, ovo je statut osnivanja (na francuskom jeziku)</string>
   <string name="changeMonthlySupport">Mogu li promijeniti / otkazati moju mjesečnu podršku?</string>
-  <string name="changeOrContact">Da, u bilo kom trenutku na ovoj stranici.
-Ili možete %s.</string>
   <string name="contactSupport">kontaktirati Lichess podršku</string>
   <string name="otherMethods">Da li postoje neke druge metode doniranja?</string>
   <string name="lichessIsRegisteredWith">Lichess je registrovan posredstvom %s.</string>

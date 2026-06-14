@@ -1,7 +1,28 @@
-useNodeVersion: 24.10.0
+useNodeVersion: 24.15.0
 managePackageManagerVersions: true
 updateNotified: false
 packages:
   - 'bin'
   - 'ui/*'
   - 'ui/@types/*'
+ignoredOptionalDependencies:
+  - '@ox*/*-arm-*'
+  - '@ox*/*-ia32-*'
+  - '@ox*/*-loong64-*'
+  - '@ox*/*-mips64el-*'
+  - '@ox*/*-ppc64-*'
+  - '@ox*/*-riscv64-*'
+  - '@ox*/*-s390x-*'
+  - '@ox*/*-aix-*'
+  - '@ox*/*-android-*'
+  - '@ox*/*-freebsd-*'
+  - '@ox*/*-openbsd-*'
+  - '@ox*/*-openharmony-*'
+  - '@ox*/*-netbsd-*'
+  - '@ox*/*-sunos-*'
+allowBuilds:
+  esbuild: true
+patchedDependencies:
+  '@toast-ui/editor@3.2.2': ui/bits/patches/@toast-ui__editor.patch
+minimumReleaseAgeExclude:
+  - '@lichess-org/stockfish-web@0.4.0'

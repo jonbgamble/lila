@@ -16,6 +16,7 @@
   <string name="recentlyUpdated">Nedavno ažurirane</string>
   <string name="mostPopular">Najpopularnije</string>
   <string name="alphabetical">Abecedno</string>
+  <string name="relevant">Relevantno</string>
   <string name="addNewChapter">Dodajte novo poglavlje</string>
   <plurals name="nbChapters">
     <item quantity="one">%s Poglavlje</item>
@@ -44,7 +45,6 @@
   <string name="youAreNowASpectator">Sada ste posmatrač</string>
   <string name="pgnTags">PGN oznake</string>
   <string name="like">Sviđa mi se</string>
-  <string name="unlike">Ne sviđa mi se</string>
   <string name="newTag">Nova oznaka</string>
   <string name="commentThisPosition">Komentirajte ovu poziciju</string>
   <string name="commentThisMove">Komentirajte ovaj potez</string>
@@ -64,6 +64,7 @@
   <string name="studyPgn">Studirajte PGN</string>
   <string name="chapterPgn">PGN poglavlja</string>
   <string name="copyChapterPgn">Kopirajte PGN</string>
+  <string name="copyRawChapterPgn">Kopiraj sirovi PGN</string>
   <string name="downloadGame">Skini partiju</string>
   <string name="studyUrl">Link studije</string>
   <string name="currentChapterUrl">Link trenutnog poglavlja</string>

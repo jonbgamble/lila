@@ -1,6 +1,8 @@
-import type { Opts, Recap } from './interfaces';
 import { type VNode } from 'snabbdom';
+
 import { hl } from 'lib/view';
+
+import type { Opts, Recap } from './interfaces';
 import * as slides from './slides';
 
 export function awaiter(user: LightUser): VNode {
@@ -25,9 +27,10 @@ export function view(r: Recap, opts: Opts): VNode {
           ]
         : [slides.noGames()],
       slides.puzzles(r),
-      slides.malware(),
       slides.lichessGames(r),
-      slides.thanks(),
+      slides.malware(),
+      slides.patron(opts),
+      slides.thanks(r),
       slides.shareable(r),
     ]),
     opts.navigation && [hl('div.swiper-button-next'), hl('div.swiper-button-prev')],

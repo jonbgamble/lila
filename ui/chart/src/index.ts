@@ -1,4 +1,5 @@
 import { Chart, type ChartDataset, type ChartOptions } from 'chart.js';
+
 import { currentTheme } from 'lib/device';
 
 export interface MovePoint {
@@ -19,7 +20,7 @@ export const blackFill: string = lightTheme ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,1)
 export const fontColor: string = lightTheme ? '#2F2F2F' : 'hsl(0, 0%, 73%)';
 export const gridColor: string = lightTheme ? '#ccc' : '#404040';
 export const hoverBorderColor: string = lightTheme ? gridColor : 'white';
-export const tooltipBgColor: string = lightTheme ? 'rgba(255, 255, 255, 0.8)' : 'rgba(22, 21, 18, 0.7)';
+export const tooltipBgColor: string = lightTheme ? 'rgba(255, 255, 255, 0.85)' : 'rgba(22, 21, 18, 0.85)';
 
 const zeroLineColor = lightTheme ? '#959595' : '#676664';
 export const axisOpts = (xmin: number, xmax: number): ChartOptions<'line'>['scales'] => ({
@@ -53,7 +54,7 @@ export function fontFamily(
   return {
     family: "'Noto Sans', 'Lucida Grande', 'Lucida Sans Unicode', Verdana, Arial, Helvetica, sans-serif",
     size: size ?? 12,
-    weight: weight,
+    weight,
   };
 }
 
@@ -91,29 +92,6 @@ export function selectPly(this: Chart, ply: number, onMainline: boolean): void {
   const line = plyLine(ply, onMainline);
   this.data.datasets[index] = line;
   this.update('none');
-}
-
-// Modified from https://www.chartjs.org/docs/master/samples/animations/progressive-line.html
-export function animation(duration: number): ChartOptions<'line'>['animations'] {
-  return {
-    x: {
-      type: 'number',
-      easing: 'easeOutQuad',
-      duration: duration,
-      from: NaN, // the point is initially skipped
-      delay: ctx => (ctx.mode === 'resize' ? 0 : ctx.dataIndex * duration),
-    },
-    y: {
-      type: 'number',
-      easing: 'easeOutQuad',
-      duration: duration,
-      from: ctx =>
-        !ctx.dataIndex
-          ? ctx.chart.scales.y.getPixelForValue(100)
-          : ctx.chart.getDatasetMeta(ctx.datasetIndex).data[ctx.dataIndex - 1].getProps(['y'], true).y,
-      delay: ctx => (ctx.mode === 'resize' ? 0 : ctx.dataIndex * duration),
-    },
-  };
 }
 
 export const colorSeries: string[] = [

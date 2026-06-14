@@ -14,7 +14,7 @@ final class ForumTopic(env: Env) extends LilaController(env) with ForumControlle
     NoBot:
       NotForKids:
         FoundPage(env.forum.categRepo.byId(categId)): categ =>
-          categ.team.so(env.team.api.isLeader(_, me)).map { inOwnTeam =>
+          categ.team.so(env.team.api.isLeader).map { inOwnTeam =>
             views.forum.topic.form(categ, forms.topic(inOwnTeam), anyCaptcha)
           }
   }
@@ -23,16 +23,18 @@ final class ForumTopic(env: Env) extends LilaController(env) with ForumControlle
     NoBot:
       CategGrantWrite(categId):
         Found(env.forum.categRepo.byId(categId)): categ =>
-          categ.team.so(env.team.api.isLeader(_, me)).flatMap { inOwnTeam =>
+          categ.team.so(env.team.api.isLeader).flatMap { inOwnTeam =>
             bindForm(forms.topic(inOwnTeam))(
               err => BadRequest.page(views.forum.topic.form(categ, err, anyCaptcha)),
               data =>
                 limit.forumTopic(ctx.ip, rateLimited):
-                  topicApi.makeTopic(categ, data).map { topic =>
-                    val url = routes.ForumTopic.show(categ.id, topic.slug, 1).url
-                    discard { env.report.api.automodComms(data.automodText, url) }
-                    Redirect(url)
-                  }
+                  for
+                    topic <- topicApi.makeTopic(categ, data)
+                    url = routes.ForumTopic.show(categ.id, topic.slug, 1).url
+                    ref = lila.forum.picRef(topic.lastPostId)
+                    _ <- env.memo.picfitApi.addRef(Markdown(data.post.text), ref, url.some)
+                    _ = discard { env.report.api.automodComms(data.automodText, url) }
+                  yield Redirect(url)
             )
           }
   }
@@ -47,12 +49,12 @@ final class ForumTopic(env: Env) extends LilaController(env) with ForumControlle
         then notFound
         else
           for
-            unsub <- ctx.me.soUse(env.timeline.status(s"forum:${topic.id}"))
+            unsub <- ctx.useMe(env.timeline.status(s"forum:${topic.id}"))
             canRead <- access.isGrantedRead(categ.id)
             canWrite <- access.isGrantedWrite(categ.id, tryingToPostAsMod = true)
             canModCateg <- access.isGrantedMod(categ.id)
-            replyBlocked <- ctx.me.soUse(access.isReplyBlockedOnUBlog(topic, canModCateg))
-            inOwnTeam <- ~(categ.team, ctx.me).mapN(env.team.api.isLeader(_, _))
+            replyBlocked <- ctx.useMe(access.isReplyBlockedOnUBlog(topic, canModCateg))
+            inOwnTeam <- ctx.useMe(categ.team.so(env.team.api.isLeader))
             form = ctx.me
               .filter(_ => canWrite && topic.open && !topic.isOld && !replyBlocked)
               .soUse: _ ?=>

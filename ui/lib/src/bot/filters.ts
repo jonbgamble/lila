@@ -1,16 +1,17 @@
-import { aggression } from './filters/aggression';
-import { pawnStructure } from './filters/pawnStructure';
-import { fuzz } from './filters/fuzz';
-import type { FilterSpec, FilterInfo } from './filter';
-import { pubsub } from '@/pubsub';
-import { memoize } from '@/index';
 import { isEquivalent } from '@/algo';
+import { memoize } from '@/index';
+import { pubsub } from '@/pubsub';
+
+import type { FilterSpec, FilterInfo } from './filter';
+import { aggression } from './filters/aggression';
+import { fuzz } from './filters/fuzz';
+import { pawnStructure } from './filters/pawnStructure';
 import { makeSandboxFilter } from './filters/sandbox/sandboxFilter';
 
 export const filterRegistry: () => FilterRegistry = memoize(() => new FilterRegistry());
 
 class FilterRegistry {
-  private registry: Map<string, FilterSpec> = new Map();
+  private readonly registry: Map<string, FilterSpec> = new Map();
   private running = false;
 
   register(key: string, spec: FilterSpec): void {

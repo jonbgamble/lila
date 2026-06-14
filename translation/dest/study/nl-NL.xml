@@ -42,7 +42,6 @@
   <string name="youAreNowASpectator">Je bent nu een toeschouwer</string>
   <string name="pgnTags">PGN labels</string>
   <string name="like">Vind ik leuk</string>
-  <string name="unlike">Vind ik niet meer leuk</string>
   <string name="newTag">Nieuw label</string>
   <string name="commentThisPosition">Reageer op deze positie</string>
   <string name="commentThisMove">Reageer op deze zet</string>
@@ -57,7 +56,7 @@
   <string name="showResults">Resultaten</string>
   <string name="showEvalBar">Evaluatiebalk</string>
   <string name="next">Volgende</string>
-  <string name="shareAndExport">Deel &amp; exporteer</string>
+  <string name="shareAndExport">Delen &amp; exporteren</string>
   <string name="cloneStudy">Kopiëren</string>
   <string name="studyPgn">PGN bestuderen</string>
   <string name="chapterPgn">Hoofdstuk PGN</string>

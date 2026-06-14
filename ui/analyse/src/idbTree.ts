@@ -1,15 +1,20 @@
-import type AnalyseCtrl from './ctrl';
-import { objectStorage, type ObjectStorage } from 'lib/objectStorage';
+import { memoize } from 'lib';
+import { objectStorage } from 'lib/objectStorage';
+import { completeNode } from 'lib/tree/node';
 import * as treeOps from 'lib/tree/ops';
+import type { TreeNodeLite, TreePath } from 'lib/tree/types';
+
+import type AnalyseCtrl from './ctrl';
 
 export type DiscloseState = undefined | 'expanded' | 'collapsed';
-
 export class IdbTree {
-  private dirty = false;
-  private moveDb?: ObjectStorage<MoveState>;
-  private collapseDb?: ObjectStorage<Tree.Path[]>;
+  private readonly cacheMap = new Map<string, State>();
+  private readonly collapseDb = memoize(() => objectStorage<TreePath[]>({ store: 'analyse-collapse' }));
+  private readonly moveDb = memoize(() =>
+    objectStorage<{ root: TreeNodeLite | undefined }>({ store: 'analyse-state', db: 'lichess' }),
+  );
 
-  constructor(private ctrl: AnalyseCtrl) {}
+  constructor(private readonly ctrl: AnalyseCtrl) {}
 
   someCollapsedOf(collapsed: boolean, path = ''): boolean {
     return (
@@ -22,21 +27,7 @@ export class IdbTree {
     );
   }
 
-  // getCollapseTarget(path: Tree.Path): Tree.Path | undefined {
-  //   if (this.ctrl.legacyVariationsProp()) return undefined;
-  //   const { tree } = this.ctrl;
-  //   const depth = (n: Tree.Node) => n.ply - tree.root.ply;
-
-  //   for (const node of tree
-  //     .getNodeList(path)
-  //     .slice(depth(tree.lastMainlineNode(path)))
-  //     .reverse()) {
-  //     if (!node.collapsed && this.isCollapsible(node)) return path.slice(0, depth(node) * 2);
-  //   }
-  //   return undefined;
-  // }
-
-  stepLine(fromPath: Tree.Path = this.ctrl.path, which: 'prev' | 'next' = 'next'): Tree.Path {
+  stepLine(fromPath: TreePath = this.ctrl.path, which: 'prev' | 'next' = 'next'): TreePath {
     let [path, kids] = this.familyOf(fromPath);
     while (path && kids.length < 2 && !this.ctrl.tree.pathIsMainline(path)) {
       [path, kids] = this.familyOf(path);
@@ -46,13 +37,13 @@ export class IdbTree {
     return !stepTo ? fromPath : path + stepTo.id;
   }
 
-  setCollapsed(path: Tree.Path, collapsed: boolean): void {
+  setCollapsed(path: TreePath, collapsed: boolean): void {
     this.ctrl.tree.updateAt(path, n => (n.collapsed = collapsed));
     this.saveCollapsed();
     this.ctrl.redraw();
   }
 
-  setCollapsedFrom(from: Tree.Path, collapsed: boolean, thisBranchOnly = false): void {
+  setCollapsedFrom(from: TreePath, collapsed: boolean, thisBranchOnly = false): void {
     this.ctrl.tree.walkUntilTrue(
       (n, m) => {
         if (this.isCollapsible(n, m)) n.collapsed = collapsed;
@@ -78,7 +69,7 @@ export class IdbTree {
     if (save) this.saveCollapsed();
   }
 
-  discloseOf(node: Tree.Node | undefined, isMainline: boolean): DiscloseState {
+  discloseOf(node: TreeNodeLite | undefined, isMainline: boolean): DiscloseState {
     if (!node) return undefined;
     return this.isCollapsible(node, isMainline)
       ? this.ctrl.disclosureMode() && node.collapsed
@@ -87,72 +78,93 @@ export class IdbTree {
       : undefined;
   }
 
-  onAddNode(node: Tree.Node, path: Tree.Path): void {
-    if (this.ctrl.study || this.ctrl.synthetic || this.dirty) return;
-    this.dirty = !this.ctrl.tree.pathExists(path + node.id);
+  onAddNode(node: TreeNodeLite, path: TreePath): void {
+    if (this.noop || this.cache.movesDirty) return;
+    this.cache.movesDirty = !this.ctrl.tree.pathExists(path + node.id);
   }
 
-  clear = async (): Promise<void> => {
-    await this.collapseDb?.remove(this.id);
-    if (!this.ctrl.study && !this.ctrl.synthetic) await this.moveDb?.put(this.id, { root: undefined });
+  clear = async (what?: 'analysis' | 'collapse' | 'moves'): Promise<void> => {
+    if (this.noop) return;
+    await Promise.all([
+      (!what || what === 'collapse') && this.collapseDb().then(db => db.remove(this.id)),
+      !this.ctrl.study && (!what || what === 'moves') && this.moveDb().then(db => db.remove(this.id)),
+    ]);
     site.reload();
   };
 
   async saveMoves(force = false): Promise<IDBValidKey | undefined> {
-    if (this.ctrl.study || this.ctrl.synthetic || !(this.dirty || force)) return;
-    return this.moveDb?.put(this.id, { root: this.ctrl.tree.root });
+    if (this.noop || this.ctrl.study || !(this.cache.movesDirty || force)) return;
+    return this.moveDb().then(db =>
+      db.put(this.id, { root: treeOps.structuredCloneLite(this.ctrl.tree.root) }),
+    );
   }
 
   async merge(): Promise<void> {
-    if (!('indexedDB' in window) || !window.indexedDB) return;
+    if (this.noop || !('indexedDB' in window) || !window.indexedDB) return;
     try {
-      if (!this.ctrl.study && !this.ctrl.synthetic) {
-        this.moveDb ??= await objectStorage<MoveState>({ store: 'analyse-state', db: 'lichess' });
-        const state = await this.moveDb.get(this.ctrl.data.game.id);
-        if (state?.root) {
-          this.ctrl.tree.merge(state.root);
-          this.dirty = true;
-        }
-      }
-      this.collapseDb ??= await objectStorage<Tree.Path[]>({ store: 'analyse-collapse' });
-      const collapsedPaths = await this.collapseDb.getOpt(this.id);
-      if (!collapsedPaths) return this.collapseDefault();
-      for (const path of collapsedPaths) {
-        this.ctrl.tree.updateAt(path, n => (n.collapsed = true));
-      }
+      this.cacheMap.set(this.id, { movesDirty: false });
+      await Promise.all([
+        this.collapseDb()
+          .then(db => db.getOpt(this.id))
+          .then(collapsedPaths => {
+            if (!collapsedPaths) return this.collapseDefault();
+            for (const path of collapsedPaths) {
+              this.ctrl.tree.updateAt(path, n => (n.collapsed = true));
+            }
+          }),
+        !this.ctrl.study &&
+          this.moveDb()
+            .then(db => db.getOpt(this.id))
+            .then(moves => {
+              if (moves?.root) {
+                this.ctrl.tree.merge(completeNode(this.ctrl.variantKey)(moves.root));
+                this.cache.movesDirty = true;
+              }
+            }),
+      ]);
     } catch (e) {
       console.log('IDB error.', e);
     }
   }
 
-  get isDirty(): boolean {
-    return this.dirty;
+  get movesDirty(): boolean {
+    return this.cache.movesDirty;
   }
 
   private get id(): string {
     return this.ctrl.study?.data.chapter.id ?? this.ctrl.data.game.id;
   }
 
-  private async saveCollapsed() {
-    return this.collapseDb?.put(this.id, this.getCollapsed());
+  private get noop(): boolean {
+    return this.id === 'synthetic';
   }
 
-  private isCollapsible(node: Tree.Node, isMainline: boolean): boolean {
-    if (!node) return false;
-    const [first, second, third] = node.children.filter(n => this.ctrl.showFishnetAnalysis() || !n.comp);
+  private get cache() {
+    if (this.cacheMap.has(this.id)) return this.cacheMap.get(this.id)!;
+    const state: State = { movesDirty: false };
+    this.cacheMap.set(this.id, state);
+    return state;
+  }
+
+  private async saveCollapsed() {
+    return this.collapseDb().then(db => db.put(this.id, this.getCollapsed()));
+  }
+
+  private isCollapsible(node: TreeNodeLite, isMainline: boolean): boolean {
+    const [first, second, third] = node.children.filter(n => this.ctrl.showStaticAnalysis() || !n.comp);
     return Boolean(
       first?.forceVariation ||
-        third ||
-        (second && treeOps.hasBranching(second, 6)) ||
-        (isMainline &&
-          this.ctrl.treeView.mode === 'column' &&
-          (second || first?.comments?.filter(Boolean).length)),
+      third ||
+      (second && treeOps.hasBranching(second, 6)) ||
+      (isMainline &&
+        this.ctrl.treeView.mode === 'column' &&
+        (second || first?.comments?.filter(Boolean).length)),
     );
   }
 
-  private getCollapsed(): Tree.Path[] {
-    const collapsedPaths: Tree.Path[] = [];
-    function traverse(node: Tree.Node, path: Tree.Path): void {
+  private getCollapsed(): TreePath[] {
+    const collapsedPaths: TreePath[] = [];
+    function traverse(node: TreeNodeLite, path: TreePath): void {
       if (node.collapsed) collapsedPaths.push(path);
       for (const c of node.children) traverse(c, path + c.id);
     }
@@ -163,7 +175,7 @@ export class IdbTree {
   private collapseDefault() {
     const depthThreshold = 1;
 
-    const traverse = (node: Tree.Node, depth: number) => {
+    const traverse = (node: TreeNodeLite, depth: number) => {
       if (depth === depthThreshold && this.isCollapsible(node, false)) {
         node.collapsed = true;
       }
@@ -172,15 +184,13 @@ export class IdbTree {
     traverse(this.ctrl.tree.root, 0);
   }
 
-  private familyOf(path: Tree.Path): [Tree.Path, Tree.Node[]] {
+  private familyOf(path: TreePath): [TreePath, TreeNodeLite[]] {
     const parentPath = path.slice(0, -2);
     return [
       parentPath,
-      this.ctrl.tree.nodeAtPath(parentPath).children.filter(x => !x.comp || this.ctrl.showFishnetAnalysis()),
+      this.ctrl.tree.nodeAtPath(parentPath).children.filter(x => !x.comp || this.ctrl.showStaticAnalysis()),
     ];
   }
 }
 
-interface MoveState {
-  root: Tree.Node | undefined;
-}
+type State = { movesDirty: boolean };

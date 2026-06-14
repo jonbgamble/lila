@@ -122,9 +122,10 @@ object Chapter:
 
   type Order = Int
 
-  // I've seen chapters with 35,000 nodes on prod.
-  // It works but could be used for DoS.
-  val maxNodes = 3000
+  // This limit is usually reached is when someone looks for it,
+  // by making a chapter as big as possible.
+  // Increasing it would not improve the experience on legit use cases.
+  val maxNodes = 3_000
 
   trait Like:
     val id: StudyChapterId
@@ -147,6 +148,8 @@ object Chapter:
     def secondsSinceLastMove: Option[Int] = lastMoveAt.map: at =>
       (nowSeconds - at.toSeconds).toInt
 
+  def relayInit = Relay(UciPath.root, none, none)
+
   case class ServerEval(path: UciPath, done: Boolean)
 
   type BothClocks = ByColor[Option[Centis]]
@@ -161,9 +164,6 @@ object Chapter:
   case class IdName(@Key("_id") id: StudyChapterId, name: StudyChapterName)
 
   def defaultName(order: Order) = StudyChapterName(s"Chapter $order")
-
-  private val defaultNameRegex = """Chapter \d+""".r
-  def isDefaultName(n: StudyChapterName) = n.value.isEmpty || defaultNameRegex.matches(n.value)
 
   def fixName(n: StudyChapterName) = StudyChapterName(lila.common.String.softCleanUp(n.value).take(80))
 

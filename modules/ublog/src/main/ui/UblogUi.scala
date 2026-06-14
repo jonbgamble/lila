@@ -9,6 +9,7 @@ import lila.ui.*
 import lila.core.ublog.{ BlogsBy, QualityFilter }
 
 import ScalatagsTemplate.{ *, given }
+import lila.ublog.UblogPost.PreviewPost
 
 final class UblogUi(helpers: Helpers, atomUi: AtomUi, modMenu: Context ?=> Frag)(
     picfitUrl: lila.memo.PicfitUrl
@@ -387,10 +388,6 @@ final class UblogUi(helpers: Helpers, atomUi: AtomUi, modMenu: Context ?=> Frag)
             href := langHref(routes.Ublog.communityAll())
           )(trans.ublog.community()),
           a(
-            cls := isActive("search"),
-            href := langHref(routes.Ublog.search())
-          )("Search"),
-          a(
             cls := isActive("by-month"),
             href := langHref(routes.Ublog.thisMonth())
           )(trans.ublog.byMonth()),
@@ -417,6 +414,18 @@ final class UblogUi(helpers: Helpers, atomUi: AtomUi, modMenu: Context ?=> Frag)
               a(cls := mine.option("active"), href := routes.Ublog.index(me.username))(trans.ublog.myBlog())
             )
         )
+      )
+    )
+
+  def homeCarousel(posts: List[PreviewPost])(using Context) =
+    div(cls := "lobby__blog carousel")(
+      div(cls := "carousel__track"):
+        posts.map:
+          card(_, showAuthor = ShowAt.bottom, showIntro = false, strictDate = false)
+      ,
+      div(cls := "carousel__controls")(
+        button(cls := "carousel__prev", dataIcon := Icon.LessThan),
+        button(cls := "carousel__next", dataIcon := Icon.GreaterThan)
       )
     )
 
@@ -484,7 +493,7 @@ final class UblogUi(helpers: Helpers, atomUi: AtomUi, modMenu: Context ?=> Frag)
     )
 
   private def btnCls(active: Boolean, other: String = ""): Modifier =
-    cls := s"btn-rack__btn $other" + (if active then " lit" else "")
+    cls := List("btn-rack__btn" -> true, "active" -> active, other -> other.nonEmpty)
 
   private def modForm(blog: UblogBlog) =
     val colorCls = if blog.modNote.isDefined then "button-red" else "button-dim"
@@ -527,20 +536,20 @@ final class UblogUi(helpers: Helpers, atomUi: AtomUi, modMenu: Context ?=> Frag)
 
     private def renderPost(post: UblogPost.PreviewPost, authorName: String) =
       frag(
-        tag("id")(s"$netBaseUrl${urlOfPost(post)}"),
+        tag("id")(routeUrl(urlOfPost(post))),
         tag("published")(post.lived.map(_.at).map(atomUi.atomDate)),
         tag("updated")(post.updated.orElse(post.lived).map(_.at).map(atomUi.atomDate)),
         link(
           rel := "alternate",
           tpe := "text/html",
-          href := s"$netBaseUrl${urlOfPost(post)}"
+          href := routeUrl(urlOfPost(post))
         ),
         tag("title")(post.title),
         post.topics.map { topic =>
           atomUi.category(
             term = topic.url,
             label = topic.value,
-            scheme = s"$netBaseUrl${routes.Ublog.topic(topic.url)}".some
+            scheme = routeUrl(routes.Ublog.topic(topic.url)).some
           )
         },
         tag("content")(tpe := "html")(

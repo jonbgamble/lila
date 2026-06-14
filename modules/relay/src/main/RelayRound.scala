@@ -1,5 +1,7 @@
 package lila.relay
 
+import java.time.temporal.ChronoUnit
+import play.api.mvc.Call
 import io.mola.galimatias.URL
 import reactivemongo.api.bson.Macros.Annotations.Key
 import scalalib.ThreadLocalRandom
@@ -7,6 +9,7 @@ import scalalib.model.Seconds
 import chess.{ Rated, ByColor }
 
 import lila.study.Study
+import lila.core.i18n.Translate
 
 case class RelayRound(
     /* Same as the Study id it refers to */
@@ -26,9 +29,11 @@ case class RelayRound(
     crowd: Option[Crowd],
     // crowdAt: Option[Instant], // in DB but not used by RelayRound
     rated: Rated = Rated.Yes,
-    customScoring: Option[ByColor[RelayRound.CustomScoring]] = none
+    customScoring: Option[ByColor[RelayRound.CustomScoring]] = none,
+    teamCustomScoring: Option[RelayRound.CustomScoring] = none,
+    fideTCOverride: Option[chess.FideTC] = none
 ):
-  inline def studyId = id.into(StudyId)
+  inline def studyId = id.studyId
 
   lazy val slug =
     val s = scalalib.StringOps.slug(name.value)
@@ -68,9 +73,17 @@ case class RelayRound(
       case Some(at) => at.isBefore(nowInstant.minusHours(3))
       case None => createdAt.isBefore(nowInstant.minusDays(1))
 
+  def daysSinceFinished = finishedAt.map(ChronoUnit.DAYS.between(_, nowInstant))
+
+  private[relay] def startsSoonOrAfterPrevious = startsAt.exists:
+    case RelayRound.Starts.At(at) => ChronoUnit.DAYS.between(nowInstant, at) <= 3
+    case RelayRound.Starts.AfterPrevious => true
+
   def withSync(f: Update[RelayRound.Sync]) = copy(sync = f(sync))
 
   def withTour(tour: RelayTour) = RelayRound.WithTour(this, tour)
+
+  def ratingAndScoringFields = (rated, customScoring, teamCustomScoring, fideTCOverride)
 
   override def toString = s"""relay #$id "$name" $sync"""
 
@@ -82,7 +95,8 @@ object RelayRound:
   object Order extends OpaqueInt[Order]
 
   opaque type Name = String
-  object Name extends OpaqueString[Name]
+  object Name extends OpaqueString[Name]:
+    extension (name: Name) def translate(using lila.core.i18n.Translate) = RelayI18n(name)
 
   opaque type Caption = String
   object Caption extends OpaqueString[Caption]
@@ -103,7 +117,8 @@ object RelayRound:
       period: Option[Seconds], // override time between two sync (rare)
       delay: Option[Seconds], // add delay between the source and the study
       onlyRound: Option[Sync.OnlyRound], // only keep games with [Round "x"]
-      slices: Option[List[RelayGame.Slice]] = none,
+      slices: Option[List[RelayGame.Slice]] = None,
+      reorder: Option[RelayGame.ReorderNames] = None,
       log: SyncLog
   ):
     def hasUpstream = upstream.isDefined
@@ -161,6 +176,7 @@ object RelayRound:
           case lccRegex(id, round) => round.toIntOption.map(Lcc(id, _))
           case _ => none
         def looksLikeLcc = url.host.toString.endsWith("livechesscloud.com")
+        def looksLikeIdChess = url.host.toString.endsWith("idchess.com")
     import url.*
 
     enum Upstream:
@@ -176,6 +192,10 @@ object RelayRound:
       def hasLcc = this match
         case Url(url) => url.looksLikeLcc
         case Urls(urls) => urls.exists(_.looksLikeLcc)
+        case _ => false
+      def hasIdChess = this match
+        case Url(url) => url.looksLikeIdChess
+        case Urls(urls) => urls.exists(_.looksLikeIdChess)
         case _ => false
       def hasUnsafeHttp: Option[URL] = this match
         case Url(url) => Option.when(url.scheme == "http")(url)
@@ -208,10 +228,11 @@ object RelayRound:
     val tour: RelayTour
     def display: RelayRound
     def link: RelayRound
-    def fullName = s"${tour.name} • ${display.name}"
-    def path: String =
-      s"/broadcast/${tour.slug}/${if link.slug == tour.slug then "-" else link.slug}/${link.id}"
-    def path(chapterId: StudyChapterId): String = s"$path/$chapterId"
+    def fullNameNoTrans = s"${tour.name} • ${display.name}" // useful for logging
+    def fullName(using Translate) = s"${tour.name.translate} • ${display.name.translate}"
+    def path = s"/broadcast/${tour.slug}/${if link.slug == tour.slug then "-" else link.slug}/${link.id}"
+    def call: Call = Call("GET", path)
+    def call(chapterId: StudyChapterId): Call = Call("GET", s"$path/$chapterId")
 
   trait AndGroup:
     def group: Option[RelayGroup.Name]
@@ -222,6 +243,7 @@ object RelayRound:
     def display = round
     def link = round
     def withStudy(study: Study) = WithTourAndStudy(round, tour, study)
+    def fideTC = round.fideTCOverride | tour.info.fideTCOrGuess
 
   case class WithTourAndGroup(round: RelayRound, tour: RelayTour, group: Option[RelayGroup.Name])
       extends AndTourAndGroup:
@@ -231,8 +253,7 @@ object RelayRound:
 
   case class WithTourAndStudy(relay: RelayRound, tour: RelayTour, study: Study):
     def withTour = WithTour(relay, tour)
-    def path = withTour.path
-    def fullName = withTour.fullName
+    def call = withTour.call
 
   case class WithStudy(relay: RelayRound, study: Study):
     def withTour(tour: RelayTour) = WithTourAndStudy(relay, tour, study)

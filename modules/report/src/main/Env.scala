@@ -20,8 +20,7 @@ final class Env(
     cacheApi: lila.memo.CacheApi,
     appConfig: play.api.Configuration,
     ws: play.api.libs.ws.StandaloneWSClient,
-    picfitApi: lila.memo.PicfitApi,
-    imageGetOrigin: lila.core.config.ImageGetOrigin
+    picfitApi: lila.memo.PicfitApi
 )(using Executor, NetDomain)(using scheduler: Scheduler):
 
   private def lazyPlaybansOf = () => playbansOf
@@ -51,6 +50,9 @@ final class Env(
 
   scheduler.scheduleWithFixedDelay(1.minute, 1.minute): () =>
     api.inquiries.expire
+
+  scheduler.scheduleWithFixedDelay(55.minutes, 1.hour): () =>
+    ReportQueueMonitor.push(reportColl)
 
   lila.common.Bus.sub[lila.core.playban.Playban]:
     case lila.core.playban.Playban(userId, mins, _) => api.maybeAutoPlaybanReport(userId, mins)

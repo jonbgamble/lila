@@ -2,11 +2,10 @@ package lila.ui
 
 import java.time.LocalDate
 
-import lila.core.config.BaseUrl
-
 import ScalatagsTemplate.{ *, given }
+import lila.core.config.RouteUrl
 
-final class AtomUi(netBaseUrl: BaseUrl):
+final class AtomUi(routeUrl: RouteUrl):
 
   def feed[A](
       elems: Seq[A],
@@ -20,9 +19,9 @@ final class AtomUi(netBaseUrl: BaseUrl):
       raw(
         """<feed xml:lang="en-US" xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">"""
       ),
-      tag("id")(s"$netBaseUrl$htmlCall"),
-      link(rel := "alternate", tpe := "text/html", href := s"${netBaseUrl}$htmlCall"),
-      link(rel := "self", tpe := "application/atom+xml", href := s"${netBaseUrl}$atomCall"),
+      tag("id")(routeUrl(htmlCall)),
+      link(rel := "alternate", tpe := "text/html", href := routeUrl(htmlCall)),
+      link(rel := "self", tpe := "application/atom+xml", href := routeUrl(atomCall)),
       tag("title")(title),
       tag("updated")(updated.map(atomDate)),
       elems.map: el =>
@@ -45,7 +44,7 @@ final class AtomUi(netBaseUrl: BaseUrl):
   private val labelAttr = attr("label")
   private val schemeAttr = attr("scheme")
 
-  def category(term: String, label: String, scheme: Option[String] = None) =
+  def category(term: String, label: String, scheme: Option[Url] = None) =
     tag("category")(
       termAttr := term,
       labelAttr := label,

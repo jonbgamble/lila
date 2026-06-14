@@ -1,17 +1,26 @@
-import * as util from '@lichess-org/chessground/util';
 import * as cg from '@lichess-org/chessground/types';
+import * as util from '@lichess-org/chessground/util';
 
 export class Premove {
-  constructor(readonly unrestrictedPremoves: boolean) {}
+  readonly unrestrictedPremoves: boolean;
 
-  private isDestOccupiedByFriendly = (ctx: cg.MobilityContext): boolean => ctx.friendlies.has(ctx.dest.key);
+  constructor(
+    readonly variant: VariantKey,
+    readonly rookCastle: boolean,
+  ) {
+    this.unrestrictedPremoves = ['atomic', 'crazyhouse'].includes(variant);
+  }
 
-  private isDestOccupiedByEnemy = (ctx: cg.MobilityContext): boolean => ctx.enemies.has(ctx.dest.key);
+  private readonly isDestOccupiedByFriendly = (ctx: cg.MobilityContext): boolean =>
+    ctx.friendlies.has(ctx.dest.key);
 
-  private anyPieceBetween = (orig: cg.Pos, dest: cg.Pos, pieces: cg.Pieces): boolean =>
+  private readonly isDestOccupiedByEnemy = (ctx: cg.MobilityContext): boolean =>
+    ctx.enemies.has(ctx.dest.key);
+
+  private readonly anyPieceBetween = (orig: cg.Pos, dest: cg.Pos, pieces: cg.Pieces): boolean =>
     util.squaresBetween(...orig, ...dest).some(s => pieces.has(s));
 
-  private canEnemyPawnAdvanceToSquare = (
+  private readonly canEnemyPawnAdvanceToSquare = (
     pawnStart: cg.Key,
     dest: cg.Key,
     ctx: cg.MobilityContext,
@@ -27,7 +36,7 @@ export class Premove {
     );
   };
 
-  private canEnemyPawnCaptureOnSquare = (
+  private readonly canEnemyPawnCaptureOnSquare = (
     pawnStart: cg.Key,
     dest: cg.Key,
     ctx: cg.MobilityContext,
@@ -46,10 +55,13 @@ export class Premove {
     );
   };
 
-  private canSomeEnemyPawnAdvanceToDest = (ctx: cg.MobilityContext): boolean =>
+  private readonly canSomeEnemyPawnAdvanceToDest = (ctx: cg.MobilityContext): boolean =>
     [...ctx.enemies.keys()].some(key => this.canEnemyPawnAdvanceToSquare(key, ctx.dest.key, ctx));
 
-  private isDestControlledByEnemy = (ctx: cg.MobilityContext, pieceRolesExclude?: cg.Role[]): boolean => {
+  private readonly isDestControlledByEnemy = (
+    ctx: cg.MobilityContext,
+    pieceRolesExclude?: cg.Role[],
+  ): boolean => {
     const square: cg.Pos = ctx.dest.pos;
     return [...ctx.enemies].some(([key, piece]) => {
       const piecePos = util.key2pos(key);
@@ -67,12 +79,12 @@ export class Premove {
     });
   };
 
-  private isFriendlyOnDestAndAttacked = (ctx: cg.MobilityContext): boolean =>
+  private readonly isFriendlyOnDestAndAttacked = (ctx: cg.MobilityContext): boolean =>
     this.isDestOccupiedByFriendly(ctx) &&
     (this.canBeCapturedBySomeEnemyEnPassant(ctx.dest.key, ctx.friendlies, ctx.enemies, ctx.lastMove) ||
       this.isDestControlledByEnemy(ctx));
 
-  private canBeCapturedBySomeEnemyEnPassant = (
+  private readonly canBeCapturedBySomeEnemyEnPassant = (
     potentialSquareOfFriendlyPawn: cg.Key | undefined,
     friendlies: cg.Pieces,
     enemies: cg.Pieces,
@@ -93,7 +105,7 @@ export class Premove {
     );
   };
 
-  private isPathClearEnoughOfFriendliesForPremove = (
+  private readonly isPathClearEnoughOfFriendliesForPremove = (
     ctx: cg.MobilityContext,
     isPawnAdvance: boolean,
   ): boolean => {
@@ -120,7 +132,7 @@ export class Premove {
     );
   };
 
-  private isPathClearEnoughOfEnemiesForPremove = (
+  private readonly isPathClearEnoughOfEnemiesForPremove = (
     ctx: cg.MobilityContext,
     isPawnAdvance: boolean,
   ): boolean => {
@@ -150,11 +162,11 @@ export class Premove {
     return enemyPawnDests.some(square => !badSquares.includes(square));
   };
 
-  private isPathClearEnoughForPremove = (ctx: cg.MobilityContext, isPawnAdvance: boolean): boolean =>
+  private readonly isPathClearEnoughForPremove = (ctx: cg.MobilityContext, isPawnAdvance: boolean): boolean =>
     this.isPathClearEnoughOfFriendliesForPremove(ctx, isPawnAdvance) &&
     this.isPathClearEnoughOfEnemiesForPremove(ctx, isPawnAdvance);
 
-  private pawn: cg.Mobility = (ctx: cg.MobilityContext) => {
+  private readonly pawn: cg.Mobility = (ctx: cg.MobilityContext) => {
     const step = ctx.color === 'white' ? 1 : -1;
     if (util.diff(ctx.orig.pos[0], ctx.dest.pos[0]) > 1) return false;
     if (!util.diff(ctx.orig.pos[0], ctx.dest.pos[0]))
@@ -178,40 +190,42 @@ export class Premove {
       );
   };
 
-  private knight: cg.Mobility = (ctx: cg.MobilityContext) =>
+  private readonly knight: cg.Mobility = (ctx: cg.MobilityContext) =>
     util.knightDir(...ctx.orig.pos, ...ctx.dest.pos) &&
     (this.unrestrictedPremoves ||
       !this.isDestOccupiedByFriendly(ctx) ||
       this.isFriendlyOnDestAndAttacked(ctx));
 
-  private bishop: cg.Mobility = (ctx: cg.MobilityContext) =>
+  private readonly bishop: cg.Mobility = (ctx: cg.MobilityContext) =>
     util.bishopDir(...ctx.orig.pos, ...ctx.dest.pos) &&
     this.isPathClearEnoughForPremove(ctx, false) &&
     (this.unrestrictedPremoves ||
       !this.isDestOccupiedByFriendly(ctx) ||
       this.isFriendlyOnDestAndAttacked(ctx));
 
-  private rook: cg.Mobility = (ctx: cg.MobilityContext) =>
+  private readonly rook: cg.Mobility = (ctx: cg.MobilityContext) =>
     util.rookDir(...ctx.orig.pos, ...ctx.dest.pos) &&
     this.isPathClearEnoughForPremove(ctx, false) &&
     (this.unrestrictedPremoves ||
       !this.isDestOccupiedByFriendly(ctx) ||
       this.isFriendlyOnDestAndAttacked(ctx));
 
-  private queen: cg.Mobility = (ctx: cg.MobilityContext) => this.bishop(ctx) || this.rook(ctx);
+  private readonly queen: cg.Mobility = (ctx: cg.MobilityContext) => this.bishop(ctx) || this.rook(ctx);
 
-  private king: cg.Mobility = (ctx: cg.MobilityContext) =>
+  private readonly king: cg.Mobility = (ctx: cg.MobilityContext) =>
     (util.kingDirNonCastling(...ctx.orig.pos, ...ctx.dest.pos) &&
       (this.unrestrictedPremoves ||
         !this.isDestOccupiedByFriendly(ctx) ||
         this.isFriendlyOnDestAndAttacked(ctx))) ||
-    (ctx.canCastle &&
+    (this.variant !== 'antichess' &&
       ctx.orig.pos[1] === ctx.dest.pos[1] &&
       ctx.orig.pos[1] === (ctx.color === 'white' ? 0 : 7) &&
       ((ctx.orig.pos[0] === 4 &&
+        this.variant !== 'chess960' &&
         ((ctx.dest.pos[0] === 2 && ctx.rookFilesFriendlies.includes(0)) ||
           (ctx.dest.pos[0] === 6 && ctx.rookFilesFriendlies.includes(7)))) ||
-        ctx.rookFilesFriendlies.includes(ctx.dest.pos[0])) &&
+        ((this.rookCastle || this.variant === 'chess960') &&
+          ctx.rookFilesFriendlies.includes(ctx.dest.pos[0]))) &&
       (this.unrestrictedPremoves ||
         /* The following checks if no non-rook friendly piece is in the way between the king and its castling destination.
          Note that for the Chess960 edge case of Kb1 "long castling", the check passes even if there is a piece in the way
@@ -221,7 +235,7 @@ export class Premove {
           .map(s => ctx.allPieces.get(s))
           .every(p => !p || util.samePiece(p, { role: 'rook', color: ctx.color }))));
 
-  private mobilityByRole: Record<cg.Role, cg.Mobility> = {
+  private readonly mobilityByRole: Record<cg.Role, cg.Mobility> = {
     pawn: this.pawn,
     knight: this.knight,
     bishop: this.bishop,

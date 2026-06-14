@@ -3,7 +3,7 @@
   <string name="donate">תרמו</string>
   <string name="donateAsX">תרומה כ־%s</string>
   <string name="lichessPatron">תומך/ת ליצ\'ס</string>
-  <string name="patronSince" comment="%s is a date e.g. &quot;21 Jan 2025&quot;,&#10;meaning the final text would be something like &quot;Patron since 21 Jan 2025&quot;.">תומך מאז %s</string>
+  <string name="patronSince" comment="string is a date">תומך מאז %s</string>
   <string name="freeAccount">חשבון חינמי</string>
   <string name="becomePatron">הפכו לתומך/ת של ליצ\'ס</string>
   <string name="xBecamePatron">%s הפך/ה לתומך של ליצ\'ס</string>
@@ -42,8 +42,6 @@
   <string name="officialNonProfit">האם לִיצֶ\'ס הוא ארגון ללא מטרות רווח באופן רשמי?</string>
   <string name="actOfCreation">כן, הנה מסמך היצירה (בצרפתית)</string>
   <string name="changeMonthlySupport">האם אני יכול/ה לשנות או לבטל את התמיכה החודשית שלי?</string>
-  <string name="changeOrContact">כן, בכל זמן נתון, מהעמוד הזה.
-או שאפשר %s.</string>
   <string name="contactSupport">ליצור קשר עם התמיכה שלנו</string>
   <string name="otherMethods">האם יש אמצעים אחרים לתרום?</string>
   <string name="lichessIsRegisteredWith">Lichess רשום ל־%s.</string>

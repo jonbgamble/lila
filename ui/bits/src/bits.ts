@@ -1,16 +1,14 @@
-import { text, formToXhr } from 'lib/xhr';
-import flairPickerLoader from './flairPicker';
 import { spinnerHtml } from 'lib/view';
+import { text } from 'lib/xhr';
+
 import { wireCropDialog } from './crop';
-import { debounce } from 'lib/async';
+import flairPickerLoader from './flairPicker';
 
 // avoid node_modules and pay attention to imports here. we don't want to force people
 // to download the entire toastui editor library just to do some light form processing.
 
 export function initModule(args: { fn: string } & any): void {
   switch (args.fn) {
-    case 'appeal':
-      return appeal();
     case 'autoForm':
       return autoForm(args);
     case 'colorizeYesNoTable':
@@ -23,8 +21,8 @@ export function initModule(args: { fn: string } & any): void {
       return embedReasonToggle();
     case 'eventCountdown':
       return eventCountdown();
-    case 'hcaptcha':
-      return hcaptcha();
+    case 'faq':
+      return faq();
     case 'importer':
       return importer();
     case 'pmAll':
@@ -35,38 +33,21 @@ export function initModule(args: { fn: string } & any): void {
       return setAssetInfo();
     case 'streamerSubscribe':
       return streamerSubscribe();
-    case 'fidePlayerFollow':
-      return fidePlayerFollow();
     case 'thanksReport':
       return thanksReport();
     case 'titleRequest':
       return titleRequest();
-    case 'validEmail':
+    case 'validateEmail':
       return validateEmail();
+    case 'emailErrorCheck':
+      return emailErrorCheck();
     default:
       console.error('Unknown bits function', args.fn);
   }
 }
 
-function appeal() {
-  if ($('.nav-tree').length) location.hash = location.hash || '#help-root';
-  $('select.appeal-presets').on('change', function (this: HTMLSelectElement, e: Event) {
-    $(this)
-      .parents('form')
-      .find('textarea')
-      .val((e.target as HTMLTextAreaElement).value);
-  });
-
-  $('form.appeal__actions__slack').on('submit', (e: Event) => {
-    const form = e.target as HTMLFormElement;
-    formToXhr(form);
-    $(form).find('button').text('Sent!').attr('disabled', 'true');
-    return false;
-  });
-}
-
 function autoForm({ selector, ops }: { selector: string; ops: string }) {
-  const el = document.querySelector(selector) as HTMLElement;
+  const el = document.querySelector<HTMLElement>(selector);
   const oplist = ops.split(' ');
   if (!el || oplist.length === 0) return;
   if (oplist.includes('focus')) el.focus();
@@ -118,7 +99,7 @@ function eventCountdown() {
 
     const $el = $(this);
     const seconds = parseInt(this.dataset.seconds) - 1;
-    const target = new Date().getTime() + seconds * 1000;
+    const target = Date.now() + seconds * 1000;
 
     const second = 1000,
       minute = second * 60,
@@ -126,7 +107,7 @@ function eventCountdown() {
       day = hour * 24;
 
     const redraw = function () {
-      const distance = target - new Date().getTime();
+      const distance = target - Date.now();
 
       if (distance > 0) {
         $el.find('.days').text(Math.floor(distance / day).toString());
@@ -148,24 +129,22 @@ function eventCountdown() {
   });
 }
 
-function hcaptcha() {
-  const script = document.createElement('script');
-  script.src = 'https://hcaptcha.com/1/api.js';
-
-  if ('credentialless' in window && window.crossOriginIsolated) {
-    const documentCreateElement = document.createElement;
-    script.src = 'https://hcaptcha.com/1/api.js?onload=initHcaptcha&recaptchacompat=off';
-    script.onload = () => {
-      document.createElement = function () {
-        const element = documentCreateElement.apply(this, arguments as any);
-        if (element instanceof HTMLIFrameElement) element.setAttribute('credentialless', '');
-        return element;
-      };
-    };
-    (window as any).initHcaptcha = () => (document.createElement = documentCreateElement);
+function faq() {
+  if (location.hash) {
+    const target = document.querySelector(location.hash);
+    const details = target?.closest('details');
+    if (details) {
+      details.open = true;
+    }
   }
 
-  document.head.appendChild(script);
+  document.querySelectorAll('details > summary').forEach(summary => {
+    summary.addEventListener('click', () => {
+      const details = summary.closest('details');
+      if (!details?.id) return;
+      history.replaceState(null, '', `#${details.id}`);
+    });
+  });
 }
 
 function importer() {
@@ -221,32 +200,17 @@ function setAssetInfo() {
 }
 
 function streamerSubscribe() {
-  $('.streamer-show, .streamer-list').on('change', '.streamer-subscribe input', (e: Event) => {
+  $('.streamer-show').on('change', '.streamer-subscribe input', (e: Event) => {
     const target = e.target as HTMLInputElement;
-    $(target)
-      .parents('.streamer-subscribe')
-      .each(function (this: HTMLElement) {
-        text(
-          $(this)
-            .data('action')
-            .replace(/set=[^&]+/, `set=${target.checked}`),
-          { method: 'post' },
-        );
-      });
+    const action = target.dataset.action;
+    if (action) {
+      const url = new URL(action, location.href);
+      url.searchParams.set('set', String(target.checked));
+      text(url.pathname + url.search, { method: 'post' });
+      url.searchParams.set('set', String(!target.checked));
+      target.dataset.action = url.pathname + url.search;
+    }
   });
-}
-
-function fidePlayerFollow() {
-  const el = $('#fide-player-follow');
-  el.on(
-    'change',
-    debounce(
-      () =>
-        text(el.data('action').replace(/follow=[^&]+/, `follow=${el.prop('checked')}`), { method: 'post' }),
-      1000,
-      true,
-    ),
-  );
 }
 
 function titleRequest() {
@@ -263,7 +227,7 @@ function thanksReport() {
   const $button = $('button.report-block');
   $button.one('click', function () {
     $button.find('span').text('Blocking...');
-    fetch($button.data('action')!, { method: 'post' }).then(async res =>
+    fetch($button.data('action'), { method: 'post' }).then(async res =>
       $button.find('span').text(res.ok ? 'Blocked!' : 'Block error'),
     );
   });
@@ -276,4 +240,17 @@ function validateEmail() {
   email.addEventListener('input', function () {
     email.setCustomValidity(email.validity.patternMismatch ? currentError : '');
   });
+}
+
+function emailErrorCheck() {
+  const fetchError = async (backoff: number) => {
+    const error = await text('/dev/email-error');
+    if (error) {
+      $('.email-confirm-banner')
+        .addClass('error')
+        .html(`<a href="/signup/check-your-email">We sent the email, but it was rejected.</a><code></code>`);
+      $('.email-confirm-banner code').text(error);
+    } else setTimeout(() => fetchError(backoff * 1.5), backoff);
+  };
+  fetchError(3000);
 }

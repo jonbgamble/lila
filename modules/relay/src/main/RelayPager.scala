@@ -45,25 +45,29 @@ final class RelayPager(
       maxPerPage = maxPerPage
     )
 
-  def allPrivate(page: Int): Fu[Paginator[RelayTour | WithLastRound]] = Paginator(
-    adapter = new:
-      def nbResults: Fu[Int] = fuccess(9999)
-      def slice(offset: Int, length: Int): Fu[List[WithLastRound]] =
-        tourRepo.coll
-          .aggregateList(length, _.sec): framework =>
-            import framework.*
-            Match(selectors.officialNotPublic) -> {
-              List(Project(unsetHeavyOptionalFields), Sort(Descending("createdAt"))) ::: tourRepo
-                .aggregateRoundAndUnwind(colls, framework) ::: List(
-                Skip(offset),
-                Limit(length)
-              )
-            }
-          .map(readToursWithRoundAndGroup(RelayTour.WithLastRound.apply))
-    ,
-    currentPage = page,
-    maxPerPage = maxPerPage
-  )
+  def allPrivate = adminPager(selectors.officialNotPublic)
+  def nonOfficialExpensiveNoIndexHitForAdminsOnly = adminPager(selectors.nonOfficial)
+
+  private def adminPager(selector: Bdoc)(page: Int): Fu[Paginator[RelayTour | WithLastRound]] =
+    Paginator(
+      adapter = new:
+        def nbResults: Fu[Int] = fuccess(9999)
+        def slice(offset: Int, length: Int): Fu[List[WithLastRound]] =
+          tourRepo.coll
+            .aggregateList(length, _.sec): framework =>
+              import framework.*
+              Match(selector) -> {
+                List(Project(unsetHeavyOptionalFields), Sort(Descending("createdAt"))) ::: tourRepo
+                  .aggregateRoundAndUnwind(colls, framework) ::: List(
+                  Skip(offset),
+                  Limit(length)
+                )
+              }
+            .map(readToursWithRoundAndGroup(RelayTour.WithLastRound.apply))
+      ,
+      currentPage = page,
+      maxPerPage = maxPerPage
+    )
 
   def subscribedBy(userId: UserId, page: Int): Fu[Paginator[RelayTour | WithLastRound]] = Paginator(
     adapter = new:
@@ -124,18 +128,18 @@ final class RelayPager(
   def search(query: String, page: Int): Fu[Paginator[WithLastRound]] =
 
     val day = 1000L * 3600 * 24
+
+    val (textSearch, nameFilter) = query match
+      case RelayPager.yearRegex(pre, year, post) =>
+        val remaining = s"$pre $post".trim
+        (if remaining.isEmpty then query else remaining, $doc("name".$regex(s"\\b$year\\b")))
+      case q => (q, $empty)
+
     // We add quotes to the query to perform an exact match even when the query contains whitespaces
-    val exactQuery = s"\"$query\""
-
-    val textSelector = $text(exactQuery) ++ selectors.officialPublic
-
-    // Special case of querying so that users can filter broadcasts by year
-    val yearOpt = """\b(20)\d{2}\b""".r.findFirstIn(query)
-    val selector = yearOpt.foldLeft(textSelector): (sel, year) =>
-      sel ++ "name".$regex(s"\\b$year\\b")
+    val textSelector = $text(s"\"$textSearch\"") ++ nameFilter ++ selectors.officialPublic
 
     forSelector(
-      selector = selector,
+      selector = textSelector,
       page = page,
       onlyKeepGroupFirst = false,
       addFields = $doc(
@@ -174,7 +178,7 @@ final class RelayPager(
   ): Fu[Paginator[WithLastRound]] =
     Paginator(
       adapter = new:
-        def nbResults: Fu[Int] = tourRepo.coll.countSel(selector)
+        def nbResults: Fu[Int] = tourRepo.coll.secondary.countSel(selector)
         def slice(offset: Int, length: Int): Fu[List[WithLastRound]] =
           tourRepo.coll
             .aggregateList(length, _.sec): framework =>
@@ -199,3 +203,6 @@ final class RelayPager(
     round = rounds.headOption
     group = RelayTourRepo.group.readFrom(doc)
   yield round.fold(tour)(WithLastRound(tour, _, group))
+
+private object RelayPager:
+  val yearRegex = """(.*)\b(20\d{2})\b(.*)""".r

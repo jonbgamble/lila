@@ -15,6 +15,12 @@ lazy val root = Project("lila", file("."))
 organization := "org.lichess"
 Compile / run / fork := true
 javaOptions ++= Seq("-Xms64m", "-Xmx512m", "-Dlogger.file=conf/logger.dev.xml")
+javaOptions ++= {
+  if (sys.props("java.specification.version").toInt > 21)
+    Seq("--enable-native-access=ALL-UNNAMED")
+  else
+    Seq.empty
+}
 ThisBuild / scalacOptions ++= Seq("-unchecked", "-deprecation")
 ThisBuild / usePipelining := false
 // shorter prod classpath
@@ -67,8 +73,8 @@ lazy val modules = Seq(
   insight, evaluation, storm,
   // level 7
   // everything else is free from deps; do the big ones first
-  relay, security, tournament, plan, round,
-  swiss, insight, fishnet, tutor, mod, challenge, web,
+  relay, tutor, security, tournament, plan, round,
+  swiss, insight, fishnet, mod, challenge, web,
   team, forum, streamer, simul, activity, msg, ublog,
   notifyModule, clas, perfStat, opening, timeline,
   setup, video, fide, title, push,
@@ -92,10 +98,15 @@ lazy val coreI18n = module("coreI18n",
   Seq(scalatags) ++ scalalib.bundle
 )
 
+lazy val mon = module("mon",
+  Seq(core),
+  Seq(kamon.core, kamon.influxdb)
+)
+
 lazy val common = module("common",
   Seq(core),
   Seq(
-    kamon.core, scaffeine, apacheText, chess.playJson
+    kamon.core, scaffeine, apacheText, chess.playJson,
   ) ++ flexmark.bundle
 )
 
@@ -105,8 +116,8 @@ lazy val db = module("db",
 )
 
 lazy val memo = module("memo",
-  Seq(db),
-  Seq(scaffeine) ++ playWs.bundle
+  Seq(db, mon),
+  Seq(scaffeine, bloomFilter) ++ playWs.bundle
 )
 
 lazy val i18n = module("i18n",
@@ -117,14 +128,14 @@ lazy val i18n = module("i18n",
     I18n.serialize(
       sourceDir = new File("translation/source"),
       destDir = new File("translation/dest"),
-      dbs = "site arena emails learn activity coordinates study class contact appeal patron coach broadcast streamer tfa settings preferences team perfStat search tourname faq lag swiss puzzle puzzleTheme challenge storm ublog insight keyboardMove timeago oauthScope dgt voiceCommands onboarding features nvui video variant".split(' ').toList,
+      dbs = "activity app appeal arena broadcast challenge class coach contact coordinates dgt emails faq features insight keyboardMove lag learn nvui oauthScope onboarding patron perfStat preferences puzzle puzzleTheme recap search settings site streamer storm study swiss team timeago tfa tourname ublog variant video voiceCommands msg".split(' ').toList,
       outputDir = (Compile / resourceManaged).value
     )
   }.taskValue
 )
 
 lazy val rating = module("rating",
-  Seq(db, ui),
+  Seq(db, ui, mon),
   tests.bundle ++ Seq(apacheMath)
 ).dependsOn(common % "test->test")
 
@@ -199,13 +210,13 @@ lazy val history = module("history",
 )
 
 lazy val search = module("search",
-  Seq(common),
+  Seq(memo),
   Seq(playWs.ahc, lilaSearch)
 )
 
 lazy val chat = module("chat",
   Seq(memo, ui),
-  Seq()
+  tests.bundle
 )
 
 lazy val room = module("room",
@@ -219,7 +230,7 @@ lazy val timeline = module("timeline",
 )
 
 lazy val event = module("event",
-  Seq(memo, ui),
+  Seq(memo, ui, irc),
   Seq()
 )
 
@@ -305,7 +316,7 @@ lazy val gathering = module("gathering",
 )
 
 lazy val tournament = module("tournament",
-  Seq(gathering, room, memo),
+  Seq(gathering, room, memo, irc),
   Seq(lettuce) ++ tests.bundle
 ).dependsOn(coreI18n % "test->test")
 
@@ -340,7 +351,7 @@ lazy val security = module("security",
 )
 
 lazy val shutup = module("shutup",
-  Seq(db),
+  Seq(db, mon),
   tests.bundle
 )
 
@@ -351,7 +362,7 @@ lazy val challenge = module("challenge",
 
 lazy val fide = module("fide",
   Seq(memo, ui),
-  Seq()
+  tests.bundle
 )
 
 lazy val title = module("title",
@@ -365,9 +376,9 @@ lazy val study = module("study",
 ).dependsOn(common % "test->test")
 
 lazy val relay = module("relay",
-  Seq(study, game, report),
+  Seq(study, game),
   Seq(chess.tiebreak) ++ tests.bundle
-)
+).dependsOn(coreI18n % "test->test")
 
 lazy val studySearch = module("studySearch",
   Seq(study, search),
@@ -395,17 +406,17 @@ lazy val playban = module("playban",
 )
 
 lazy val push = module("push",
-  Seq(db),
+  Seq(db, mon),
   playWs.bundle ++ Seq(googleOAuth)
 )
 
 lazy val irc = module("irc",
-  Seq(common),
+  Seq(common, mon),
   playWs.bundle
 )
 
 lazy val mailer = module("mailer",
-  Seq(memo, coreI18n),
+  Seq(memo, ui),
   Seq(hasher, play.mailer)
 )
 
@@ -430,7 +441,7 @@ lazy val msg = module("msg",
 )
 
 lazy val forum = module("forum",
-  Seq(memo, ui, report),
+  Seq(memo, ui),
   Seq()
 )
 
@@ -440,7 +451,7 @@ lazy val forumSearch = module("forumSearch",
 )
 
 lazy val team = module("team",
-  Seq(memo, room, ui, report),
+  Seq(memo, room, ui),
   Seq()
 )
 
@@ -509,7 +520,7 @@ lazy val web = module("web",
   Seq(ui, memo),
   playWs.bundle ++ tests.bundle ++ Seq(
     play.logback, play.server, play.netty,
-    kamon.prometheus,
+    kamon.prometheus
   )
 )
 

@@ -3,7 +3,7 @@
   <string name="donate">捐款</string>
   <string name="donateAsX">作為 %s 捐贈</string>
   <string name="lichessPatron">Lichess 贊助者</string>
-  <string name="patronSince" comment="%s is a date e.g. &quot;21 Jan 2025&quot;,&#10;meaning the final text would be something like &quot;Patron since 21 Jan 2025&quot;.">從 %s 成為捐贈者</string>
+  <string name="patronSince" comment="string is a date">從 %s 成為捐贈者</string>
   <string name="freeAccount">免費帳戶</string>
   <string name="becomePatron">成為 Lichess 贊助者</string>
   <string name="xBecamePatron">%s 成為了 Lichess 贊助者</string>
@@ -38,8 +38,6 @@
   <string name="officialNonProfit">Lichess 是一個非營利組織嗎?</string>
   <string name="actOfCreation">是的，這是公司註冊證書 (法語)</string>
   <string name="changeMonthlySupport">我可以更改/取消我的每月支持嗎？</string>
-  <string name="changeOrContact">當然，您隨時可以在本頁更改。
-您也可以 %s。</string>
   <string name="contactSupport">聯絡 Lichess 支援</string>
   <string name="otherMethods">有其他的贊助方式嗎？</string>
   <string name="lichessIsRegisteredWith">Lichess 是以 %s 註冊。</string>

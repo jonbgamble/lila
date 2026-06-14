@@ -3,7 +3,7 @@
   <string name="donate">Поддержать проект</string>
   <string name="donateAsX">Пожертвовать как %s</string>
   <string name="lichessPatron">Lichess-спонсор</string>
-  <string name="patronSince" comment="%s is a date e.g. &quot;21 Jan 2025&quot;,&#10;meaning the final text would be something like &quot;Patron since 21 Jan 2025&quot;.">Покровитель с %s</string>
+  <string name="patronSince" comment="string is a date">Покровитель с %s</string>
   <string name="freeAccount">Бесплатный аккаунт</string>
   <string name="becomePatron">Стать спонсором Lichess</string>
   <string name="xBecamePatron">%s стал спонсором Lichess</string>
@@ -42,8 +42,6 @@
   <string name="officialNonProfit">Правда, что Lichess официально некоммерческий?</string>
   <string name="actOfCreation">Да, вот документ (на французском языке)</string>
   <string name="changeMonthlySupport">Могу ли я изменить или отменить мою ежемесячную поддержку?</string>
-  <string name="changeOrContact">Да, в любое время, с этой страницы.
-Или вы можете %s.</string>
   <string name="contactSupport">связаться со службой поддержки Lichess</string>
   <string name="otherMethods">Есть ли другие способы сделать пожертвование?</string>
   <string name="lichessIsRegisteredWith">Lichess зарегистрирован на %s.</string>
@@ -88,4 +86,5 @@
   <string name="paymentDetails">Детали платежа</string>
   <string name="updatePaymentMethod">Обновить способ оплаты</string>
   <string name="stripeManageSub">Управление подпиской и загрузка счетов и чеков</string>
+  <string name="coverFees">Я добавлю %s для покрытия расходов сервиса</string>
 </resources>

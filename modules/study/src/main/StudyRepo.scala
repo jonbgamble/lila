@@ -3,7 +3,6 @@ package lila.study
 import akka.stream.scaladsl.*
 import reactivemongo.akkastream.{ AkkaStreamCursor, cursorProducer }
 import reactivemongo.api.*
-import reactivemongo.api.bson.BSONDocument
 
 import lila.core.study as hub
 import lila.core.study.Visibility
@@ -83,9 +82,11 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
   private[study] def selectOwnerId(ownerId: UserId) = $doc("ownerId" -> ownerId)
   def selectMemberId(memberId: UserId) = $doc(F.uids -> memberId)
   private[study] val selectPublic = $doc("visibility" -> Visibility.public)
+  private[study] val selectPublicFeaturable = selectPublic ++ "trash".$ne(true)
   private[study] val selectPrivateOrUnlisted = "visibility".$ne(Visibility.public)
+  private[study] val selectUnlisted = $doc("visibility" -> Visibility.unlisted)
   private[study] def selectLiker(userId: UserId) = $doc(F.likers -> userId)
-  private[study] def selectContributorId(userId: UserId): BSONDocument =
+  private[study] def selectContributorId(userId: UserId): Bdoc =
     selectMemberId(userId) ++ // use the index
       $doc("ownerId".$ne(userId)) ++
       $doc(s"members.$userId.role" -> "w")
@@ -173,24 +174,21 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
       )
     .void
 
-  def updateNow(s: Study): Funit =
-    updateNow(s.id)
-
-  def updateNow(id: StudyId): Funit =
+  def setUpdatedNow(id: StudyId): Funit =
     coll.map(_.updateFieldUnchecked($id(id), "updatedAt", nowInstant))
 
-  def addMember(study: Study, member: StudyMember): Funit =
+  def addMember(study: StudyId, member: StudyMember): Funit =
     coll:
       _.update.one(
-        $id(study.id),
+        $id(study),
         $set(s"members.${member.id}" -> member) ++ $addToSet(F.uids -> member.id)
       )
     .void
 
-  def removeMember(study: Study, userId: UserId): Funit =
+  def removeMember(study: StudyId, userId: UserId): Funit =
     coll:
       _.update.one(
-        $id(study.id),
+        $id(study),
         $unset(s"members.$userId") ++ $pull(F.uids -> userId)
       )
     .void
@@ -202,6 +200,11 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
         $set(s"members.$userId.role" -> role)
       )
     .void
+
+  def setOwner(study: StudyId, userId: UserId): Funit = for
+    _ <- addMember(study, StudyMember(userId, StudyMember.Role.Write))
+    _ <- coll(_.update.one($id(study), $set("ownerId" -> userId)))
+  yield ()
 
   def membersDoc(id: StudyId): Fu[Option[Bdoc]] =
     coll(_.primitiveOne[Bdoc]($id(id), "members"))
@@ -233,7 +236,7 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
   )(userId: UserId, nb: Int): Fu[List[(hub.IdName, Int)]] =
     findRecentStudyWithChapterCount(selectContributorId)(chapterColl)(userId, nb)
 
-  private def findRecentStudyWithChapterCount(query: UserId => BSONDocument)(
+  private def findRecentStudyWithChapterCount(query: UserId => Bdoc)(
       chapterColl: AsyncColl
   )(userId: UserId, nb: Int): Future[List[(hub.IdName, Int)]] =
     coll:
@@ -292,6 +295,9 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
     studyIds.nonEmpty.so(
       coll(_.primitive[StudyId]($inIds(studyIds) ++ selectLiker(user.id), "_id").dmap(_.toSet))
     )
+
+  def unfeature(id: StudyId, v: Boolean): Funit =
+    coll(_.updateOrUnsetField($id(id), "trash", v.option(true))).void
 
   def resetAllRanks: Fu[Int] =
     coll:

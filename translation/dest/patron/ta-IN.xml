@@ -3,7 +3,7 @@
   <string name="donate">நன்கொடையளி</string>
   <string name="donateAsX">%s ஆகக் கொடையளி</string>
   <string name="lichessPatron">Lichess ஆதரவாளர்</string>
-  <string name="patronSince" comment="%s is a date e.g. &quot;21 Jan 2025&quot;,&#10;meaning the final text would be something like &quot;Patron since 21 Jan 2025&quot;.">%s முதல் ஆதரவாளர்</string>
+  <string name="patronSince" comment="string is a date">%s முதல் ஆதரவாளர்</string>
   <string name="freeAccount">இலவசக் கணக்கு</string>
   <string name="becomePatron">Lichess ன் ஆதரவாளர் ஆகுக</string>
   <string name="xBecamePatron">%s Lichess ன் ஆதரவாளர் ஆகுக</string>
@@ -40,8 +40,6 @@
   <string name="officialNonProfit">Lichess ஒரு அதிகாரப்பூர்வ இலாப நோக்கற்ற நிறுவனமா?</string>
   <string name="actOfCreation">ஆம், படைப்பின் செயல் இதோ (பிரெஞ்சு மொழியில்)</string>
   <string name="changeMonthlySupport">எனது மாதாந்திர ஆதரவை நான் மாற்றலாமா/ரத்து செய்யலாமா?</string>
-  <string name="changeOrContact">ஆம், எந்நேரத்திலும், இப்பக்கத்திலிருந்து.
-அல்லது நீங்கள் %s.</string>
   <string name="contactSupport">லிசெஸ் ஆதரவைத் தொடர்பு கொள்ளவும்</string>
   <string name="otherMethods">மற்ற நன்கொடை முறைகள்?</string>
   <string name="lichessIsRegisteredWith">Lichess %s உடன் பதிவு செய்யப்பட்டுள்ளது.</string>

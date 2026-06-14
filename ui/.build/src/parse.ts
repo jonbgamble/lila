@@ -1,32 +1,8 @@
+import fg from 'fast-glob';
 import fs from 'node:fs';
 import { dirname, join, basename } from 'node:path';
-import fg from 'fast-glob';
-import { env } from './env.ts';
 
-export interface Package {
-  root: string; // absolute path to package.json parentdir
-  name: string; // dirname of package root
-  pkg: any; // package.json object
-  bundle: Bundle[]; // esbuild bundling
-  hash: Hash[]; // files to symlink hash
-  sync: Sync[]; // pre-bundle filesystem copies from package json
-}
-
-interface Bundle {
-  module?: string; // file glob for esm modules (esbuild entry points)
-  inline?: string; // inject this script into response html
-  iife?: string; // bundled as iife with no code splitting.
-}
-
-interface Hash {
-  glob: string; // glob for assets
-  update?: string; // file to update with hashed filenames
-}
-
-interface Sync {
-  src: string; // file glob expression, use <dir>/** to sync entire directories
-  dest: string; // directory to copy into
-}
+import { env, type Package, type Hash } from './env.ts';
 
 export async function parsePackages(): Promise<void> {
   for (const dir of (await glob('ui/[^@.]*/package.json')).map(pkg => dirname(pkg))) {
@@ -46,9 +22,7 @@ export async function parsePackages(): Promise<void> {
 export async function glob(glob: string[] | string | undefined, opts: fg.Options = {}): Promise<string[]> {
   if (!glob) return [];
   const results = await Promise.all(
-    Array()
-      .concat(glob)
-      .map(async g => fg.glob(g, { cwd: env.rootDir, absolute: true, ...opts })),
+    [glob].flatMap(async g => fg.glob(g, { cwd: env.rootDir, absolute: true, ...opts })),
   );
   return [...new Set(results.flat())];
 }
@@ -81,7 +55,9 @@ export async function subfolders(folder: string, depth = 1): Promise<string[]> {
   if (depth <= 0) return [];
   return (
     await Promise.all(
-      (await fs.promises.readdir(folder).catch(() => [])).map(async f => {
+      (
+        await fs.promises.readdir(folder).catch(() => [])
+      ).map(async f => {
         const fullpath = join(folder, f);
         return (await isFolder(fullpath)) ? [fullpath, ...(await subfolders(fullpath, depth - 1))] : [];
       }),
@@ -117,14 +93,15 @@ async function parsePackage(root: string): Promise<Package> {
   const build = pkgInfo.pkg.build;
 
   // 'hash' and 'sync' paths beginning with '/' are repo relative, otherwise they are package relative
-  const normalize = (file: string) => (file[0] === '/' ? file.slice(1) : join('ui', pkgInfo.name, file));
+  const normalize = (file: string) => (file.startsWith('/') ? file.slice(1) : join('ui', pkgInfo.name, file));
   const normalizeObject = <T extends Record<string, any>>(o: T) =>
     Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'string' ? normalize(v) : v]));
 
-  if ('hash' in build)
-    pkgInfo.hash = []
-      .concat(build.hash)
-      .map(g => (typeof g === 'string' ? { glob: normalize(g) } : normalizeObject(g))) as Hash[];
+  if ('hash' in build) {
+    pkgInfo.hash = [build.hash]
+      .flat()
+      .map(g => (typeof g === 'string' ? { path: normalize(g) } : normalizeObject(g))) as Hash[];
+  }
 
   if ('sync' in build)
     pkgInfo.sync = Object.entries<string>(build.sync).map(x => ({
@@ -132,7 +109,8 @@ async function parsePackage(root: string): Promise<Package> {
       dest: normalize(x[1]),
     }));
 
-  if ('bundle' in build)
-    pkgInfo.bundle = [].concat(build.bundle).map(b => (typeof b === 'string' ? { module: b } : b));
+  if ('bundle' in build) {
+    pkgInfo.bundle = [build.bundle].flat().map(b => (typeof b === 'string' ? { module: b } : b));
+  }
   return pkgInfo;
 }

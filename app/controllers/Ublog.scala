@@ -64,7 +64,7 @@ final class Ublog(env: Env) extends LilaController(env):
               .so(env.ublog.api.fetchCarouselFromDb().map(_.has(post.id)))
             followable = prefFollowable && !blocked
             html <- env.memo.markdown.toHtml(s"blog:${post.id}", post.markdown, lila.ublog.markdownOptions)
-            viewedPost = env.ublog.viewCounter(post, ctx.ip)
+            viewedPost = env.ublog.viewCounter(post)
             page <- renderPage:
               views.ublog.post.page(
                 user,
@@ -95,7 +95,7 @@ final class Ublog(env: Env) extends LilaController(env):
                 env.forum.topicApi.makeUblogDiscuss(
                   slug = topicSlug,
                   name = post.title,
-                  url = s"${env.net.baseUrl}${routes.Ublog.post(post.created.by, post.slug, id)}",
+                  url = routeUrl(routes.Ublog.post(post.created.by, post.slug, id)),
                   ublogId = id,
                   authorId = post.created.by
                 )
@@ -272,7 +272,7 @@ final class Ublog(env: Env) extends LilaController(env):
       )
   }
 
-  def image(id: UblogPostId) = AuthBody(parse.multipartFormData) { ctx ?=> me ?=>
+  def image(id: UblogPostId) = AuthBody(lila.web.HashedMultiPart(parse)) { ctx ?=> me ?=>
     Found(env.ublog.api.findEditableByMe(id)): post =>
       ctx.body.body
         .file("image")

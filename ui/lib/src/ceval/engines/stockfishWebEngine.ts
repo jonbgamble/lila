@@ -1,3 +1,8 @@
+import type StockfishWeb from '@lichess-org/stockfish-web';
+
+import { bigFileStorage } from '@/bigFileStorage';
+
+import { Protocol } from '../protocol';
 import {
   CevalState,
   type Work,
@@ -5,10 +10,7 @@ import {
   type BrowserEngineInfo,
   type EngineNotifier,
 } from '../types';
-import { Protocol } from '../protocol';
 import { sharedWasmMemory } from '../util';
-import type StockfishWeb from '@lichess-org/stockfish-web';
-import { bigFileStorage } from '@/bigFileStorage';
 
 export class StockfishWebEngine implements CevalEngine {
   failed: Error;
@@ -50,7 +52,7 @@ export class StockfishWebEngine implements CevalEngine {
       if (!nnueFilenames.length)
         for (let i = 0; ; i++) {
           const nnueFilename = module.getRecommendedNnue(i);
-          if (!nnueFilename || nnueFilenames.includes(nnueFilename)) break;
+          if (!nnueFilename) break;
           nnueFilenames.push(nnueFilename);
         }
       await Promise.all(

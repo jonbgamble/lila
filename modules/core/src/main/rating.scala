@@ -4,6 +4,12 @@ package rating
 import _root_.chess.IntRating
 import _root_.chess.rating.IntRatingDiff
 
+import lila.core.perf.PerfKey
+import lila.core.lilaism.Lilaism.nonEmptyOption
+
+type UserRank = Int
+type UserRankMap = Map[PerfKey, UserRank]
+
 case class RatingProg(before: IntRating, after: IntRating):
   def diff = IntRatingDiff(after.value - before.value)
   def isEmpty = diff.isZero
@@ -31,7 +37,8 @@ object RatingRange:
   def parse(from: String): Option[RatingRange] = for
     min <- readRating(from.takeWhile('-' !=))
     if acceptable(min)
-    max <- readRating(from.dropWhile('-' !=).tail)
+    maxStr <- from.dropWhile('-' !=).nonEmptyOption.map(_.tail)
+    max <- readRating(maxStr)
     if acceptable(max)
     if min < max
   yield RatingRange(min, max)

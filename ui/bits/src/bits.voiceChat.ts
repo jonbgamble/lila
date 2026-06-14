@@ -1,8 +1,9 @@
-import { hl, alert } from 'lib/view';
-import * as licon from 'lib/licon';
 import Peer from 'peerjs';
-import { pubsub } from 'lib/pubsub';
+
 import type { VoiceChat } from 'lib/chat/interfaces';
+import * as licon from 'lib/licon';
+import { pubsub } from 'lib/pubsub';
+import { hl, alert } from 'lib/view';
 
 type State =
   | 'off'
@@ -144,41 +145,31 @@ export function initModule(opts: VoiceChatOpts): VoiceChat | undefined {
     setState('off');
   }
 
-  function connectionsTo(peerId: any) {
-    return (peer && peer.connections[peerId]) || [];
-  }
-  function findOpenConnectionTo(peerId: any) {
-    return connectionsTo(peerId).find((c: any) => c.open);
-  }
+  const connectionsTo = (peerId: any) => (peer && peer.connections[peerId]) || [];
+
+  const findOpenConnectionTo = (peerId: any) => connectionsTo(peerId).find((c: any) => c.open);
+
   function closeOtherConnectionsTo(peerId: any) {
     const conns = connectionsTo(peerId);
     for (let i = 0; i < conns.length - 1; i++) conns[i].close();
   }
   function closeDisconnectedCalls() {
-    if (peer) {
-      for (const otherPeer in peer.connections) {
-        peer.connections[otherPeer].forEach((c: any) => {
-          if (c.peerConnection && c.peerConnection.connectionState == 'disconnected') {
-            log(`close disconnected call to ${c.peer}`);
-            c.close();
-            opts.redraw();
-          }
-        });
-      }
+    if (!peer) return;
+    for (const otherPeer in peer.connections) {
+      peer.connections[otherPeer].forEach((c: any) => {
+        if (c.peerConnection && c.peerConnection.connectionState === 'disconnected') {
+          log(`close disconnected call to ${c.peer}`);
+          c.close();
+          opts.redraw();
+        }
+      });
     }
   }
-  function allOpenConnections() {
+  const allOpenConnections = (): any[] => {
     if (!peer) return [];
-    const conns: any[] = [];
-    for (const peerId in peer.connections) {
-      const c = findOpenConnectionTo(peerId);
-      if (c) conns.push(c);
-    }
-    return conns;
-  }
-  function hasAnOpenConnection() {
-    return allOpenConnections().length > 0;
-  }
+    return Object.keys(peer.connections).map(findOpenConnectionTo).filter(Boolean);
+  };
+  const hasAnOpenConnection = () => allOpenConnections().length > 0;
 
   function ping() {
     if (state !== 'off') pubsub.emit('socket.send', 'voiceChatPing');
@@ -205,7 +196,7 @@ export function initModule(opts: VoiceChatOpts): VoiceChat | undefined {
       const connections = allOpenConnections();
       return devices
         ? hl(
-            'div.mchat__tab.voicechat.data-count.voicechat-' + state,
+            'button.mchat__tab.voicechat.data-count.voicechat-' + state,
             {
               attrs: {
                 'data-icon': licon.Handset,

@@ -32,23 +32,20 @@ final class StreamerUi(helpers: Helpers, bits: StreamerBits)(using netDomain: Ne
     def widget(s: Streamer.WithContext, stream: Option[Stream]) =
       frag(
         if requests then a(href := s"${routes.Streamer.edit}?u=${s.user.username}", cls := "overlay")
-        else bits.redirectLink(s.user.username, stream.isDefined.some)(cls := "overlay"),
+        else bits.redirectLink(s.user.username, false.some)(cls := "overlay"),
         stream.isDefined.option(span(cls := "live-ribbon")(span(trans.streamer.live()))),
         bits.thumbnail(s.streamer, s.user),
         div(cls := "overview")(
           bits.streamerTitle(s),
           s.streamer.headline.map(_.value).map { d =>
-            p(
-              cls := s"headline ${
-                  if d.length < 60 then "small" else if d.length < 120 then "medium" else "large"
-                }"
-            )(d)
+            val cssClass = if d.length < 60 then "small" else if d.length < 120 then "medium" else "large"
+            p(cls := s"headline $cssClass")(d)
           },
           div(cls := "services")(
             s.streamer.twitch.map: twitch =>
               div(cls := "service twitch")(twitch.minUrl),
-            s.streamer.youTube.map: youTube =>
-              div(cls := "service youTube")(youTube.minUrl)
+            s.streamer.youtube.map: youtube =>
+              div(cls := "service youtube")(youtube.minUrl)
           ),
           div(cls := "ats"):
             stream
@@ -61,10 +58,7 @@ final class StreamerUi(helpers: Helpers, bits: StreamerBits)(using netDomain: Ne
                     p(cls := "at")(trs.lastStream(momentFromNow(liveAt)))
                 )
           ,
-          div(cls := "streamer-footer")(
-            (!requests).option(bits.subscribeButtonFor(s)),
-            bits.streamerProfile(s)
-          )
+          div(cls := "streamer-footer")(bits.streamerProfile(s))
         )
       )
 
@@ -77,12 +71,11 @@ final class StreamerUi(helpers: Helpers, bits: StreamerBits)(using netDomain: Ne
           bits.menu(if requests then "requests" else "index", none)(cls := " page-menu__menu"),
           div(cls := "page-menu__content box streamer-list")(
             boxTop(h1(dataIcon := Icon.Mic, cls := "text")(title)),
-            (!requests).option(
-              div(cls := "list force-ltr live")(
+            (!requests).option:
+              div(cls := "list force-ltr live"):
                 live.map: s =>
                   st.article(cls := "streamer")(widget(s, s.stream))
-              )
-            ),
+            ,
             div(cls := "list force-ltr infinite-scroll")(
               (live.size % 2 == 1).option(div(cls := "none")),
               pager.currentPageResults.map: s =>
@@ -122,12 +115,12 @@ final class StreamerUi(helpers: Helpers, bits: StreamerBits)(using netDomain: Ne
             s.streamer.approval.chatEnabled.option(
               div(cls := "streamer-chat")(
                 s.stream match
-                  case Some(Stream.YouTube.Stream(_, _, videoId, _, _)) =>
+                  case Some(yt: Youtube.YoutubeStream) =>
                     iframe(
                       frame.credentialless,
                       st.frameborder := "0",
                       frame.scrolling := "no",
-                      src := s"https://www.youtube.com/live_chat?v=$videoId&embed_domain=$netDomain"
+                      src := s"https://www.youtube.com/live_chat?v=${yt.videoId}&embed_domain=$netDomain"
                     )
                   case _ =>
                     s.streamer.twitch.map: twitch =>
@@ -136,7 +129,7 @@ final class StreamerUi(helpers: Helpers, bits: StreamerBits)(using netDomain: Ne
                         frame.credentialless,
                         st.frameborder := "0",
                         frame.scrolling := "yes",
-                        src := s"https://twitch.tv/embed/${twitch.userId}/chat?${darkChat}parent=$netDomain"
+                        src := s"https://twitch.tv/embed/${twitch.login}/chat?${darkChat}parent=$netDomain"
                       )
               )
             ),
@@ -144,10 +137,10 @@ final class StreamerUi(helpers: Helpers, bits: StreamerBits)(using netDomain: Ne
           ),
           div(cls := "page-menu__content")(
             s.stream match
-              case Some(Stream.YouTube.Stream(_, _, videoId, _, _)) =>
-                div(cls := "box embed youTube")(
+              case Some(yt: Youtube.YoutubeStream) =>
+                div(cls := "box embed youtube")(
                   iframe(
-                    src := s"https://www.youtube-nocookie.com/embed/$videoId?autoplay=1",
+                    src := s"https://www.youtube-nocookie.com/embed/${yt.videoId}?autoplay=1",
                     st.frameborder := "0",
                     frame.allowfullscreen,
                     frame.credentialless
@@ -158,7 +151,7 @@ final class StreamerUi(helpers: Helpers, bits: StreamerBits)(using netDomain: Ne
                   .map: twitch =>
                     div(cls := "box embed twitch")(
                       iframe(
-                        src := s"https://player.twitch.tv/?channel=${twitch.userId}&parent=$netDomain",
+                        src := s"https://player.twitch.tv/?channel=${twitch.login}&parent=$netDomain",
                         frame.allowfullscreen,
                         frame.credentialless
                       )

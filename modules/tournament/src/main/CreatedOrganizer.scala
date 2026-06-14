@@ -1,8 +1,7 @@
 package lila.tournament
 
-import akka.stream.scaladsl.*
-
 import lila.common.LilaScheduler
+import lila.mon.extensions.*
 
 final private class CreatedOrganizer(
     api: TournamentApi,
@@ -18,6 +17,6 @@ final private class CreatedOrganizer(
     tournamentRepo.shouldStartCursor
       .documentSource()
       .mapAsync(1)(api.start)
-      .runWith(Sink.ignore)
-      .monSuccess(_.tournament.createdOrganizer.tick)
+      .run()
+      .monSuccess(lila.mon.tournament.createdOrganizer.tick)
       .void

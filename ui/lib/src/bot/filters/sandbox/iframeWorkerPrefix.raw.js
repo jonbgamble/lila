@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const postToIframe = postMessage;
+  const postToIframe = globalThis.postMessage;
 
   globalThis.addEventListener('message', async e => {
     if (!e.data || e.data.type !== 'score' || !e.data.params) return;

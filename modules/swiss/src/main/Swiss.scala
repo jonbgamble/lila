@@ -74,6 +74,8 @@ case class Swiss(
 
   def idName = IdName(id, name)
 
+  override def toString = s"$id/$round"
+
   lazy val looksLikePrize = lila.gathering.looksLikePrize(s"$name ${~settings.description}")
 
 object Swiss:
@@ -137,3 +139,6 @@ object Swiss:
   enum Status:
     case created, started, finished
   def status(str: String) = scala.util.Try(Status.valueOf(str)).toOption
+
+  object Fields:
+    val nbPlayers = "nbPlayers"

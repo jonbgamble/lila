@@ -5,27 +5,28 @@
   <string name="playAgainstComputer">Chơi với máy</string>
   <string name="gameMode">Chế độ chơi</string>
   <string name="createLobbyGame">Tạo ván đấu tại sảnh</string>
-  <string name="youPlayAs">Bạn cầm quân</string>
-  <string name="toInviteSomeoneToPlayGiveThisUrl">Để mời ai đó chơi, hãy gửi URL này</string>
+  <string name="toInviteSomeoneToPlayGiveThisUrl">Để mời ai đó chơi, hãy gửi đường dẫn này</string>
   <string name="gameOver">Ván cờ kết thúc</string>
   <string name="waitingForOpponent">Đang chờ đối thủ</string>
   <string name="orLetYourOpponentScanQrCode">Hoặc để đối thủ của bạn quét mã QR này</string>
+  <string name="reusableChallengeUrl">URL thách đấu có thể tái sử dụng</string>
+  <string name="permanentLinkForAnyoneToChallengeYou">Một liên kết cố định để bất kỳ ai cũng có thể thách đấu bạn với chính xác các theo các thiết lập này.</string>
   <string name="waiting">Đang chờ</string>
   <string name="yourTurn">Đến lượt bạn</string>
   <string name="aiNameLevelAiLevel">%1$s cấp độ %2$s</string>
   <string name="level">Cấp độ</string>
-  <string name="strength">Sức mạnh</string>
+  <string name="strength">Độ mạnh</string>
   <string name="toggleTheChat">Bật/Tắt trò chuyện</string>
-  <string name="chat">Trò chuyện</string>
-  <string name="resign">Chịu thua</string>
+  <string name="chat">Tán gẫu</string>
+  <string name="resign">Đầu hàng</string>
   <string name="checkmate">Chiếu hết</string>
   <string name="stalemate">Hết nước đi hợp lệ</string>
   <string name="white">Quân Trắng</string>
   <string name="black">Quân Đen</string>
   <string name="asWhite">khi chơi quân trắng</string>
   <string name="asBlack">khi chơi quân đen</string>
-  <string name="randomColor">Màu quân ngẫu nhiên</string>
-  <string name="createAGame">Tạo một ván cờ</string>
+  <string name="randomColor">Chọn màu quân ngẫu nhiên</string>
+  <string name="createAGame">Tạo ván cờ mới</string>
   <string name="createTheGame">Khởi tạo ván cờ</string>
   <string name="whiteIsVictorious">Bên Trắng thắng</string>
   <string name="blackIsVictorious">Bên Đen thắng</string>
@@ -56,6 +57,8 @@
   <string name="blackLeftTheGame">Bên đen đã rời khỏi ván cờ</string>
   <string name="whiteDidntMove">Bên trắng không đi quân</string>
   <string name="blackDidntMove">Bên đen không đi quân</string>
+  <string name="whiteAborted">Bên trắng đã hủy ván đấu</string>
+  <string name="blackAborted">Bên đen đã hủy ván đấu</string>
   <string name="requestAComputerAnalysis">Yêu cầu máy tính phân tích</string>
   <string name="computerAnalysis">Phân tích từ máy tính</string>
   <string name="computerAnalysisAvailable">Có sẵn phân tích từ máy tính</string>
@@ -93,6 +96,7 @@
   <string name="database">Cơ sở dữ liệu</string>
   <string name="whiteDrawBlack">Trắng thắng / Hòa / Đen thắng</string>
   <string name="averageRatingX">Hệ số bình quân: %s</string>
+  <string name="minRatingX">Hệ số tối thiểu của %s</string>
   <string name="recentGames">Các ván cờ gần đây</string>
   <string name="topGames">Các ván đấu hàng đầu</string>
   <string name="masterDbExplanation">Các ván đấu OTB của các kỳ thủ có hệ số FIDE %1$s+ từ năm %2$s đến %3$s</string>
@@ -123,10 +127,20 @@
   <string name="enable">Bật</string>
   <string name="bestMoveArrow">Mũi tên chỉ nước đi tốt nhất</string>
   <string name="showVariationArrows">Hiển thị mũi tên biến</string>
-  <string name="evaluationGauge">Thang đo lợi thế</string>
+  <string name="visualMotifs">Họa tiết thị giác</string>
+  <string name="undefendedPieces">Các quân cờ không được bảo vệ</string>
+  <string name="pinnedPieces">Quân cờ bị ghim</string>
+  <string name="checkableKing">Có thể chiếu tướng</string>
   <string name="multipleLines">Số hàng phân tích</string>
+  <string name="multipleLinesDescription">Đặt số dòng tính toán và các mũi tên nước đi trên bàn cờ</string>
+  <string name="searchTime">Thời gian tìm kiếm</string>
+  <string name="searchTimeDescription">Dành thời gian để tính toán các thế cờ mới</string>
+  <string name="threads">Số luồng</string>
+  <string name="threadsDescription">Hãy đặt giá trị này thấp hơn số luồng của CPU, giá trị có dấu tick là một lựa chọn an toàn và hợp lý</string>
+  <string name="threadsDescriptionMobile">Càng nhiều luồng xử lý sẽ càng tiêu hao nhiều pin để phân tích tốt hơn</string>
   <string name="cpus">CPU</string>
   <string name="memory">Bộ nhớ</string>
+  <string name="memoryDescription">Giá trị cao hơn có thể cải thiện hiệu suất</string>
   <string name="infiniteAnalysis">Phân tích vô hạn</string>
   <string name="removesTheDepthLimit">Bỏ giới hạn độ sâu và giữ máy tính của bạn mượt hơn</string>
   <string name="blunder">Sai lầm nghiêm trọng</string>
@@ -193,6 +207,7 @@
   <string name="minutesPerSide">Số phút cho mỗi bên</string>
   <string name="variant">Biến thể</string>
   <string name="variants">Biến thể</string>
+  <string name="variantsDescription">Nhiều cách chơi hơn</string>
   <string name="timeControl">Kiểu thời gian</string>
   <string name="realTime">Thời gian thực</string>
   <string name="correspondence">Cờ qua thư</string>
@@ -213,10 +228,10 @@
   <string name="username">Tên đăng nhập</string>
   <string name="usernameOrEmail">Tên đăng nhập hoặc email</string>
   <string name="changeUsername">Thay đổi tên đăng nhập</string>
-  <string name="changeUsernameNotSame">Bạn chỉ có thể thay đổi cách viết hoa/thường. Ví dụ \"dotrongkhanh04032012\" thành \"DoTrongKhanh04032012\".</string>
+  <string name="changeUsernameNotSame">Bạn chỉ có thể thay đổi cách viết hoa/thường. Ví dụ \"johndoe\" thành \"JohnDoe\".</string>
   <string name="changeUsernameDescription">Thay đổi tên người dùng của bạn. Điều này chỉ có thể thực hiện một lần và bạn chỉ được thay đổi cách viết hoa/viết thường các chữ trong tên người dùng của bạn.</string>
   <string name="signupUsernameHint">Hãy đảm bảo chọn tên người dùng thân thiện với mọi người. Bạn sẽ không thể thay đổi nó và bất kỳ tài khoản nào có tên người dùng không phù hợp sẽ bị đóng!</string>
-  <string name="signupEmailHint">Chúng tôi chỉ sử dụng nó cho việc khôi phục mật khẩu.</string>
+  <string name="signupEmailPromise">Chúng tôi chỉ gửi tin nhắn qua email về tài khoản của bạn và sẽ không bao giờ chia sẻ địa chỉ email của bạn với người khác.</string>
   <string name="password">Mật khẩu</string>
   <string name="changePassword">Thay đổi mật khẩu</string>
   <string name="changeEmail">Thay đổi thư điện tử</string>
@@ -240,21 +255,19 @@
   <string name="emailCanTakeSomeTime">Có thể sẽ mất một lúc để nhận được.</string>
   <string name="refreshInboxAfterFiveMinutes">Đợi 5 phút sau đó làm mới hộp thư đến trong email.</string>
   <string name="checkSpamFolder">Ngoài ra hãy kiểm tra hộp thư rác, nó có thể ở trong đó. Nếu có, hãy đánh dấu nó không phải là rác.</string>
-  <string name="emailForSignupHelp">Nếu vẫn không nhận được, hãy gửi cho chúng tôi email này:</string>
-  <string name="copyTextToEmail">Sao chép và dán đoạn văn bản phía trên và gửi nó tới %s</string>
-  <string name="waitForSignupHelp">Chúng tôi sẽ sớm liên lạc lại với bạn để giúp bạn hoàn tất việc đăng ký.</string>
+  <string name="sendEmailForAccountVerification">Nếu bạn không tìm thấy email xác minh, hãy gửi email đến %s và chúng tôi sẽ xác minh tài khoản cho bạn.</string>
   <string name="accountConfirmed">Đã xác nhận người dùng %s thành công.</string>
   <string name="accountCanLogin">Bạn đã có thể đăng nhập ngay bây giờ tại %s.</string>
   <string name="accountConfirmationEmailNotNeeded">Bạn không cần xác nhận email.</string>
   <string name="accountClosed">Tài khoản %s đã bị đóng.</string>
-  <string name="accountRegisteredWithoutEmail">Tài khoản %s đã đăng ký mà không cần có email.</string>
+  <string name="accountRegisteredWithoutEmail">Tài khoản %s đã đăng ký mà không cần email.</string>
   <string name="rank">Hạng</string>
   <string name="rankX">Hạng: %s</string>
   <plurals name="rankIsUpdatedEveryNbMinutes">
     <item quantity="other">Thứ hạng được cập nhật mỗi %s phút</item>
   </plurals>
   <plurals name="nbPuzzles">
-    <item quantity="other">%s cấu đố</item>
+    <item quantity="other">%s câu đố</item>
   </plurals>
   <string name="gamesPlayed">Số ván đã chơi</string>
   <plurals name="nbGamesWithYou">
@@ -281,6 +294,7 @@
   <string name="standard">Tiêu chuẩn</string>
   <string name="customPosition">Thế trận tùy chỉnh</string>
   <string name="unlimited">Vô hạn</string>
+  <string name="unlimitedDescription">Hãy dành tất cả thời gian bạn cần</string>
   <string name="mode">Chế độ</string>
   <string name="casual">Không xếp hạng</string>
   <string name="rated">Có xếp hạng</string>
@@ -393,10 +407,11 @@
   <string name="leaderboard">Bảng dẫn đầu</string>
   <string name="screenshotCurrentPosition">Chụp màn hình thế cờ hiện tại</string>
   <string name="gameAsGIF">Ván cờ dưới dạng ảnh GIF</string>
+  <string name="playerNames">Tên người chơi</string>
+  <string name="moveAnnotations">Chú thích nước đi</string>
   <string name="pasteTheFenStringHere">Dán chuỗi FEN vào đây</string>
   <string name="pasteThePgnStringHere">Dán chuỗi PGN vào đây</string>
   <string name="orUploadPgnFile">Hoặc tải lên tệp PGN</string>
-  <string name="fromPosition">Từ thế cờ</string>
   <string name="continueFromHere">Tiếp tục từ đây</string>
   <string name="toStudy">Nghiên cứu</string>
   <string name="importGame">Nhập ván cờ</string>
@@ -440,9 +455,6 @@ trò chuyện trong ván đấu và có một URL có thể chia sẻ công khai
   <string name="player">Người chơi</string>
   <string name="list">Danh sách</string>
   <string name="graph">Biểu đồ</string>
-  <plurals name="lessThanNbMinutes">
-    <item quantity="other">Ít hơn %s phút</item>
-  </plurals>
   <string name="required">Bắt buộc.</string>
   <string name="openTournaments">Các giải đấu mở</string>
   <string name="duration">Thời lượng</string>
@@ -480,6 +492,7 @@ trò chuyện trong ván đấu và có một URL có thể chia sẻ công khai
   <string name="popularOpenings">Khai cuộc phổ biến</string>
   <string name="endgamePositions">Các thế cờ trong tàn cuộc</string>
   <string name="chess960StartPosition">Ván đấu Chess960 bắt đầu bằng thế cờ: %s</string>
+  <string name="randomChess960Position">Thế trận Chess960 ngẫu nhiên</string>
   <string name="startPosition">Thế cờ ban đầu</string>
   <string name="clearBoard">Xóa bàn cờ</string>
   <string name="loadPosition">Tải thế cờ</string>
@@ -524,7 +537,7 @@ trò chuyện trong ván đấu và có một URL có thể chia sẻ công khai
   <string name="mobile">Điện thoại di động</string>
   <string name="help">Hỗ trợ:</string>
   <string name="createANewTopic">Tạo một chủ đề mới</string>
-  <string name="topics">Các chủ đề</string>
+  <string name="topics">Số chủ đề</string>
   <string name="posts">Số bài đăng</string>
   <string name="lastPost">Bài đăng gần đây nhất</string>
   <string name="views">Lượt xem</string>
@@ -555,6 +568,9 @@ trò chuyện trong ván đấu và có một URL có thể chia sẻ công khai
   <string name="invalidUsernameOrPassword">Tên tài khoản hoặc mật khẩu đăng nhập không đúng</string>
   <string name="incorrectPassword">Mật khẩu sai</string>
   <string name="invalidAuthenticationCode">Mã xác thực không hợp lệ</string>
+  <string name="clearField">Dọn sạch trường</string>
+  <string name="orSeparator">Hoặc</string>
+  <string name="logInByEmail">Đăng nhập bằng email</string>
   <string name="emailMeALink">Gửi cho tôi một liên kết trong Email</string>
   <string name="currentPassword">Nhập mật khẩu hiện tại</string>
   <string name="newPassword">Nhập mật khẩu mới</string>
@@ -678,17 +694,13 @@ trò chuyện trong ván đấu và có một URL có thể chia sẻ công khai
   <string name="keyCycleSelectedVariation">Biến được chọn theo chu kỳ</string>
   <string name="keyShowOrHideComments">hiện/ẩn bình luận</string>
   <string name="keyEnterOrExitVariation">vào/thoát biến</string>
-  <string name="keyRequestComputerAnalysis">Yêu cầu máy tính phân tích, Học từ sai lầm của bạn</string>
-  <string name="keyNextLearnFromYourMistakes">Tiếp theo (Học từ sai lầm của bạn)</string>
-  <string name="keyNextBlunder">Nước đi sai nghiêm trọng tiếp theo</string>
-  <string name="keyNextMistake">Nước đi sai lầm tiếp theo</string>
-  <string name="keyNextInaccuracy">Nước đi không chính xác tiếp theo</string>
   <string name="keyPreviousBranch">Nhánh trước</string>
   <string name="keyNextBranch">Nhánh tiếp theo</string>
   <string name="toggleVariationArrows">Đổi mũi tên của từng biến</string>
   <string name="cyclePreviousOrNextVariation">Chu kì của biến trước/tiếp theo</string>
   <string name="toggleGlyphAnnotations">Đổi chú thích nước cờ</string>
   <string name="togglePositionAnnotations">Chuyển đổi chú thích thế cờ</string>
+  <string name="toggleObservationAnnotations">Chuyển đổi chú thích quan sát</string>
   <string name="variationArrowsInfo">Mũi tên của biến cho phép bạn điều hướng mà không cần sử dụng danh sách nước đi.</string>
   <string name="playSelectedMove">chơi nước đi đã chọn</string>
   <string name="newTournament">Giải đấu mới</string>
@@ -756,6 +768,8 @@ trò chuyện trong ván đấu và có một URL có thể chia sẻ công khai
   <string name="xHostsY">%1$s đã chủ trì %2$s</string>
   <string name="xJoinsY">%1$s gia nhập %2$s</string>
   <string name="xLikesY">%1$s thích %2$s</string>
+  <string name="like">Thích</string>
+  <string name="liked">Đã Thích</string>
   <string name="quickPairing">Xếp cặp nhanh</string>
   <string name="lobby">Phòng chờ</string>
   <string name="anonymous">Ẩn danh</string>
@@ -772,6 +786,7 @@ trò chuyện trong ván đấu và có một URL có thể chia sẻ công khai
   <string name="size">Kích cỡ</string>
   <string name="opacity">Độ trong suốt</string>
   <string name="brightness">Độ sáng</string>
+  <string name="contrast">Độ tương phản</string>
   <string name="hue">Màu gốc</string>
   <string name="boardReset">Đặt lại màu về mặc định</string>
   <string name="pieceSet">Bộ cờ</string>
@@ -864,9 +879,9 @@ trò chuyện trong ván đấu và có một URL có thể chia sẻ công khai
   <string name="agreementAssistance">Tôi đồng ý rằng, tôi sẽ không nhận sự trợ giúp trong lúc chơi (từ máy tính, sách, các cơ sở dữ liệu hoặc từ người khác).</string>
   <string name="agreementNice">Tôi đồng ý rằng, tôi sẽ luôn luôn tôn trọng người chơi khác.</string>
   <string name="agreementMultipleAccounts" comment="%s will be replaced with the translation of 'termsOfService'">Tôi đồng ý rằng, tôi sẽ không tạo nhiều tài khoản (trừ các lý do nêu trong %s).</string>
-  <string name="agreementPolicy">Tôi đồng ý rằng, tôi sẽ luôn tuân thủ các chính sách của Lichess.</string>
   <string name="searchOrStartNewDiscussion">Tìm hoặc bắt đầu một cuộc trò chuyện</string>
   <string name="edit">Chỉnh sửa</string>
+  <string name="ultraBullet" comment="Probably best left untranslated. Leave it as 'UltraBullet' unless your language has a better word for it.">Cờ siêu đạn</string>
   <string name="bullet" comment="Probably best left untranslated. Leave it as 'Bullet' unless your language has a better word for it.">Cờ đạn</string>
   <string name="blitz" comment="Probably best left untranslated. Leave it as 'Blitz' unless your language has a better word for it.">Cờ chớp</string>
   <string name="rapid">Cờ nhanh</string>
@@ -887,6 +902,7 @@ trò chuyện trong ván đấu và có một URL có thể chia sẻ công khai
   <string name="tryTheContactPage">hãy thử trang trợ giúp</string>
   <string name="makeSureToRead">Hãy chắc rằng bạn đã đọc %1$s</string>
   <string name="theForumEtiquette">quy tắc diễn đàn</string>
+  <string name="pleaseBeNiceInTheForum">Hãy cư xử thân thiện trong diễn đàn.</string>
   <string name="thisTopicIsArchived">Chủ đề này đã được lưu trữ và không thể trả lời được nữa.</string>
   <string name="joinTheTeamXToPost">Gia nhập %1$s để đăng trong diễn đàn này</string>
   <string name="teamNamedX">Đội %1$s</string>
@@ -975,5 +991,7 @@ Mọi chi phí vận hành, phát triển, và nội dung được tài trợ b�
   <string name="offline" comment="status of a user">ngoại tuyến</string>
   <string name="search">Tìm kiếm</string>
   <string name="clearSearch">Xóa nội dung tìm kiếm</string>
+  <string name="thereAreNoResultsForX">Không có kết quả nào cho \"%s\"</string>
   <string name="tags">Thẻ</string>
+  <string name="enPassant">Bắt tốt qua đường</string>
 </resources>

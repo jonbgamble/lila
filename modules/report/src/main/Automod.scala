@@ -5,14 +5,14 @@ import play.api.libs.json.*
 import play.api.libs.ws.{ StandaloneWSClient, StandaloneWSResponse }
 import play.api.libs.ws.JsonBodyWritables.*
 import play.api.libs.ws.JsonBodyReadables.*
-import scala.util.matching.Regex.quote
 
 import lila.common.autoconfig.AutoConfig
 import lila.common.config.given
 import lila.common.Json.given
-import lila.core.config.{ Secret, ImageGetOrigin }
+import lila.core.config.Secret
 import lila.core.data.Text
 import lila.core.id.ImageId
+import lila.mon.extensions.*
 import lila.memo.{ ImageAutomod, ImageAutomodRequest, Dimensions }
 import lila.memo.SettingStore.Text.given
 
@@ -20,16 +20,10 @@ final class Automod(
     ws: StandaloneWSClient,
     appConfig: Configuration,
     settingStore: lila.memo.SettingStore.Builder,
-    picfitApi: lila.memo.PicfitApi,
-    imageGetOrigin: ImageGetOrigin
+    picfitApi: lila.memo.PicfitApi
 )(using Executor):
 
   private val config = appConfig.get[Automod.Config]("automod")
-
-  private val imageIdRe =
-    raw"""(?i)!\[(?:[^\n\]]*+)\]\(${quote(
-        imageGetOrigin.value
-      )}[^)\s]+[?&]path=([a-z]\w+:[a-z0-9]{12}:[a-z0-9]{8}\.\w{3,4})[^)]*\)""".r
 
   val imagePromptSetting = settingStore[Text](
     "imageAutomodPrompt",
@@ -47,7 +41,6 @@ final class Automod(
     imageFlagReason(req.id, req.dim.some)
       .map: flagged =>
         picfitApi.setAutomod(req.id, ImageAutomod(flagged))
-      .logFailure(logger)
 
   def text(
       userText: String,
@@ -55,7 +48,7 @@ final class Automod(
       model: String,
       temperature: Double = 0,
       maxTokens: Int = 4096
-  ): Fu[Option[JsObject]] =
+  ): Fu[JsObject] =
     List(config.apiKey.value, systemPrompt.value, userText)
       .forall(_.nonEmpty)
       .so:
@@ -67,7 +60,9 @@ final class Automod(
             "messages" -> Json.arr(
               Json.obj("role" -> "system", "content" -> systemPrompt.value),
               Json.obj("role" -> "user", "content" -> userText)
-            )
+            ),
+            "reasoning" -> Json.obj("enabled" -> false),
+            "response_format" -> Json.obj("type" -> "json_object")
           )
         ws.url(config.url)
           .withHttpHeaders(
@@ -82,10 +77,7 @@ final class Automod(
             case (_, Right(res)) => fuccess(res)
 
   def markdownImages(markdown: Markdown): Fu[Seq[lila.memo.PicfitImage]] =
-    val ids = imageIdRe
-      .findAllMatchIn(markdown.value)
-      .map(m => ImageId(m.group(1)))
-      .toSeq
+    val ids = picfitApi.imageIds(markdown)
     picfitApi
       .byIds(ids)
       .flatMap:
@@ -118,7 +110,9 @@ final class Automod(
                   Json.obj("type" -> "image_url", "image_url" -> Json.obj("url" -> imageUrl))
                 )
               )
-            )
+            ),
+            "reasoning" -> Json.obj("enabled" -> false),
+            "response_format" -> Json.obj("type" -> "json_object")
           )
         ws.url(config.url)
           .withHttpHeaders(
@@ -128,7 +122,6 @@ final class Automod(
           .withRequestTimeout(10.minutes) // I saw it timeout with the default 5min
           .post(body)
           .map(extractJsonFromResponse)
-          .map(_.flatMap(_.toRight("No content in response")))
           .flatMap(_.toFuture)
           .prefixFailure(s"Automod image $id request failed")
           .map: res =>
@@ -136,17 +129,21 @@ final class Automod(
             lila.mon.mod.report.automod.imageFlagged(flagged).increment()
             flagged.option:
               res.str("reason") | "No reason provided"
-          .monSuccess(_.mod.report.automod.imageRequest)
+          .monSuccess(lila.mon.mod.report.automod.imageRequest)
+          .recover:
+            case err =>
+              logger.error(err.getMessage, err)
+              none
 
-  private def extractJsonFromResponse(rsp: StandaloneWSResponse): Either[String, Option[JsObject]] =
+  private def extractJsonFromResponse(rsp: StandaloneWSResponse): Either[String, JsObject] =
     for
       _ <- Either.cond(rsp.status == 200, (), s"API error ${rsp.status}: ${(rsp.body: String).take(300)}")
       choices <- (rsp.body \ "choices").asOpt[List[JsObject]].toRight("No choices in response")
       best <- choices.headOption.toRight("Empty choices in response")
       msg <- (best \ "message" \ "content").validate[String].asEither.left.map(_.toString)
-    yield
-      val trimmed = msg.slice(msg.indexOf('{', msg.indexOf("</think>")), msg.lastIndexOf('}') + 1)
-      Json.parse(trimmed).asOpt[JsObject]
+      trimmed = msg.slice(msg.indexOf('{', msg.indexOf("</think>")), msg.lastIndexOf('}') + 1)
+      res <- Json.parse(trimmed).asOpt[JsObject].toRight("Invalid JSON in response")
+    yield res
 
 private object Automod:
   case class Config(val url: String, val apiKey: Secret)

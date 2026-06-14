@@ -4,6 +4,7 @@
 /.bloop/
 /.metals/
 /.pnpm-store/
+/.devenv/
 /bin/flair/download-flair.sh
 /bin/flair/emoji.txt
 /bin/flair/emojipedia.html
@@ -23,6 +24,9 @@ logs/
 /public/data/*
 !/public/data/README.md
 /public/hashed/
+/public/lifat/nnue/*.tmp
+/public/lifat/nnue/*.gz
+/public/lifat/nnue/*.br
 /public/npm/
 /public/css/
 /public/json/
@@ -37,6 +41,7 @@ ui/*/tsconfig.tsbuildinfo
 hs_*.log
 dependency-graph.png
 dump.rdb
+.venv
 
 RUNNING_PID
 instance.lock
@@ -60,8 +65,12 @@ instance.lock
 /docker-compose.yml
 /?
 
-# eslint cache
-/ui/.eslintcache
-
 # deploy bearer
 .lila-cli
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

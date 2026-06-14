@@ -1,6 +1,8 @@
 import type { PiecesDiff } from '@lichess-org/chessground/types';
-import type { PromotionRole } from './util';
+
 import { type WithGround } from 'lib/game/ground';
+
+import type { PromotionRole } from './util';
 
 type PromotionCallback = (orig: Key, dest: Key, role: PromotionRole) => void;
 
@@ -31,9 +33,9 @@ export class PromotionCtrl {
         ((dest[1] === '1' && piece.color === 'black') || (dest[1] === '8' && piece.color === 'white'))
       ) {
         this.promoting = {
-          orig: orig,
-          dest: dest,
-          callback: callback,
+          orig,
+          dest,
+          callback,
         };
         this.redraw();
         return true;
@@ -54,8 +56,7 @@ export class PromotionCtrl {
     this.withGround(ground => {
       const piece = ground.state.pieces.get(key);
       if (piece && piece.role === 'pawn') {
-        const pieces: PiecesDiff = new Map();
-        pieces.set(key, { color: piece.color, role, promoted: true });
+        const pieces: PiecesDiff = new Map([[key, { color: piece.color, role, promoted: true }]]);
         ground.setPieces(pieces);
       }
     });

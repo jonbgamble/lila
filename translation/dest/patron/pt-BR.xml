@@ -3,7 +3,7 @@
   <string name="donate">Doação</string>
   <string name="donateAsX">Doar como %s</string>
   <string name="lichessPatron">Apoie o Lichess</string>
-  <string name="patronSince" comment="%s is a date e.g. &quot;21 Jan 2025&quot;,&#10;meaning the final text would be something like &quot;Patron since 21 Jan 2025&quot;.">Patrono desde %s</string>
+  <string name="patronSince" comment="string is a date">Patrono desde %s</string>
   <string name="freeAccount">Conta gratuita</string>
   <string name="becomePatron">Seja um Patrono Lichess</string>
   <string name="xBecamePatron">%s se tornou um Patrono Lichess</string>
@@ -40,8 +40,7 @@ Em seguida, pagamos um desenvolvedor em tempo integral: %s, o fundador do Liches
   <string name="officialNonProfit">O Lichess é uma organização sem fins lucrativos?</string>
   <string name="actOfCreation">Sim, aqui está o ato de criação (em francês)</string>
   <string name="changeMonthlySupport">Posso mudar/cancelar meu suporte mensal?</string>
-  <string name="changeOrContact">Sim, a qualquer momento, a partir desta página.
-Ou você pode %s.</string>
+  <string name="patronPage" comment="Part of longer string &quot;changeSupport&quot;, appearing right at the end:&#10;&#10;&quot;If your payments are processed by PayPal, you can cancel/change your support through your own PayPal account, or you can [contact us] and we can do it for you. If you didn't use PayPal, then your payments are processed by Stripe, and you cancel your donation or change the amount on [the patron page].&quot;">a página de patrono</string>
   <string name="contactSupport">entrar em contato com o suporte do Lichess</string>
   <string name="otherMethods">Outros métodos de doação?</string>
   <string name="lichessIsRegisteredWith">Lichess está registrado em %s.</string>
@@ -84,4 +83,5 @@ No entanto, Patronos têm direito de se gabar com um novo ícone legal de perfil
   <string name="paymentDetails">Detalhes de pagamento</string>
   <string name="updatePaymentMethod">Atualizar forma de pagamento</string>
   <string name="stripeManageSub">Gerencie sua assinatura e faça o download de suas faturas e recibos</string>
+  <string name="coverFees">Vou adicionar %s para ajudar a cobrir o custo do processamento desta transação</string>
 </resources>

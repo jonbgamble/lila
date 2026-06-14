@@ -1,6 +1,7 @@
-import type { SearchMove, MoveArgs } from '@/bot/types';
 import type { FilterResult, FilterSpec, FilterInfo } from '@/bot/filter';
+import type { SearchMove, MoveArgs } from '@/bot/types';
 import { frag } from '@/index';
+
 import iframeBootstrap from './iframeBootstrap.raw.js';
 import iframeWorkerPrefix from './iframeWorkerPrefix.raw.js';
 
@@ -50,7 +51,7 @@ async function makeIframeWorkerProxy(filterJs: string): Promise<SandboxWorkerPro
         iframe.onload = () => {
           const { port1: iframePort, port2: originPort } = new MessageChannel();
 
-          const onMsgFromIframe = (ev: MessageEvent<any>) => {
+          const onMsgFromIframe = (ev: MessageEvent) => {
             if (ev.data.type === 'iframeWorkerIsReady') {
               iframePort.removeEventListener('message', onMsgFromIframe);
               const proxy = new SandboxWorkerProxy(iframe, iframePort);
@@ -86,14 +87,14 @@ class SandboxWorkerProxy {
   };
 
   constructor(
-    private iframe: HTMLIFrameElement,
-    private iframePort: MessagePort,
+    private readonly iframe: HTMLIFrameElement,
+    private readonly iframePort: MessagePort,
   ) {
     this.iframePort.onmessage = this.onMessage;
     this.iframePort.start();
   }
 
-  onMessage = (ev: MessageEvent<any>) => {
+  onMessage = (ev: MessageEvent) => {
     if (ev.data.type !== 'result') {
       return this.onError(ev.data.type === 'error' ? ev.data.message : JSON.stringify(ev.data));
     }

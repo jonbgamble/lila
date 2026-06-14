@@ -36,7 +36,7 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
             res <-
               if replyBlocked then BadRequest.snip(trans.ublog.youBlockedByBlogAuthor()).toFuccess
               else
-                categ.team.so(env.team.api.isLeader(_, me)).flatMap { inOwnTeam =>
+                categ.team.so(env.team.api.isLeader).flatMap { inOwnTeam =>
                   bindForm(forms.post(inOwnTeam))(
                     err =>
                       CategGrantWrite(categId, tryingToPostAsMod = true):
@@ -58,10 +58,13 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
                     data =>
                       CategGrantWrite(categId, tryingToPostAsMod = ~data.modIcon):
                         limit.forumPost(ctx.ip, rateLimited):
-                          postApi.makePost(categ, topic, data).map { post =>
-                            discard { maybeAutomod(post) }
-                            Redirect(routes.ForumPost.redirect(post.id))
-                          }
+                          for
+                            post <- postApi.makePost(categ, topic, data)
+                            url = routes.ForumPost.redirect(post.id).url
+                            _ <- env.memo.picfitApi
+                              .addRef(Markdown(post.text), lila.forum.picRef(post.id), url.some)
+                            _ = discard { maybeAutomod(post) }
+                          yield Redirect(url)
                   )
                 }
           yield res
@@ -71,15 +74,17 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
     Found(postApi.getPost(postId)): post =>
       for
         teamId <- env.forum.postApi.teamIdOfPost(post)
-        inOwnTeam <- teamId.so(env.team.api.isLeader(_, me))
+        inOwnTeam <- teamId.so(env.team.api.isLeader)
         res <- bindForm(forms.postEdit(inOwnTeam, post.text))(
           _ => Redirect(routes.ForumPost.redirect(postId)).toFuccess,
           data =>
             limit.forumPost(ctx.ip, rateLimited):
-              postApi.editPost(postId, data.changes).map { post =>
-                discard { maybeAutomod(post) }
-                Redirect(routes.ForumPost.redirect(post.id))
-              }
+              for
+                post <- postApi.editPost(postId, data.changes)
+                url = routes.ForumPost.redirect(post.id).url
+                _ <- env.memo.picfitApi.addRef(Markdown(post.text), lila.forum.picRef(post.id), url.some)
+                _ = discard { maybeAutomod(post) }
+              yield Redirect(url)
         )
       yield res
   }
@@ -133,14 +138,14 @@ final class ForumPost(env: Env) extends LilaController(env) with ForumController
 
   def redirect(id: ForumPostId) = Open:
     Found(postApi.urlData(id, ctx.me)):
-      case lila.forum.PostUrlData(categ, topic, page, number) =>
+      case lila.forum.PostUrlData(categ, topic, page, postId) =>
         val call = routes.ForumTopic.show(categ, topic, page)
-        Redirect(s"$call#$number").withCanonical(call)
+        Redirect(s"$call#$postId").withCanonical(call)
 
   private def maybeAutomod(post: lila.forum.ForumPost)(using me: Me) = for
     teamId <- env.forum.postApi.teamIdOfPost(post)
-    shouldAutomod <- teamId.fold(fuccess(true)): teamId =>
-      env.team.api.forumAccessOf(teamId).map(_ == lila.core.team.Access.Everyone)
-    _ <- shouldAutomod.so:
-      env.report.api.automodComms(post.text, routes.ForumPost.redirect(post.id).url)
+    onlyIfFlaggedImages <- teamId.fold(fuccess(false)): teamId =>
+      env.team.api.forumAccessOf(teamId).map(_ != lila.core.team.Access.Everyone)
+    url = routes.ForumPost.redirect(post.id).url
+    _ <- env.report.api.automodComms(post.text, url, onlyIfFlaggedImages)
   yield ()

@@ -1,19 +1,23 @@
 package lila.relay
 
-import chess.{ ByColor, FideId, PlayerTitle }
-import chess.format.pgn.{ Tag, Tags }
+import chess.{ ByColor, FideId, FideTC, PlayerTitle }
+import chess.format.pgn.{ Tag, Tags, TagType }
 
-import lila.core.fide.{ FideTC, Player }
+import lila.core.fide.Player
 
 final private class RelayFidePlayerApi(guessPlayer: lila.core.fide.GuessPlayer)(using Executor):
 
-  def enrichGames(tour: RelayTour)(games: RelayGames): Fu[RelayGames] =
+  def enrichGames(rwt: RelayRound.WithTour)(games: RelayGames): Fu[RelayGames] =
     games.traverse: game =>
-      enrichTags(game.tags, tour.info.fideTcOrGuess).map: tags =>
+      enrichTags(game.tags, rwt.fideTC).map: tags =>
         game.copy(tags = tags)
 
   def enrichTags(tour: RelayTour): Tags => Fu[Tags] =
-    tags => enrichTags(tags, tour.info.fideTcOrGuess)
+    enrichTags(_, tour.info.fideTCOrGuess)
+
+  private val titlesAndRatings = Set[TagType](Tag.WhiteTitle, Tag.BlackTitle, Tag.WhiteElo, Tag.BlackElo)
+  private def removeEmptyFieldTags(tags: Tags): Tags =
+    tags.map(_.filter(tag => tag.value != "-" || !titlesAndRatings(tag.name)))
 
   private def enrichTags(tags: Tags, tc: FideTC): Fu[Tags] =
     (tags.fideIds
@@ -28,14 +32,15 @@ final private class RelayFidePlayerApi(guessPlayer: lila.core.fide.GuessPlayer)(
 
   private def update(tags: Tags, tc: FideTC, fidePlayers: ByColor[Option[Player]]): Tags =
     Color.all.foldLeft(tags): (tags, color) =>
-      tags ++ Tags:
+      val fideTags = Tags:
         fidePlayers(color).so: fide =>
           List(
             Tag(_.fideIds(color), fide.id.toString).some,
             Tag(_.names(color), fide.name).some,
             fide.title.map { title => Tag(_.titles(color), title.value) },
-            fide.ratingOf(tc).map { rating => Tag(_.elos(color), rating.toString) }
+            fide.ratingOfOrStandard(tc).map(rating => Tag(_.elos(color), rating.toString))
           ).flatten
+      removeEmptyFieldTags(tags) ++ fideTags
 
   private def filterSourceTitles(tags: Tags): ByColor[Option[PlayerTitle]] =
     tags.titles.map(_.filterNot(fideTitles.contains))

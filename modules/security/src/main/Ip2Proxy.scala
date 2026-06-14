@@ -8,6 +8,7 @@ import play.api.libs.ws.StandaloneWSClient
 import lila.core.net.IpAddress
 import lila.core.security.{ Ip2ProxyApi, IsProxy }
 import lila.common.HTTPRequest
+import lila.mon.extensions.*
 
 final class Ip2ProxySkip extends Ip2ProxyApi:
   def ofReq(req: RequestHeader): Fu[IsProxy] = fuccess(IsProxy.empty)
@@ -18,23 +19,28 @@ final class Ip2ProxyServer(
     ws: StandaloneWSClient,
     cacheApi: lila.memo.CacheApi,
     checkUrl: String,
-    tor: Tor
+    tor: Tor,
+    ipTiers: IpTiers
 )(using Executor, Scheduler)
     extends Ip2ProxyApi:
 
   def ofIp(ip: IpAddress): Fu[IsProxy] =
-    if tor.isExitNode(ip)
-    then fuccess(IsProxy.tor)
+    if ipTiers.trustedIp.is(ip) then fuccess(IsProxy.empty)
+    else if tor.isExitNode(ip) then fuccess(IsProxy.tor)
     else cache.get(ip.value)
 
   def ofReq(req: RequestHeader): Fu[IsProxy] =
-    ofIp(HTTPRequest.ipAddress(req)).addEffect:
-      _.name.foreach: name =>
-        lila.mon.security.proxy.hit(name, HTTPRequest.actionName(req)).increment()
+    ofIp(HTTPRequest.ipAddress(req))
+      .map: proxy =>
+        if proxy.no && HTTPRequest.isHttp1(req) then IsProxy.http1
+        else proxy
+      .addEffect:
+        _.name.foreach: name =>
+          lila.mon.security.proxy.hit(name, HTTPRequest.actionName(req)).increment()
 
   def getCached(ip: IpAddress): Option[Fu[IsProxy]] =
-    if tor.isExitNode(ip)
-    then fuccess(IsProxy.tor).some
+    if ipTiers.trustedIp.is(ip) then fuccess(IsProxy.empty).some
+    else if tor.isExitNode(ip) then fuccess(IsProxy.tor).some
     else cache.getIfPresent(ip.value)
 
   def keepProxies(ips: Seq[IpAddress]): Fu[Map[IpAddress, String]] =
@@ -79,7 +85,7 @@ final class Ip2ProxyServer(
                 cached ++ res
         }
 
-  private val cache = cacheApi[String, IsProxy](65_536, "ip2proxy.ip"):
+  private val cache = cacheApi[String, IsProxy](131_072, "ip2proxy.ip"):
     _.expireAfterWrite(1.hour).buildAsyncFuture: ip =>
       ws
         .url(checkUrl)
@@ -88,7 +94,7 @@ final class Ip2ProxyServer(
         .withTimeout(200.millis, "Ip2Proxy.fetch")
         .dmap(_.body[JsValue])
         .dmap(readProxyName)
-        .monSuccess(_.security.proxy.request)
+        .monSuccess(lila.mon.security.proxy.request)
         .addEffect: result =>
           lila.mon.security.proxy.result(result.name).increment()
         .recoverDefault(IsProxy.empty)

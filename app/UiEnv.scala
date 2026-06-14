@@ -35,6 +35,7 @@ object UiEnv
   // helpers dependencies
   def assetBaseUrl = netConfig.assetBaseUrl
   def netBaseUrl = netConfig.baseUrl
+  def routeUrl = netConfig.routeUrl
   protected val ratingApi = lila.rating.ratingApi
   protected lazy val flairApi = env.user.flairApi
   def isOnline = env.socket.isOnline
@@ -47,6 +48,8 @@ object UiEnv
   protected lazy val lightTeamSync = env.team.lightTeamSync
   protected lazy val syncBelongsTo = env.team.api.syncBelongsTo
 
+  protected def isProd = env.mode.isProd
+
   def helpers: Helpers = this
   def assetHelper: AssetFullHelper = this
   def prefHelper: lila.pref.PrefHelper = this
@@ -54,4 +57,4 @@ object UiEnv
   def flagApi = lila.user.Flags
 
   def lightUserFallback = env.user.lightUserSyncFallback
-  def isStreaming(userId: UserId) = env.streamer.liveStreamApi.isStreaming(userId)
+  def isStreaming = env.streamer.liveApi.isStreaming

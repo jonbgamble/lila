@@ -16,6 +16,7 @@
   <string name="recentlyUpdated">Récemment mis à jour</string>
   <string name="mostPopular">Études les plus populaires</string>
   <string name="alphabetical">Alphabétique</string>
+  <string name="relevant">Pertinent</string>
   <string name="addNewChapter">Ajouter un nouveau chapitre</string>
   <plurals name="nbChapters">
     <item quantity="one">%s chapitre</item>
@@ -41,7 +42,6 @@
   <string name="youAreNowASpectator">Vous êtes maintenant un spectateur</string>
   <string name="pgnTags">Étiquettes PGN</string>
   <string name="like">Aimer</string>
-  <string name="unlike">Je n’aime pas</string>
   <string name="newTag">Nouvelle étiquette</string>
   <string name="commentThisPosition">Commenter la position</string>
   <string name="commentThisMove">Commenter ce coup</string>

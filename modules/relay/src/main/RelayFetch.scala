@@ -4,15 +4,16 @@ import chess.format.pgn.{ PgnStr, Tag, Tags }
 import chess.TournamentClock
 import com.github.blemale.scaffeine.LoadingCache
 import io.mola.galimatias.URL
-import play.api.libs.json.*
 import scalalib.model.Seconds
 
 import lila.common.LilaScheduler
 import lila.core.lilaism.LilaInvalid
+import lila.core.fide.Federation
 import lila.game.{ GameRepo, PgnDump }
 import lila.memo.CacheApi
 import lila.relay.RelayRound.Sync
 import lila.study.{ MultiPgn, StudyPgnImport }
+import lila.mon.extensions.*
 
 final private class RelayFetch(
     sync: RelaySync,
@@ -30,7 +31,7 @@ final private class RelayFetch(
     playerEnrich: RelayPlayerEnrich,
     notifyAdmin: RelayNotifierAdmin,
     onlyIds: Option[List[RelayTourId]] = None
-)(using Executor, Scheduler)(using mode: play.api.Mode):
+)(using Federation.Guess, Executor, Scheduler)(using mode: play.api.Mode):
 
   import RelayFetch.*
 
@@ -69,7 +70,7 @@ final private class RelayFetch(
     else if rt.round.shouldGiveUp then
       val msg = "Finish for lack of start"
       logger.info(s"$msg ${rt.round}")
-      if rt.tour.official then irc.broadcastError(rt.round.id, rt.fullName, msg)
+      if rt.tour.official then irc.broadcastError(rt.round.id, rt.fullNameNoTrans, msg)
       api.update(rt.round)(_.finish).void
     else
       logger.info(s"Pause sync until round starts ${rt.round}")
@@ -83,7 +84,7 @@ final private class RelayFetch(
     else
       val syncFu = for
         allGamesInSourceNoLimit <- fetchGames(rt).mon:
-          _.relay.fetchTime(rt.tour.official, rt.tour.id, rt.tour.slug)
+          lila.mon.relay.fetchTime(rt.tour.official, rt.tour.id, rt.tour.slug)
         allGamesInSource = allGamesInSourceNoLimit.take(maxGamesToRead(rt.tour.official).value)
         filtered = RelayGame.filter(rt.round.sync.onlyRound)(allGamesInSource)
         sliced = RelayGame.Slices.filterAndOrder(~rt.round.sync.slices)(filtered)
@@ -91,12 +92,14 @@ final private class RelayFetch(
         _ <- (sliced.sizeCompare(limited) != 0 && rt.tour.official)
           .so(notifyAdmin.tooManyGames(rt, sliced.size, RelayFetch.maxChaptersToShow))
         withPlayers = playerEnrich.enrichAndReportAmbiguous(rt)(limited)
-        withFide <- fidePlayers.enrichGames(rt.tour)(withPlayers)
-        withTeams = rt.tour.teams.fold(withFide)(_.update(withFide))
+        withFide <- fidePlayers.enrichGames(rt)(withPlayers)
+        withReplacements = rt.tour.players.fold(withFide)(_.parse.update(withFide)._1)
+        withTeams = rt.tour.teams.fold(withReplacements)(_.update(withReplacements))
+        reordered = rt.round.sync.reorder.fold(withTeams)(_.reorder(withTeams))
         res <- sync
-          .updateStudyChapters(rt, withTeams)
+          .updateStudyChapters(rt, reordered)
           .withTimeoutError(7.seconds, SyncResult.Timeout)
-          .mon(_.relay.syncTime(rt.tour.official, rt.tour.id, rt.tour.slug))
+          .mon(lila.mon.relay.syncTime(rt.tour.official, rt.tour.id, rt.tour.slug))
         games = res.plan.input.games
         _ <- notifyAdmin.orphanBoards.inspectPlan(rt, res.plan)
         nbGamesFinished = games.count(_.points.isDefined)
@@ -141,7 +144,7 @@ final private class RelayFetch(
           lila.mon.relay.moves(tour.official, tour.id, tour.slug).increment(result.nbMoves)
           if tour.official then notifyAdmin.missingFideIds.schedule(round.id)
           if !round.hasStarted && !tour.official
-          then irc.broadcastStart(round.id, round.withTour(tour).fullName)
+          then irc.broadcastStart(round.id, round.withTour(tour).fullNameNoTrans)
           continueRelay(tour, updating(_.ensureStarted.resume(tour.official)))
         else continueRelay(tour, updating)
       case _ => continueRelay(tour, updating)
@@ -173,15 +176,16 @@ final private class RelayFetch(
         .filterNot(_.contains("Error parsing move"))
         .filterNot(_.contains("Error parsing PGN"))
         .filterNot(_.contains("Found an empty PGN"))
-        .foreach { irc.broadcastError(r.round.id, r.fullName, _) }
+        .foreach { irc.broadcastError(r.round.id, r.fullNameNoTrans, _) }
 
   private def dynamicPeriod(tour: RelayTour, round: RelayRound, upstream: Sync.Upstream) = Seconds:
     val base =
       if upstream.isInternal then 1
+      else if upstream.hasIdChess then 3
       else if upstream.hasLcc then 4
       else if upstream.isRound then 10 // uses push so no need to pull often
       else 2
-    base * {
+    val period = base * {
       if tour.tierIs(_.best) then 1
       else if tour.official then 2
       else 3
@@ -192,6 +196,7 @@ final private class RelayFetch(
       else if round.startsAtTime.exists(_.isBefore(nowInstant.plusMinutes(20))) then 2
       else 3
     }
+    if upstream.hasIdChess && period < 15 then 15 else period
 
   private val gameIdsUpstreamPgnFlags = PgnDump.WithFlags(
     clocks = true,
@@ -228,7 +233,7 @@ final private class RelayFetch(
 
   // remembers previously ongoing games so they can be fetched one last time when finished
   private val ongoingUserGameIdsCache =
-    cacheApi.notLoadingSync[RelayTourId, Set[GameId]](16, "relay.fetch.ongoingUserGameIds"):
+    cacheApi.notLoadingSync[RelayTourId, Set[GameId]](8, "relay.fetch.ongoingUserGameIds"):
       _.expireAfterWrite(15.minutes).build()
 
   private def fetchFromUsers(tour: RelayTour, users: List[UserStr]): Fu[RelayGames] =
@@ -320,7 +325,7 @@ final private class RelayFetch(
       .flatMap:
         case RelayFormat.Round(id) =>
           studyChapterRepo
-            .orderedByStudyLoadingAllInMemory(id.into(StudyId))
+            .orderedByStudyLoadingAllInMemory(id.studyId)
             .map(_.view.map(RelayGame.fromChapter).toVector)
         case RelayFormat.SingleFile(url) =>
           httpGetPgn(url)
@@ -328,7 +333,8 @@ final private class RelayFetch(
             .map(injectTimeControl.in(rt.tour.info.clock))
             .flatMap(multiPgnToGames.future)
         case RelayFormat.LccWithGames(lcc) =>
-          httpGetRoundJson(lcc.indexUrl)
+          formatApi
+            .httpGetRoundJson(lcc.indexUrl)
             .flatMap: round =>
               val lookForStart: Boolean =
                 rt.round.startsAtTime
@@ -347,11 +353,12 @@ final private class RelayFetch(
                     .map(game -> _)
                 .parallel
                 .map: pgns =>
-                  MultiPgn(pgns.sortBy(_._1).map(_._2))
+                  MultiPgn(pgns.sortBy(_._1)._2F)
                 .map(injectTimeControl.in(rt.tour.info.clock))
                 .flatMap(multiPgnToGames.future)
         case RelayFormat.LccWithoutGames(lcc) =>
-          httpGetRoundJson(lcc.indexUrl)
+          formatApi
+            .httpGetRoundJson(lcc.indexUrl)
             .map: round =>
               MultiPgn:
                 round.pairings.mapWithIndex: (pairing, i) =>
@@ -360,14 +367,8 @@ final private class RelayFetch(
             .flatMap(multiPgnToGames.future)
 
   private def httpGetPgn(url: URL)(using CanProxy): Fu[PgnStr] = PgnStr.from(http.get(url))
-  private def httpGetRoundJson(url: URL)(using CanProxy): Fu[DgtJson.RoundJson] =
-    http.get(url).flatMap(readAsJson[DgtJson.RoundJson](url))
   private def httpGetGameJson(url: URL)(using CanProxy): Fu[DgtJson.GameJson] =
-    http.get(url).flatMap(readAsJson[DgtJson.GameJson](url))
-  private def readAsJson[A: Reads](url: URL)(body: HttpClient.Body): Fu[A] = for
-    json <- Future(Json.parse(body)) // Json.parse throws exceptions (!)
-    data <- summon[Reads[A]].reads(json).fold(err => fufail(s"Invalid JSON from $url: $err"), fuccess)
-  yield data
+    http.get(url).flatMap(formatApi.readAsJson[DgtJson.GameJson](url))
 
 private object RelayFetch:
 
@@ -402,7 +403,7 @@ private object RelayFetch:
               .flatMap: game =>
                 if game.isEmpty then LilaInvalid(s"Found an empty PGN at index $index").asLeft
                 else (acc :+ game, index + 1).asRight
-        .map(_._1)
+        ._1F
 
     def future(multiPgn: MultiPgn): Fu[Vector[RelayGame]] = either(multiPgn).toFuture
 

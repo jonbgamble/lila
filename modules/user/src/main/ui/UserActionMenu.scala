@@ -25,7 +25,7 @@ final class UserActionMenu(helpers: Helpers):
           .option(
             MenuItem(trans.site.editProfile.txt(), Icon.Gear, routes.Account.profile.url)
           ),
-        Some(
+        (u.count.game > 0).option(
           MenuItem(trans.site.watch.txt(), Icon.AnalogTv, routes.User.tv(u.username).url)
         )
       ).flatten ++
@@ -63,6 +63,11 @@ final class UserActionMenu(helpers: Helpers):
             .option(
               MenuItem(trans.site.listBlockedPlayers.txt(), Icon.NotAllowed, routes.Relation.blocks().url)
             ),
+          ctx.me
+            .filter(_.is(u))
+            .ifTrue(Granter.opt(_.LichessTeam))
+            .map: me =>
+              MenuItem("My permissions", Icon.Logo, routes.Mod.permissions(me.username).url),
           canImpersonate.option(
             MenuItem(
               "Impersonate",

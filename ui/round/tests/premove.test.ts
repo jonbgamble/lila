@@ -1,17 +1,30 @@
-import { describe, test } from 'node:test';
-import assert from 'node:assert/strict';
-
-import { premove } from '@lichess-org/chessground/premove';
-import * as cg from '@lichess-org/chessground/types';
-import { defaults, type HeadlessState } from '@lichess-org/chessground/state';
 import * as fen from '@lichess-org/chessground/fen';
+import { premove } from '@lichess-org/chessground/premove';
+import { defaults, type HeadlessState } from '@lichess-org/chessground/state';
+import * as cg from '@lichess-org/chessground/types';
 import * as util from '@lichess-org/chessground/util';
+import assert from 'node:assert/strict';
+import { describe, test } from 'node:test';
+
 import { Premove } from '../src/premove';
 
 const diagonallyOpposite = (square: cg.Key): cg.Key =>
   util.pos2keyUnsafe(util.key2pos(square).map(n => 7 - n) as cg.Pos);
 
-const invertPieces = (pieces: cg.Pieces): cg.Pieces =>
+const verticallyOpposite = (square: cg.Key): cg.Key => {
+  const asPos = util.key2pos(square);
+  return util.pos2keyUnsafe([asPos[0], 7 - asPos[1]] as cg.Pos);
+};
+
+const invertPiecesVertically = (pieces: cg.Pieces): cg.Pieces =>
+  new Map(
+    [...pieces].map(([key, piece]) => [
+      verticallyOpposite(key),
+      { role: piece.role, color: util.opposite(piece.color) },
+    ]),
+  );
+
+const invertPiecesDiagonally = (pieces: cg.Pieces): cg.Pieces =>
   new Map(
     [...pieces].map(([key, piece]) => [
       diagonallyOpposite(key),
@@ -21,11 +34,11 @@ const invertPieces = (pieces: cg.Pieces): cg.Pieces =>
 
 const makeState = (
   pieces: cg.Pieces,
-  trimPremoves: boolean,
+  variant: VariantKey,
   lastMove: cg.Key[] | undefined,
   turnColor: cg.Color,
 ): HeadlessState => {
-  const premoveFuncs = new Premove(!trimPremoves);
+  const premoveFuncs = new Premove(variant, true);
   const state = defaults();
   state.pieces = pieces;
   state.lastMove = lastMove;
@@ -39,22 +52,40 @@ const testPosition = (
   turnColor: cg.Color,
   lastMove: cg.Key[] | undefined,
   expectedPremoves: Map<cg.Key, Set<cg.Key>>,
-  checkInverseToo: boolean,
+  checkVerticalInverseToo: boolean,
+  checkDiagonalInverseToo: boolean,
+  variant: VariantKey = 'standard',
 ): void => {
-  const state = makeState(pieces, true, lastMove, turnColor);
+  const state = makeState(pieces, variant, lastMove, turnColor);
 
   for (const [from, expectedDests] of expectedPremoves) {
     assert.deepStrictEqual(new Set(premove(state, from)), expectedDests);
   }
 
   assert.strictEqual(
-    util.allKeys.filter(sq => !expectedPremoves.has(sq)).every(sq => !premove(state, sq as cg.Key).length),
+    util.allKeys.filter(sq => !expectedPremoves.has(sq)).every(sq => !premove(state, sq).length),
     true,
   );
 
-  if (checkInverseToo)
+  if (checkVerticalInverseToo)
     testPosition(
-      invertPieces(pieces),
+      invertPiecesVertically(pieces),
+      util.opposite(turnColor),
+      lastMove?.map(sq => verticallyOpposite(sq)),
+      new Map(
+        [...expectedPremoves].map(([start, dests]) => [
+          verticallyOpposite(start),
+          new Set(Array.from(dests, verticallyOpposite)),
+        ]),
+      ),
+      false,
+      false,
+      variant,
+    );
+
+  if (checkDiagonalInverseToo)
+    testPosition(
+      invertPiecesDiagonally(pieces),
       util.opposite(turnColor),
       lastMove?.map(sq => diagonallyOpposite(sq)),
       new Map(
@@ -64,6 +95,8 @@ const testPosition = (
         ]),
       ),
       false,
+      false,
+      variant,
     );
 };
 
@@ -89,13 +122,14 @@ describe('premoves', () => {
       ['g7', new Set(['g6', 'f6'])],
       ['e5', new Set(['e4', 'd4'])],
       ['b5', new Set(['b4'])],
-      ['a3', new Set([])],
+      ['a3', new Set()],
     ]);
     testPosition(
       fen.read('k1n2r1r/2bP2p1/3r3p/Ppq1pPr1/qP4n1/p3r1P1/PbnP2KP/R4r1q w - - 0 1'),
       'white',
       ['e7', 'e5'],
       expectedPremoves,
+      true,
       true,
     );
   });
@@ -107,7 +141,7 @@ describe('premoves', () => {
       ['h3', new Set(['g3', 'f3', 'e3', 'd3', 'h4', 'h5'])],
       ['f5', new Set(['e5', 'd5', 'c5', 'b5', 'a5', 'f6', 'f7', 'f8', 'f4', 'f3'])],
       ['c4', new Set(['c5'])],
-      ['f4', new Set([])],
+      ['f4', new Set()],
       ['g5', new Set(['g6'])],
       ['d3', new Set(['d4', 'e4'])],
     ]);
@@ -116,6 +150,7 @@ describe('premoves', () => {
       'black',
       undefined,
       expectedPremoves,
+      true,
       true,
     );
   });
@@ -131,6 +166,8 @@ describe('premoves', () => {
       ['g1', 'g3'],
       expectedPremoves,
       true,
+      true,
+      'horde',
     );
   });
 
@@ -145,6 +182,7 @@ describe('premoves', () => {
       'black',
       ['h2', 'g2'],
       expectedPremoves,
+      true,
       false,
     );
   });
@@ -165,6 +203,48 @@ describe('premoves', () => {
       undefined,
       expectedPremoves,
       true,
+      true,
     );
+  });
+
+  test('king and rooks in different variants', () => {
+    const baseExpectedPremoves = new Map<cg.Key, Set<cg.Key>>([
+      ['e1', new Set(['d1', 'd2', 'e2', 'f2', 'f1'])],
+      ['a1', new Set(['a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'b1', 'c1', 'd1'])],
+      ['h1', new Set(['h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'g1', 'f1'])],
+    ]);
+    const variants: VariantKey[] = [
+      'standard',
+      'chess960',
+      'antichess',
+      'fromPosition',
+      'kingOfTheHill',
+      'threeCheck',
+      'atomic',
+      'horde',
+      'racingKings',
+      'crazyhouse',
+    ];
+    for (const variant of variants) {
+      const expectedPremoves = structuredClone(baseExpectedPremoves);
+      if (['atomic', 'crazyhouse'].includes(variant)) {
+        ['e1', 'f1', 'g1', 'h1'].forEach(sq => expectedPremoves.get('a1')?.add(sq as cg.Key));
+        ['e1', 'd1', 'c1', 'b1', 'a1'].forEach(sq => expectedPremoves.get('h1')?.add(sq as cg.Key));
+      }
+      // technically no castling in racing kings as well, but not even worth dealing with that case
+      if (variant !== 'antichess') {
+        ['a1', 'h1'].forEach(sq => expectedPremoves.get('e1')?.add(sq as cg.Key));
+        if (variant !== 'chess960') ['c1', 'g1'].forEach(sq => expectedPremoves.get('e1')?.add(sq as cg.Key));
+      }
+      testPosition(
+        fen.read('4k3/8/8/8/8/8/8/R3K2R b - - 0 1'),
+        'black',
+        undefined,
+        expectedPremoves,
+        true,
+        false,
+        variant,
+      );
+    }
   });
 });

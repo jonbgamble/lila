@@ -3,7 +3,7 @@
   <string name="donate">Přispět</string>
   <string name="donateAsX">Přispět jako %s</string>
   <string name="lichessPatron">Lichess Patron</string>
-  <string name="patronSince" comment="%s is a date e.g. &quot;21 Jan 2025&quot;,&#10;meaning the final text would be something like &quot;Patron since 21 Jan 2025&quot;.">Patron od %s</string>
+  <string name="patronSince" comment="string is a date">Patron od %s</string>
   <string name="freeAccount">Účet zdarma</string>
   <string name="becomePatron">Staňte se Lichess Patronem</string>
   <string name="xBecamePatron">%s se stal Lichess Patronem</string>
@@ -42,8 +42,6 @@ Pak platíme vývojáře na plný úvazek: %s, zakladatel Lichess.</string>
   <string name="officialNonProfit">Je Lichess oficiálně neziskový?</string>
   <string name="actOfCreation">Ano, tady je ustanovující listina (ve francouzštině)</string>
   <string name="changeMonthlySupport">Mohu změnit/zrušit svou měsíční podporu?</string>
-  <string name="changeOrContact">Ano, kdykoli z této stránky.
-Nebo můžete %s.</string>
   <string name="contactSupport">kontaktovat podporu Lichess</string>
   <string name="otherMethods">Jiné způsoby podpory?</string>
   <string name="lichessIsRegisteredWith">Lichess je registrován u %s.</string>
@@ -88,4 +86,5 @@ Patroni se však blýsknou novou cool ikonou profilu.</string>
   <string name="paymentDetails">Detaily platby</string>
   <string name="updatePaymentMethod">Aktualizovat způsob platby</string>
   <string name="stripeManageSub">Spravujte své předplatné a stáhněte si své faktury a účtenky</string>
+  <string name="coverFees">Přidám %s, abych pomohl/a pokrýt náklady na zpracování této transakce</string>
 </resources>

@@ -1,4 +1,5 @@
 import { uciToMove } from '@lichess-org/chessground/util';
+
 import { embedChessground } from './asset';
 
 // https://lichess.org/training/frame
@@ -11,7 +12,7 @@ window.onload = async () => {
     coordinates: false,
     drawable: { enabled: false, visible: false },
     viewOnly: true,
-    fen: fen,
+    fen,
     lastMove: uciToMove(lm),
     orientation: orientation as 'white' | 'black',
   });

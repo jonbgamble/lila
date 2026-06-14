@@ -2,18 +2,18 @@ package lila.relay
 
 import chess.format.pgn.{ Tag, Tags }
 import chess.{ FideId, PlayerName, PlayerTitle, IntRating }
-import akka.stream.scaladsl.Sink
 
 import lila.core.socket.Sri
-import lila.core.fide.{ PlayerToken, diacritics }
-import lila.study.{ Chapter, ChapterRepo, StudyApi }
+import lila.core.fide.{ PlayerToken, Federation, diacritics }
+import lila.study.{ Chapter, ChapterRepo, StudyApi, StudyPlayer }
 
 // used to change names and ratings of broadcast players
 private case class RelayPlayerLine(
     name: Option[PlayerName],
     rating: Option[IntRating],
     title: Option[PlayerTitle],
-    fideId: Option[FideId] = none
+    fideId: Option[FideId] = none,
+    fideFed: Option[String] = none // unvalidated
 )
 
 private object RelayPlayerLine:
@@ -22,11 +22,13 @@ private object RelayPlayerLine:
     private val nonLetterRegex = """[^a-zA-Z0-9\s]+""".r
     private val splitRegex = """\W""".r
     private val titleRegex = """(?i)(dr|prof)\.""".r
+    private val chessTitleRegex = s"""^(${chess.PlayerTitle.acronyms.mkString("|")} )""".r
     def apply(str: String): PlayerToken =
+      val trimmed = str.trim.replaceAllIn(chessTitleRegex, "").trim
       splitRegex
         .split:
           java.text.Normalizer
-            .normalize(str.trim, java.text.Normalizer.Form.NFD)
+            .normalize(trimmed, java.text.Normalizer.Form.NFD)
             .replace(",", " ")
             .replaceAllIn(titleRegex, "")
             .replaceAllIn(nonLetterRegex, "")
@@ -59,7 +61,8 @@ private case class RelayPlayersTextarea(text: String):
           name = PlayerName.from(arr.lift(4).filter(_.nonEmpty)),
           rating = IntRating.from(arr.lift(3).flatMap(_.toIntOption)),
           title = arr.lift(2).flatMap(PlayerTitle.get),
-          fideId = arr.lift(1).flatMap(_.toIntOption).map(FideId(_))
+          fideId = arr.lift(1).flatMap(_.toIntOption).map(FideId(_)),
+          fideFed = arr.lift(5)
         )
 
 private case class RelayPlayerLines(players: Map[PlayerName, RelayPlayerLine]):
@@ -102,13 +105,13 @@ private case class RelayPlayerLines(players: Map[PlayerName, RelayPlayerLine]):
       .mapValues(_.distinct)
       .toMap
 
-  def update(games: RelayGames): (RelayGames, List[RelayPlayerLine.Ambiguous]) =
+  def update(games: RelayGames)(using Federation.Guess): (RelayGames, List[RelayPlayerLine.Ambiguous]) =
     games.foldLeft(Vector.empty -> Nil):
       case ((games, ambiguous), game) =>
         val (tags, ambi) = update(game.tags)
         (games :+ game.copy(tags = tags)) -> (ambi ::: ambiguous)
 
-  def update(tags: Tags): (Tags, List[RelayPlayerLine.Ambiguous]) =
+  def update(tags: Tags)(using guessFed: Federation.Guess): (Tags, List[RelayPlayerLine.Ambiguous]) =
     Color.all.foldLeft(tags -> Nil):
       case ((tags, ambiguous), color) =>
         val name = tags.names(color)
@@ -120,7 +123,8 @@ private case class RelayPlayerLines(players: Map[PlayerName, RelayPlayerLine]):
                 rp.fideId.map(id => Tag(_.fideIds(color), id.toString)),
                 rp.name.map(name => Tag(_.names(color), name)),
                 rp.rating.map(rating => Tag(_.elos(color), rating.toString)),
-                rp.title.map(title => Tag(_.titles(color), title.value))
+                rp.title.map(title => Tag(_.titles(color), title.value)),
+                rp.fideFed.flatMap(guessFed).map(fed => Tag(StudyPlayer.country.tagNames(color), fed.value))
               ).flatten
             case _ => Nil
         val newAmbiguous = matching match
@@ -158,7 +162,7 @@ private final class RelayPlayerEnrich(
     fidePlayerApi: RelayFidePlayerApi,
     studyApi: StudyApi,
     chapterRepo: ChapterRepo
-)(using Executor, akka.stream.Materializer):
+)(using Federation.Guess, Executor, akka.stream.Materializer):
 
   private val once = scalalib.cache.OnceEvery.hashCode[List[RelayPlayerLine.Ambiguous]](1.hour)
 
@@ -169,7 +173,7 @@ private final class RelayPlayerEnrich(
         def show(p: RelayPlayerLine): String = p.fideId.map(_.toString) | p.name.fold("?")(_.value)
         val players = ambiguous.map: a =>
           (a.name.value, a.players.map(show))
-        irc.broadcastAmbiguousPlayers(rt.round.id, rt.fullName, players)
+        irc.broadcastAmbiguousPlayers(rt.round.id, rt.fullNameNoTrans, players)
       updated
 
   /* When the players replacement text of a tournament is updated,
@@ -192,12 +196,14 @@ private final class RelayPlayerEnrich(
                 (newTags != chapter.tags).so:
                   enrichFromFideId(newTags)
                     .flatMap: enriched =>
-                      val newName = Chapter.nameFromPlayerTags(enriched)
+                      val forcedReplacements = newTags.map(_.filterNot(enriched.value.contains))
+                      val finalTags = enriched ++ forcedReplacements
+                      val newName = Chapter.nameFromPlayerTags(finalTags)
                       studyApi.setTagsAndRename(
                         studyId = chapter.studyId,
                         chapterId = chapter.id,
-                        tags = enriched,
+                        tags = finalTags,
                         newName = newName.filter(_ != chapter.name)
                       )(lila.study.Who(chapter.ownerId, Sri("")))
-              .runWith(Sink.ignore)
+              .run()
           yield ()

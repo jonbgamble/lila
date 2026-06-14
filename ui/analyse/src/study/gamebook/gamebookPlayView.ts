@@ -1,7 +1,8 @@
-import GamebookPlayCtrl, { type State } from './gamebookPlayCtrl';
 import * as licon from 'lib/licon';
-import { type VNode, iconTag, bind, dataIcon, hl } from 'lib/view';
 import { richHTML } from 'lib/richText';
+import { type VNode, iconTag, bind, dataIcon, hl, requiresI18n } from 'lib/view';
+
+import GamebookPlayCtrl, { type State } from './gamebookPlayCtrl';
 
 export function render(ctrl: GamebookPlayCtrl): VNode {
   const state = ctrl.state;
@@ -47,7 +48,7 @@ function renderFeedback(ctrl: GamebookPlayCtrl, state: State) {
   if (fb === 'good' && state.comment)
     return hl('button.feedback.act.good.com', { attrs: { type: 'button' }, hook: bind('click', ctrl.next) }, [
       hl('span.text', { attrs: dataIcon(licon.PlayTriangle) }, i18n.study.next),
-      hl('kbd', '<space>'),
+      hl('kbd', 'space'),
     ]);
   if (fb === 'end') return renderEnd(ctrl);
   return hl(
@@ -59,9 +60,8 @@ function renderFeedback(ctrl: GamebookPlayCtrl, state: State) {
             hl('div.no-square', hl('piece.king.' + color)),
             hl('div.instruction', [
               hl('strong', i18n.site.yourTurn),
-              hl(
-                'em',
-                i18n.puzzle[color === 'white' ? 'findTheBestMoveForWhite' : 'findTheBestMoveForBlack'],
+              requiresI18n('puzzle', ctrl.redraw, cat =>
+                hl('em', cat[color === 'white' ? 'findTheBestMoveForWhite' : 'findTheBestMoveForBlack']),
               ),
             ]),
           ]
@@ -90,13 +90,14 @@ function renderEnd(ctrl: GamebookPlayCtrl) {
       },
       i18n.study.playAgain,
     ),
-    hl(
-      'button.analyse',
-      {
-        attrs: { 'data-icon': licon.Microscope, type: 'button' },
-        hook: bind('click', () => study.setGamebookOverride('analyse'), ctrl.redraw),
-      },
-      i18n.site.analysis,
-    ),
+    !study.vm.gamebookOverride &&
+      hl(
+        'button.analyse',
+        {
+          attrs: { 'data-icon': licon.Microscope, type: 'button' },
+          hook: bind('click', () => study.setGamebookOverride('analyse'), ctrl.redraw),
+        },
+        i18n.site.analysis,
+      ),
   ]);
 }

@@ -4,8 +4,19 @@ function randomInRange(min: number, max: number): number {
   return Math.random() * (max - min) + min;
 }
 
-export function initModule(): void {
-  const canvas = document.querySelector('canvas#confetti') as HTMLCanvasElement;
+interface ConfettiOpts {
+  cannons?: boolean;
+  fireworks?: boolean;
+}
+
+export function initModule(
+  opts: ConfettiOpts = {
+    cannons: true,
+    fireworks: true,
+  },
+): void {
+  const canvas = document.querySelector<HTMLCanvasElement>('canvas#confetti');
+  if (!canvas) return;
 
   const party = confetti.create(canvas, {
     disableForReducedMotion: true,
@@ -13,16 +24,20 @@ export function initModule(): void {
     resize: true,
   });
 
-  const durationMs = 18 * 1000;
-  const endAt = Date.now() + durationMs;
+  if (opts.cannons) {
+    const durationMs = 18 * 1000;
+    const endAt = Date.now() + durationMs;
 
-  const interval = setInterval(function () {
-    const timeLeft = endAt - Date.now();
-    if (timeLeft <= 0) clearInterval(interval);
-    else cannons();
-  }, 250);
+    const interval = setInterval(function () {
+      const timeLeft = endAt - Date.now();
+      if (timeLeft <= 0) clearInterval(interval);
+      else cannons();
+    }, 250);
+  }
 
-  [50, 1200, 2700].forEach(delay => setTimeout(() => fireworks(), delay));
+  if (opts.fireworks) {
+    [50, 1200, 2700].forEach(delay => setTimeout(() => fireworks(), delay));
+  }
 
   const cannons = () => {
     const fire = (custom: confetti.Options) =>
@@ -37,7 +52,7 @@ export function initModule(): void {
       });
 
     // left cannon
-    for (const _ in [0, 1])
+    for (const _ of [0, 1])
       fire({
         angle: randomInRange(50, 70),
         drift: randomInRange(0, 1),
@@ -45,7 +60,7 @@ export function initModule(): void {
       });
 
     // right cannon
-    for (const _ in [0, 1])
+    for (const _ of [0, 1])
       fire({
         angle: randomInRange(110, 130),
         drift: randomInRange(-1, 0),

@@ -74,8 +74,19 @@ final private class RelayTourRepo(val coll: Coll)(using Executor):
   def byIds(ids: List[RelayTourId]): Fu[List[RelayTour]] =
     coll.byOrderedIds[RelayTour, RelayTourId](ids, unsetHeavyOptionalFields.some)(_.id)
 
+  def hasOfficial(ids: List[RelayTourId]): Fu[Boolean] =
+    coll.exists($inIds(ids) ++ selectors.official)
+
   def isOwnerOfAll(u: UserId, ids: List[RelayTourId]): Fu[Boolean] =
     coll.exists($doc($inIds(ids), "ownerIds".$ne(u))).not
+
+  def addOwnerToTours(tourIds: List[RelayTourId], userId: UserId): Funit =
+    coll.update
+      .one($inIds(tourIds), $addToSet("ownerIds" -> userId), multi = true)
+      .void
+
+  def showTeamScores(id: RelayTourId): Fu[Boolean] =
+    coll.primitiveOne[Boolean]($id(id), "showTeamScores").map(~_)
 
   def aggregateRoundAndUnwind(
       otherColls: RelayColls,
@@ -148,6 +159,7 @@ private object RelayTourRepo:
 
   object selectors:
     val official = $doc("tier".$exists(true))
+    val nonOfficial = $doc("tier".$exists(false))
     object vis:
       val public = $doc("visibility" -> Visibility.public)
       val notPublic = $doc("visibility".$ne(Visibility.public))
@@ -160,6 +172,7 @@ private object RelayTourRepo:
     def subscriberId(u: UserId) = $doc("subscribers" -> u)
     val officialActive = officialPublic ++ active
     val officialInactive = officialPublic ++ inactive
+    val live = $doc("live" -> true)
     def inMonth(at: YearMonth) =
       val date = java.time.LocalDate.of(at.getYear, at.getMonth, 1)
       $doc(
@@ -180,6 +193,19 @@ private object RelayTourRepo:
     "players" -> false,
     "teams" -> false
   )
+
+  private[relay] def readTourWithRounds(doc: Bdoc): Option[RelayTour.WithRounds] = for
+    tour <- doc.asOpt[RelayTour]
+    rounds <- doc.getAsOpt[List[RelayRound]]("rounds")
+    if rounds.nonEmpty
+  yield tour.withRounds(rounds)
+
+  private[relay] def readTourWithRoundsAndGroup(
+      doc: Bdoc
+  ): Option[(RelayTour.WithRounds, Option[RelayGroup.Name])] = for
+    tour <- readTourWithRounds(doc)
+    group = RelayTourRepo.group.readFrom(doc)
+  yield tour -> group
 
   private[relay] def readToursWithRoundAndGroup[A](
       as: (RelayTour, RelayRound, Option[RelayGroup.Name]) => A

@@ -8,11 +8,11 @@
   <string name="advanced">Avanzado</string>
   <string name="lengths">Duración</string>
   <string name="mates">Mates</string>
+  <string name="mateThemes">Temas de mate</string>
   <string name="goals">Objetivos</string>
   <string name="origin">Origen</string>
   <string name="specialMoves">Movimientos especiales</string>
   <string name="didYouLikeThisPuzzle">¿Te ha gustado este ejercicio?</string>
-  <string name="voteToLoadNextOne">¡Vota para pasar al siguiente!</string>
   <string name="upVote">Votar positivamente el ejercicio</string>
   <string name="downVote">Votar negativamente el ejercicio</string>
   <string name="yourPuzzleRatingWillNotChange">Tu puntuación de ejercicios no cambiará. Nota que los ejercicios no son una competición. La puntuación indica los ejercicios que se adecuan a tus habilidades.</string>

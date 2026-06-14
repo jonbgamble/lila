@@ -1,13 +1,15 @@
+import type { FilterInfo } from '@/bot/filter';
 import type { Line } from '@/chat/interfaces';
 import type { Data as WatchersData } from '@/view/watchers';
-import type { FilterInfo } from '@/bot/filter';
+
+import type { TreePath } from './tree/types';
 
 export type PubsubEventKey = keyof PubsubEvents;
 
 export interface PubsubEvents {
-  'ab.rep': (data: 'kbc') => void;
+  'ab.rep': (data: string) => void;
   'analysis.closeAll': () => void;
-  'analysis.change': (fen: FEN, path: string) => void;
+  'analysis.change': (fen: FEN, path: TreePath) => void;
   'analysis.chart.click': (index: number) => void;
   'analysis.comp.toggle': (enabled: boolean) => void;
   'analysis.server.progress': (analyseData: any) => void;
@@ -20,7 +22,7 @@ export interface PubsubEvents {
   flip: (flip: boolean) => void;
   jump: (ply: string) => void;
   'botdev.import.book': (key: string, oldKey?: string) => void;
-  'botdev.update.filters': (filters: { [key: string]: FilterInfo }) => void;
+  'botdev.update.filters': (filters: Record<string, FilterInfo>) => void;
   'notify-app.set-read': (user: string) => void;
   'voiceChat.toggle': (enabled: boolean) => void;
   ply: (ply: number, isMainline?: boolean) => void;
@@ -79,34 +81,34 @@ export interface OneTimeEvents {
 }
 
 export class Pubsub {
-  private allSubs: Map<keyof PubsubEvents, Set<PubsubEvents[keyof PubsubEvents]>> = new Map();
-  private oneTimeEvents: Map<OneTimeKey, OneTimeHandler<OneTimeEvents[OneTimeKey]>> = new Map();
+  private readonly allSubs: Map<keyof PubsubEvents, Set<PubsubEvents[keyof PubsubEvents]>> = new Map();
+  private readonly oneTimeEvents: Map<OneTimeKey, OneTimeHandler<OneTimeEvents[OneTimeKey]>> = new Map();
 
-  on<K extends keyof PubsubEvents>(name: K, cb: PubsubEvents[K]): void {
+  on = <K extends keyof PubsubEvents>(name: K, cb: PubsubEvents[K]): void => {
     const subs = this.allSubs.get(name);
     if (subs) subs.add(cb);
     else this.allSubs.set(name, new Set([cb]));
-  }
+  };
 
-  off<K extends keyof PubsubEvents>(name: K, cb: PubsubEvents[K]): void {
+  off = <K extends keyof PubsubEvents>(name: K, cb: PubsubEvents[K]): void => {
     this.allSubs.get(name)?.delete(cb);
-  }
+  };
 
-  emit<K extends keyof PubsubEvents>(name: K, ...args: Parameters<PubsubEvents[K]>): void {
+  emit = <K extends keyof PubsubEvents>(name: K, ...args: Parameters<PubsubEvents[K]>): void => {
     const callbacks = this.allSubs.get(name);
     if (callbacks) {
       for (const cb of callbacks) {
         (cb as (...args: Parameters<PubsubEvents[K]>) => void)(...args);
       }
     }
-  }
+  };
 
   after<K extends OneTimeKey>(event: K): Promise<OneTimeEvents[K]> {
     const found = this.oneTimeEvents.get(event);
     if (found) return found.promise as Promise<OneTimeEvents[K]>;
 
     const handler = {} as OneTimeHandler<OneTimeEvents[K]>;
-    handler.promise = new Promise<OneTimeEvents[K]>(resolve => (handler!.resolve = resolve));
+    handler.promise = new Promise<OneTimeEvents[K]>(resolve => (handler.resolve = resolve));
     this.oneTimeEvents.set(event, handler);
 
     return handler.promise;

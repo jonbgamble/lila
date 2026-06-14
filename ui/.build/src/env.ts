@@ -1,12 +1,33 @@
-import type { Package } from './parse.ts';
 import fs from 'node:fs';
-import ps from 'node:process';
 import { join, resolve, dirname } from 'node:path';
-import { definedUnique, isEquivalent } from './algo.ts';
-import { updateManifest } from './manifest.ts';
-import { taskOk } from './task.ts';
+import ps from 'node:process';
 
-// state, logging, status
+import { definedUnique, isEquivalent } from './algo.ts';
+
+export interface Package {
+  root: string; // absolute path to package.json parentdir
+  name: string; // dirname of package root
+  pkg: any; // package.json object
+  bundle: Bundle[]; // esbuild bundling
+  hash: Hash[]; // files to symlink hash
+  sync: Sync[]; // pre-bundle filesystem copies from package json
+}
+
+export interface Hash {
+  path: string; // glob for assets
+  catalog?: string; // file to update with hashed filenames
+  omit?: boolean; // omit from client manifest, default false
+}
+
+export interface Bundle {
+  module?: string; // file glob for esm modules (esbuild entry points)
+  inline?: string; // inject this script into response html
+}
+
+export interface Sync {
+  src: string; // file glob expression, use <dir>/** to sync entire directories
+  dest: string; // directory to copy into
+}
 
 export const env = new (class {
   readonly rootDir = resolve(dirname(new URL(import.meta.url).pathname), '../../..');
@@ -42,15 +63,10 @@ export const env = new (class {
   packages: Map<string, Package> = new Map();
   workspaceDeps: Map<string, string[]> = new Map();
   building: Package[] = [];
+  mustSucceed = new Set<() => boolean>();
+  onSuccess = new Set<() => void>();
 
-  private status: { [key in Context]?: number | false } = {};
-
-  manifestOk(): boolean {
-    return (
-      isEquivalent(this.building, [...this.packages.values()]) &&
-      (['tsc', 'esbuild', 'sass', 'i18n'] as const).map(b => this.status[b]).every(x => x === 0)
-    );
-  }
+  readonly status = {} as Record<Context, number | false | undefined>;
 
   *tasks<T extends 'sync' | 'hash' | 'bundle'>(
     t: T,
@@ -60,6 +76,14 @@ export const env = new (class {
         yield [pkg, item];
       }
     }
+  }
+
+  buildOk(): boolean {
+    return (
+      [...this.mustSucceed].every(isOk => isOk()) &&
+      isEquivalent(this.building, [...this.packages.values()]) &&
+      (['tsc', 'esbuild', 'sass', 'i18n'] as const).map(b => this.status[b]).every(x => x === 0)
+    );
   }
 
   deps(pkgName: string): Package[] {
@@ -100,17 +124,17 @@ export const env = new (class {
   done(ctx: Context, code: number | undefined): void {
     if (code !== undefined && code !== this.status[ctx] && ['tsc', 'esbuild', 'sass', 'i18n'].includes(ctx)) {
       this.log(
-        `${code === 0 ? 'Done' : c.red('Failed')}` + (this.watch ? ` - ${c.grey('Watching')}...` : ''),
+        `${code === 0 ? 'Done' : c.red('Failed')}${this.watch ? ` - ${c.grey('Watching')}...` : ''}`,
         ctx,
       );
     }
     this.status[ctx] = code;
-    if (this.manifestOk() && taskOk()) {
+    if (this.buildOk()) {
       if (this.startTime) {
         const doneMsg = `Done in ${c.green((Date.now() - this.startTime) / 1000 + '')}s`;
         this.log(doneMsg + (this.stdin ? `. Press ${c.grey('<space>')} to clean and rebuild` : ''));
       }
-      updateManifest();
+      this.onSuccess.forEach(yay => yay());
       this.startTime = undefined;
     }
     if (!this.watch && code) process.exit(code);
@@ -141,9 +165,7 @@ export const env = new (class {
   }
 })();
 
-export function trimLines(s: string): string[] {
-  return s.split(/[\n\r\f]+/).filter(x => x.trim());
-}
+export const trimLines = (s: string): string[] => s.split(/[\n\r\f]+/).filter(x => x.trim());
 
 export type Context = 'sass' | 'tsc' | 'esbuild' | 'sync' | 'hash' | 'i18n' | 'web';
 

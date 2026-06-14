@@ -1,6 +1,5 @@
-import * as co from 'chessops';
-import type { SearchMove } from '../types';
 import type { FilterResult, FilterSpec } from '../filter';
+import type { SearchMove } from '../types';
 
 export const fuzz: FilterSpec = {
   info: {
@@ -23,11 +22,10 @@ export const fuzz: FilterSpec = {
       this is more tuneable and less chaotic than move decay.`,
   },
   async score(moves: SearchMove[]): Promise<FilterResult> {
-    const result: { [uci: Uci]: number } = {};
+    const result: Record<Uci, number> = {};
     for (const { uci } of moves) {
       result[uci] = Math.random();
     }
-    console.log(co.Chess);
     return result;
   },
 };

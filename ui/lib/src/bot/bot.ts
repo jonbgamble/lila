@@ -1,12 +1,20 @@
-import * as co from 'chessops';
-import { zip } from '../algo';
-import { clockToSpeed, normalMove } from '@/game';
-import type { FilterFacetValue, Filters } from './filter';
-import { quantizeFilter, evaluateFilter, filterFacetKeys, combine } from './filter';
 import type { SearchResult } from '@lichess-org/zerofish';
-import { movetime as getMovetime } from './movetime';
-import { filterRegistry } from './filters';
+import * as co from 'chessops';
+
+import { clockToSpeed, normalMove } from '@/game';
+
+import { zip } from '../algo';
 import type { BotLoader } from './botLoader';
+import {
+  type FilterFacetValue,
+  type Filters,
+  quantizeFilter,
+  evaluateFilter,
+  filterFacetKeys,
+  combine,
+} from './filter';
+import { filterRegistry } from './filters';
+import { movetime as getMovetime } from './movetime';
 import type {
   BotInfo,
   FishSearch,
@@ -46,10 +54,10 @@ export class Bot implements BotInfo, MoveSource {
   zero?: ZeroSearch;
   fish?: FishSearch;
 
-  private stats: { cplMoves: number; cpl: number };
+  private readonly stats: { cplMoves: number; cpl: number };
   private traces: string[];
   private cp: number;
-  private loader: BotLoader;
+  private readonly loader: BotLoader;
 
   constructor(info: BotInfo, loader: BotLoader) {
     Object.assign(this, structuredClone(info));
@@ -140,7 +148,7 @@ export class Bot implements BotInfo, MoveSource {
           else if (k === 'time') return [k, Math.log2(movetime ?? 64)];
           else return [k, undefined];
         }),
-    );
+    ) as FilterFacetValue;
 
     const vals = evaluateFilter(f, x);
     const y = combine(vals, f.by);
@@ -292,8 +300,7 @@ export class Bot implements BotInfo, MoveSource {
         if (existing) {
           existing.weights[key] = weight;
         } else if (normalMove(args.chess, uci)) {
-          const weights: Record<string, number> = {};
-          weights[key] = weight;
+          const weights: Record<string, number> = { key: weight };
           moves.unshift({ uci, weights });
         } else {
           this.trace(

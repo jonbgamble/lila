@@ -3,7 +3,7 @@
   <string name="donate">Ủng hộ</string>
   <string name="donateAsX">Ủng hộ bằng tài khoản %s</string>
   <string name="lichessPatron">Người bảo trợ Lichess</string>
-  <string name="patronSince" comment="%s is a date e.g. &quot;21 Jan 2025&quot;,&#10;meaning the final text would be something like &quot;Patron since 21 Jan 2025&quot;.">Người bảo trợ từ khi %s</string>
+  <string name="patronSince" comment="string is a date">Người bảo trợ từ khi %s</string>
   <string name="freeAccount">Tài khoản miễn phí</string>
   <string name="becomePatron">Trở thành một Người bảo trợ Lichess</string>
   <string name="xBecamePatron">%s đã trở thành một Người bảo trợ Lichess</string>
@@ -39,8 +39,8 @@ Sau đó chúng tôi trả lương cho một nhà phát triển toàn thời gia
   <string name="officialNonProfit">Lichess có phải là một tổ chức phi lợi nhuận chính thức?</string>
   <string name="actOfCreation">Đúng, và đây là tuyên bố thành lập (bằng tiếng Pháp)</string>
   <string name="changeMonthlySupport">Tôi có thể thay đổi/hủy việc đóng góp hàng tháng được không?</string>
-  <string name="changeOrContact">Có, bất cứ lúc nào, ở trang này.
-Hoặc bạn có thể %s.</string>
+  <string name="changeSupport" comment="%1$s is &quot;contact us&quot; with a link to https://lichess.org/contact&#10;%2$s &quot;the patron page&quot; with a link to https://lichess.org/patron">Nếu khoản thanh toán của bạn được xử lý qua PayPal, bạn có thể hủy/thay đổi khoản hỗ trợ thông qua tài khoản PayPal của mình, hoặc bạn có thể %1$s và chúng tôi sẽ làm điều đó giúp bạn. Nếu bạn không sử dụng PayPal, thì khoản thanh toán của bạn được xử lý qua Stripe, và bạn có thể hủy khoản quyên góp hoặc thay đổi số tiền tại %2$s.</string>
+  <string name="patronPage" comment="Part of longer string &quot;changeSupport&quot;, appearing right at the end:&#10;&#10;&quot;If your payments are processed by PayPal, you can cancel/change your support through your own PayPal account, or you can [contact us] and we can do it for you. If you didn't use PayPal, then your payments are processed by Stripe, and you cancel your donation or change the amount on [the patron page].&quot;">trang người bảo trợ</string>
   <string name="contactSupport">liên hệ với bộ phận hỗ trợ Lichess</string>
   <string name="otherMethods">Phương thức quyên góp khác?</string>
   <string name="lichessIsRegisteredWith">Lichess được đăng ký với %s.</string>
@@ -82,4 +82,5 @@ Tuy nhiên, Patron được quyền khoe khoang với những đôi cánh Ngư�
   <string name="paymentDetails">Chi tiết thanh toán</string>
   <string name="updatePaymentMethod">Cập nhật phương thức thanh toán</string>
   <string name="stripeManageSub">Quản lý đăng ký của bạn và tải về hóa đơn và giấy biên nhận của bạn</string>
+  <string name="coverFees">Tôi sẽ cộng thêm %s để giúp trang trải chi phí xử lý giao dịch này</string>
 </resources>

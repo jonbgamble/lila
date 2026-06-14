@@ -1,5 +1,5 @@
-import { type Prop, frag } from '@/index';
 import { clamp } from '@/algo';
+import { type Prop, frag } from '@/index';
 import { json as xhrJson } from '@/xhr';
 
 export type UpdateImageHook =
@@ -81,7 +81,7 @@ export async function wireMarkdownImgResizers({
 
         const { imageUrl } = await xhrJson(`/image-url/${link[3]}?width=${img.dataset.resizeWidth}`);
         const before = markdown.slice(0, link.index);
-        const after = markdown.slice(link.index! + link[0].length);
+        const after = markdown.slice(link.index + link[0].length);
         const newMarkdown = before + `![${link[1]}](${imageUrl})` + after;
         update.markdown(newMarkdown);
       };
@@ -112,6 +112,7 @@ export function wrapImg(arg: { img: HTMLImageElement } | { src: string; alt: str
 }
 
 export async function naturalSize(image: Blob): Promise<{ width: number; height: number }> {
+  if (image.type === 'image/svg+xml') throw 'SVG images are not supported.';
   if ('createImageBitmap' in window) return window.createImageBitmap(image);
   const objectUrl = URL.createObjectURL(image);
   const img = new Image();
@@ -124,14 +125,16 @@ export async function naturalSize(image: Blob): Promise<{ width: number; height:
   }
 }
 
-export function markdownPicfitRegex(origin: string = ''): RegExp {
+export function markdownPicfitRegex(origin = ''): RegExp {
   return new RegExp(
-    String.raw`!\[([^\n\]]*)\]\((${regexQuote(origin)}[^)\s]+[?&]path=([a-z]\w+:[a-z0-9]{12}:[a-z0-9]{8}\.\w{3,4})[^)]*)\)`,
+    String.raw`!\[([^\n\]]*)\]\((${regexQuote(
+      origin,
+    )}[^)\s]+[?&]path=((?:[a-z]\w+:)?[-_a-z0-9]{12}\.\w{3,4})[^)]*)\)`,
     'gi',
   );
 }
 
-const imageIdRe = /&path=([a-z]\w+:[a-z0-9]{12}:[a-z0-9]{8}\.\w{3,4})&/i;
+const imageIdRe = /&path=([a-z]\w+:[-_a-z0-9]{12}\.\w{3,4})&/i;
 
 async function urlUpdate(img: HTMLImageElement, update: Extract<UpdateImageHook, { url: unknown }>) {
   const imageId = img.src.match(imageIdRe)?.[1];
@@ -139,8 +142,7 @@ async function urlUpdate(img: HTMLImageElement, update: Extract<UpdateImageHook,
   const preloadImg = new Image();
   preloadImg.src = imageUrl;
   await preloadImg.decode();
-  update.url(img, imageUrl, Number(img.dataset.widthRatio)!);
-  return;
+  update.url(img, imageUrl, Number(img.dataset.widthRatio));
 }
 
 function dragHandles(img: HTMLImageElement): HTMLElement[] {

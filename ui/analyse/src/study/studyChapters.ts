@@ -1,10 +1,17 @@
-import { defined, prop, type Prop, scrollToInnerSelector } from 'lib';
+import { INITIAL_FEN } from 'chessops/fen';
+import { opposite } from 'chessops/util';
+import type Sortable from 'sortablejs';
+
+import { blurIfPrimaryClick, defined, prop, type Prop, scrollToInnerSelector } from 'lib';
+import { fenColor } from 'lib/game/chess';
 import * as licon from 'lib/licon';
-import { type VNode, bind, dataIcon, iconTag, hl } from 'lib/view';
+import { type VNode, bind, iconTag, hl, alert } from 'lib/view';
+
 import type AnalyseCtrl from '../ctrl';
 import type { StudySocketSend } from '../socket';
 import { StudyChapterEditForm } from './chapterEditForm';
 import { StudyChapterNewForm } from './chapterNewForm';
+import { federations, localizedName } from './fideFeds';
 import type {
   LocalPaths,
   StudyChapter,
@@ -14,18 +21,12 @@ import type {
   ServerNodeMsg,
   ChapterPreviewFromServer,
   ChapterId,
-  Federations,
   StudyPlayerFromServer,
   StudyPlayer,
   ChapterSelect,
   StatusStr,
 } from './interfaces';
 import type StudyCtrl from './studyCtrl';
-import { opposite } from 'chessops/util';
-import { fenColor } from 'lib/game/chess';
-import type Sortable from 'sortablejs';
-import { alert } from 'lib/view';
-import { INITIAL_FEN } from 'chessops/fen';
 
 /* read-only interface for external use */
 export class StudyChapters {
@@ -50,6 +51,7 @@ export default class StudyChaptersCtrl {
   newForm: StudyChapterNewForm;
   editForm: StudyChapterEditForm;
   localPaths: LocalPaths = {};
+  scroller = new StudyChapterScroller();
 
   constructor(
     initChapters: ChapterPreviewFromServer[],
@@ -57,12 +59,12 @@ export default class StudyChaptersCtrl {
     readonly isBroadcast: boolean,
     setTab: () => void,
     chapterConfig: (id: string) => Promise<StudyChapterConfig>,
-    private readonly federations: () => Federations | undefined,
     root: AnalyseCtrl,
+    currentChapter: () => StudyChapter,
   ) {
     this.list = new StudyChapters(this.store);
     this.loadFromServer(initChapters);
-    this.newForm = new StudyChapterNewForm(send, this.list, isBroadcast, setTab, root);
+    this.newForm = new StudyChapterNewForm(send, this.list, isBroadcast, setTab, root, currentChapter);
     this.editForm = new StudyChapterEditForm(send, chapterConfig, isBroadcast, root.redraw);
   }
 
@@ -78,14 +80,12 @@ export default class StudyChaptersCtrl {
         fen: c.fen || INITIAL_FEN,
         players: c.players ? this.convertPlayersFromServer(c.players) : undefined,
         orientation: c.orientation || 'white',
-        variant: c.variant || 'standard',
         playing: defined(c.lastMove) && c.status === '*',
         lastMoveAt: defined(c.thinkTime) ? Date.now() - 1000 * c.thinkTime : undefined,
       })),
     );
-  private convertPlayersFromServer = (players: PairOf<StudyPlayerFromServer>) => {
-    const feds = this.federations(),
-      conv: StudyPlayer[] = players.map(p => convertPlayerFromServer(p, feds));
+  private readonly convertPlayersFromServer = (players: PairOf<StudyPlayerFromServer>) => {
+    const conv: StudyPlayer[] = players.map(convertPlayerFromServer);
     return { white: conv[0], black: conv[1] };
   };
 
@@ -117,32 +117,24 @@ export default class StudyChaptersCtrl {
   hasPlayingChapter = () => this.list.all().some(c => c.playing);
 }
 
-export const convertPlayerFromServer = <A extends StudyPlayerFromServer>(
-  player: A,
-  federations?: Federations,
-) => ({
-  ...player,
-  fed: player.fed ? { id: player.fed, name: federations?.[player.fed] || player.fed } : undefined,
-});
+export const convertPlayerFromServer = <A extends StudyPlayerFromServer>(player: A) => {
+  const i18nName = player.fed && localizedName(player.fed);
+  const fedName = player.fed && federations?.[player.fed]?.[0];
+  return {
+    ...player,
+    fed: player.fed && fedName ? { id: player.fed, name: fedName, i18nName } : undefined,
+  };
+};
 
 export function isFinished(c: StudyChapter) {
   const result = findTag(c.tags, 'result');
-  return result && result !== '*';
+  return !!result && result !== '*';
 }
 
-export function findTag(tags: TagArray[], name: string): string | undefined {
-  const t = tags.find(t => t[0].toLowerCase() === name);
-  return t && t[1];
-}
+export const findTag = (tags: TagArray[], name: string) => tags.find(t => t[0].toLowerCase() === name)?.[1];
 
 export const looksLikeLichessGame = (tags: TagArray[]) =>
   !!findTag(tags, 'site')?.match(new RegExp(location.hostname + '/\\w{8}$'));
-
-export function resultOf(tags: TagArray[], isWhite: boolean): string | undefined {
-  const both = findTag(tags, 'result')?.split('-');
-  const mine = both && both.length === 2 ? both[isWhite ? 0 : 1] : undefined;
-  return mine === '1/2' ? '½' : mine;
-}
 
 export const gameLinkAttrs = (roundPath: string, game: { id: ChapterId }) => ({
   href: `${roundPath}/${game.id}`,
@@ -163,33 +155,24 @@ export const gameLinksListener = (select: ChapterSelect) => (vnode: VNode) =>
     { passive: false },
   );
 
+function onListUpdate(ctrl: StudyCtrl, vnode: VNode) {
+  const vData = vnode.data!.li!,
+    el = vnode.elm as HTMLElement;
+  ctrl.chapters.scroller.scrollIfNeeded(el);
+  if (ctrl.members.canContribute() && ctrl.chapters.list.size() > 1 && !vData.sortable) {
+    site.asset.loadEsm<typeof Sortable>('sortable.esm', { npm: true }).then(s => {
+      vData.sortable = s.create(el, {
+        draggable: '.draggable',
+        handle: 'ontouchstart' in window ? 'span' : undefined,
+        onSort: () => ctrl.chapters.sort(vData.sortable.toArray()),
+      });
+    });
+  }
+}
+
 export function view(ctrl: StudyCtrl): VNode {
   const canContribute = ctrl.members.canContribute(),
     current = ctrl.currentChapter();
-  function update(vnode: VNode) {
-    const vData = vnode.data!.li!,
-      el = vnode.elm as HTMLElement;
-    if (ctrl.vm.scrollToActiveChapter) {
-      const behavior = ctrl.vm.scrollToActiveChapter;
-      ctrl.vm.scrollToActiveChapter = false;
-      const active = el.querySelector('.active') as HTMLElement | null;
-      if (active) {
-        const [c, l] = [el.getBoundingClientRect(), active.getBoundingClientRect()];
-        if (c.top < l.top || c.bottom > l.bottom) {
-          requestAnimationFrame(() => scrollToInnerSelector(el, '.active', false, behavior));
-        }
-      }
-    }
-    if (canContribute && ctrl.chapters.list.size() > 1 && !vData.sortable) {
-      site.asset.loadEsm<typeof Sortable>('sortable.esm', { npm: true }).then(s => {
-        vData.sortable = s.create(el, {
-          draggable: '.draggable',
-          handle: 'ontouchstart' in window ? 'span' : undefined,
-          onSort: () => ctrl.chapters.sort(vData.sortable.toArray()),
-        });
-      });
-    }
-  }
 
   return hl('div.study__chapters', [
     hl(
@@ -205,13 +188,15 @@ export function view(ctrl: StudyCtrl): VNode {
                 const chapter = ctrl.chapters.list.get(id);
                 if (chapter) ctrl.chapters.editForm.toggle(chapter);
               } else ctrl.setChapter(id);
+              blurIfPrimaryClick(e);
             });
             vnode.data!.li = {};
-            update(vnode);
+            ctrl.chapters.scroller.request('instant');
+            onListUpdate(ctrl, vnode);
           },
           postpatch(old, vnode) {
             vnode.data!.li = old.data!.li;
-            update(vnode);
+            onListUpdate(ctrl, vnode);
           },
           destroy: vnode => {
             const sortable: Sortable = vnode.data!.li!.sortable;
@@ -233,16 +218,46 @@ export function view(ctrl: StudyCtrl): VNode {
             hl('span', (i + 1).toString()),
             hl('h3', chapter.name),
             chapter.status && hl('res', chapter.status),
-            canContribute &&
-              hl('i.act', { attrs: { ...dataIcon(licon.Gear), title: i18n.study.editChapter } }),
+            canContribute && iconTag(licon.Gear, { title: i18n.study.editChapter, cls: 'act' }),
           ],
         );
       }),
     ),
     ctrl.members.canContribute() &&
-      hl('button.add', { hook: bind('click', ctrl.chapters.toggleNewForm, ctrl.redraw) }, [
-        hl('span', iconTag(licon.PlusButton)),
-        hl('h3', i18n.study.addNewChapter),
-      ]),
+      hl(
+        'button.add',
+        {
+          hook: bind(
+            'click',
+            e => {
+              blurIfPrimaryClick(e);
+              ctrl.chapters.toggleNewForm();
+            },
+            ctrl.redraw,
+          ),
+        },
+        [hl('span', iconTag(licon.PlusButton)), hl('h3', i18n.study.addNewChapter)],
+      ),
   ]);
+}
+
+export class StudyChapterScroller {
+  request: Prop<ScrollBehavior | null> = prop('instant');
+  private rafId?: number;
+
+  scrollIfNeeded(list: HTMLElement) {
+    const request = this.request();
+    if (!request) return;
+    const active = list.querySelector('.active');
+    if (!active) return;
+    this.request(null);
+    const [c, l] = [list.getBoundingClientRect(), active.getBoundingClientRect()];
+    if (c.top < l.top || c.bottom > l.bottom) {
+      cancelAnimationFrame(this.rafId ?? 0);
+      this.rafId = requestAnimationFrame(() => {
+        scrollToInnerSelector(list, '.active', false, request);
+        this.rafId = undefined;
+      });
+    }
+  }
 }

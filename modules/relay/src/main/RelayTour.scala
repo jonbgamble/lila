@@ -7,9 +7,8 @@ import java.time.ZoneId
 import scalalib.model.Language
 import lila.memo.{ Dimensions, PicfitUrl }
 import lila.core.id.ImageId
-import lila.core.fide.FideTC
 import lila.core.study.Visibility
-import chess.TournamentClock
+import chess.{ FideTC, TournamentClock }
 import chess.tiebreak.Tiebreak
 
 case class RelayTour(
@@ -31,10 +30,12 @@ case class RelayTour(
     teamTable: Boolean = false,
     players: Option[RelayPlayersTextarea] = None,
     teams: Option[RelayTeamsTextarea] = None,
+    showTeamScores: Boolean = false,
     image: Option[ImageId] = None,
     dates: Option[RelayTour.Dates] = None, // denormalized from round dates
     pinnedStream: Option[RelayPinnedStream] = None,
-    note: Option[String] = None
+    note: Option[String] = None,
+    orphanWarn: Boolean = true
 ):
   def slug = name.toSlug
 
@@ -42,7 +43,7 @@ case class RelayTour(
 
   def official = tier.isDefined
 
-  def isOwnedBy[U: UserIdOf](u: U): Boolean = ownerIds.toList.contains(u.id)
+  def isOwnedBy[U: UserIdOf](u: U): Boolean = ownerIds.contains(u.id)
 
   def communityOwner: Option[UserId] = tier.isEmpty.option(ownerIds.head)
 
@@ -55,15 +56,18 @@ case class RelayTour(
           else ownerIds.filterNot(_ == UserId.broadcaster).toNel | ownerIds
       )
 
-  def path = routes.RelayTour.show(slug, id).url
+  def call = routes.RelayTour.show(slug, id)
 
   def tierIs(selector: RelayTour.Tier.Selector) = tier.has(selector(RelayTour.Tier))
 
   def isPublic = visibility == Visibility.public
   def isPrivate = visibility == Visibility.`private`
 
-  def canView(using me: Option[Me]) =
-    !isPrivate || me.exists(me => ownerIds.exists(_.is(me)))
+  def canView(using me: Option[Me]) = !isPrivate || me.so(isOwnedBy)
+
+  def daysSinceFinished =
+    import java.time.temporal.ChronoUnit
+    dates.flatMap(_.end).map(ChronoUnit.DAYS.between(_, nowInstant))
 
 object RelayTour:
 
@@ -72,6 +76,7 @@ object RelayTour:
   opaque type Name = String
   object Name extends OpaqueString[Name]:
     extension (name: Name)
+      def translate(using lila.core.i18n.Translate): String = RelayI18n(name)
       def toSlug =
         val s = scalalib.StringOps.slug(name.value)
         if s.isEmpty then "-" else s
@@ -100,16 +105,18 @@ object RelayTour:
   case class Info(
       format: Option[String],
       tc: Option[String],
-      fideTc: Option[FideTC],
+      fideTC: Option[FideTC],
       location: Option[String],
       timeZone: Option[ZoneId],
       players: Option[String],
       website: Option[URL],
-      standings: Option[URL]
+      standings: Option[URL],
+      regulations: Option[URL]
   ):
-    def nonEmpty = List(format, tc, fideTc, location, players, website, standings).exists(_.nonEmpty)
-    override def toString = List(format, tc, fideTc, location, players).flatten.mkString(" | ")
-    lazy val fideTcOrGuess: FideTC = fideTc | FideTC.standard
+    def nonEmpty =
+      List(format, tc, fideTC, location, players, website, standings, regulations).exists(_.nonEmpty)
+    override def toString = List(format, tc, fideTC, location, players).flatten.mkString(" | ")
+    lazy val fideTCOrGuess: FideTC = fideTC | FideTC.standard
     def timeZoneOrDefault: ZoneId = timeZone | ZoneId.systemDefault
     def clock: Option[TournamentClock] = tc.flatMap(TournamentClock.parse(false))
 
@@ -154,3 +161,5 @@ object RelayTour:
       picfitUrl.thumbnail(image)(size(thumbnail).dimensions)
 
   def makeId = RelayTourId(scalalib.ThreadLocalRandom.nextString(8))
+
+  private[relay] def tierPriority(t: RelayTour) = -t.tier.so(_.v)

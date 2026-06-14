@@ -1,4 +1,4 @@
-const year = 2024;
+const year = 2025;
 const dry = false;
 
 let countAll = 0;
@@ -72,7 +72,7 @@ function sendToRandomOfflinePlayers() {
     if (batch) {
       const newUsers = filterNewUsers(batch);
       newUsers.forEach(sendToUser);
-      if (countAll % 1000 == 0) {
+      if (countAll % 1000 === 0) {
         print(
           `+ ${countSent - lastPrinted} = ${countSent} / ${countAll} | ${user.createdAt.toLocaleDateString('fr')}`,
         );

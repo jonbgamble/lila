@@ -31,17 +31,18 @@ final class RelayApi(
     playerEnrich: RelayPlayerEnrich,
     studyApi: StudyApi,
     studyRepo: StudyRepo,
-    jsonView: JsonView,
+    jsonView: RelayJsonView,
     formatApi: RelayFormatApi,
     cacheApi: CacheApi,
     players: RelayPlayerApi,
+    teamLeaderboard: RelayTeamLeaderboard,
     studyPropagation: RelayStudyPropagation,
     preview: ChapterPreviewApi,
     picfitApi: PicfitApi
 )(using Executor, akka.stream.Materializer):
 
   import BSONHandlers.{ readRoundWithTour, given }
-  import JsonView.given
+  import RelayJsonView.given
 
   export groupRepo.byId as groupById
   export tourRepo.byIds as toursByIds
@@ -112,7 +113,7 @@ final class RelayApi(
     tourRepo.oldActiveCursor
       .documentSource()
       .mapAsync(1)(t => denormalizeTour(t.id))
-      .runWith(Sink.ignore)
+      .run()
       .void
 
   private def computeDates(tourId: RelayTourId): Fu[Option[RelayTour.Dates]] =
@@ -154,9 +155,9 @@ final class RelayApi(
     private val cache = cacheApi[RelayTourId, Option[RelayGroup.WithTours]](256, "relay.groupWithTours"):
       _.expireAfterWrite(1.minute).buildAsyncFuture: id =>
         for
-          group <- groupRepo.byTour(id)
-          tours <- tourRepo.previews(group.so(_.tours))
-        yield group.map(RelayGroup.WithTours(_, tours))
+          groupOpt <- groupRepo.byTour(id)
+          toursList <- tourRepo.previews(groupOpt.so(_.tours.toList))
+        yield (groupOpt, toursList.toNel).mapN(RelayGroup.WithTours.apply)
     export cache.get
     def addTo(tour: RelayTour): Fu[RelayTour.WithGroupTours] =
       get(tour.id).map(RelayTour.WithGroupTours(tour, _))
@@ -208,10 +209,14 @@ final class RelayApi(
 
   def tourCreate(data: RelayTourForm.Data)(using Me): Fu[RelayTour] =
     val tour = data.make
-    tourRepo.coll.insert.one(tour).inject(tour)
+    for
+      _ <- tourRepo.coll.insert.one(tour)
+      _ <- tour.markup.so:
+        picfitApi.addRef(_, image.markdownRef(tour), routes.RelayTour.show("-", tour.id).url.some)
+    yield tour
 
-  def tourUpdate(prev: RelayTour, data: RelayTourForm.Data)(using Me): Funit =
-    val tour = data.update(prev)
+  def tourUpdate(prev: RelayTour.WithGroupTours, data: RelayTourForm.Data)(using Me): Funit =
+    val tour = data.update(prev.tour)
     import toBSONValueOption.given
     for
       _ <- tourRepo.coll.update.one(
@@ -228,25 +233,33 @@ final class RelayApi(
           "teamTable" -> tour.teamTable.some,
           "players" -> tour.players,
           "teams" -> tour.teams,
+          "showTeamScores" -> tour.showTeamScores.some,
           "spotlight" -> tour.spotlight,
           "ownerIds" -> tour.ownerIds.some,
           "pinnedStream" -> tour.pinnedStream,
-          "note" -> tour.note
+          "note" -> tour.note,
+          "orphanWarn" -> tour.orphanWarn.some
         )
       )
-      _ <- data.grouping.so(updateGrouping(tour, _))
-      _ <- playerEnrich.onPlayerTextareaUpdate(tour, prev)
-      _ <- (tour.visibility != prev.visibility).so(studyPropagation.onVisibilityChange(tour))
+      _ <- updateGrouping(prev, data.grouping)
+      _ <- playerEnrich.onPlayerTextareaUpdate(tour, prev.tour)
+      _ <- (tour.visibility != prev.tour.visibility).so(studyPropagation.onVisibilityChange(tour))
+      _ <- tour.markup.so:
+        picfitApi.addRef(_, image.markdownRef(tour), routes.RelayTour.show("-", tour.id).url.some)
       studyIds <- roundRepo.studyIdsOf(tour.id)
     yield
       players.invalidate(tour.id)
+      teamLeaderboard.invalidate(tour.id)
       studyIds.foreach(preview.invalidate)
-      (tour.id :: data.grouping.so(_.tourIds)).foreach(withTours.invalidate)
+      (tour.id :: data.grouping.tourIds).foreach(withTours.invalidate)
 
-  private def updateGrouping(tour: RelayTour, data: RelayGroupData)(using me: Me): Funit =
-    (Granter(_.Relay) || !tour.official).so:
-      val canGroup = fuccess(Granter(_.StudyAdmin)) >>| tourRepo.isOwnerOfAll(me.userId, data.tourIds)
-      canGroup.flatMapz(groupRepo.update(tour.id, data))
+  private def updateGrouping(tour: RelayTour.WithGroupTours, data: RelayGroupData)(using me: Me): Funit =
+    for
+      isOwner <- fuccess(Granter(_.StudyAdmin)) >>| tourRepo.isOwnerOfAll(me.userId, data.tourIds)
+      hasOfficial <- tourRepo.hasOfficial(data.tourIds ::: tour.group.so(_.tours.map(_.id).toList))
+      canGroup = isOwner && (!hasOfficial || Granter(_.Relay))
+      _ <- canGroup.so(groupRepo.update(tour.tour.id, data))
+    yield ()
 
   def create(data: RelayRoundForm.Data, tour: RelayTour)(using me: Me): Fu[RelayRound.WithTourAndStudy] = for
     last <- roundRepo.lastByTour(tour)
@@ -333,7 +346,9 @@ final class RelayApi(
           ("startsAt", _.startsAt),
           ("startedAt", _.startedAt),
           ("finishedAt", _.finishedAt),
-          ("customScoring", _.customScoring)
+          ("customScoring", _.customScoring),
+          ("teamCustomScoring", _.teamCustomScoring),
+          ("fideTCOverride", _.fideTCOverride)
         )
         _ <- roundRepo.coll.update.one($id(round.id), $set(setters) ++ unsets).void
         _ <- (round.sync.playing != from.sync.playing)
@@ -344,6 +359,9 @@ final class RelayApi(
         _ <- (!round.isFinished && updated.startsAt != from.startsAt).so:
           autoStart(round.id.some)
       yield
+        if round.ratingAndScoringFields != from.ratingAndScoringFields then
+          players.invalidate(round.tourId)
+          teamLeaderboard.invalidate(round.tourId)
         round.sync.log.events.lastOption
           .ifTrue(round.sync.log != from.sync.log)
           .foreach: event =>
@@ -376,7 +394,9 @@ final class RelayApi(
         _ <- old.hasStartedEarly.so:
           roundRepo.coll.unsetField($id(relay.id), "startedAt").void
         _ <- roundRepo.coll.update.one($id(relay.id), $set("sync.log" -> $arr()))
-      yield players.invalidate(relay.tourId)
+      yield
+        teamLeaderboard.invalidate(relay.tourId)
+        players.invalidate(relay.tourId)
     } >> requestPlay(old.id, v = true, "reset")
 
   def deleteRound(roundId: RelayRoundId): Fu[Option[RelayTour]] =
@@ -392,7 +412,9 @@ final class RelayApi(
         _ <- tourRepo.delete(tour)
         rounds <- roundRepo.idsByTourOrdered(tour.id)
         _ <- roundRepo.deleteByTour(tour)
-        _ <- rounds.map(_.into(StudyId)).sequentiallyVoid(studyApi.deleteById)
+        _ <- rounds.map(_.studyId).sequentiallyVoid(studyApi.deleteById)
+        _ <- picfitApi.pullRef(image.markdownRef(tour))
+        _ <- picfitApi.pullRef(image.headRef(tour, none))
       yield true
 
   def canUpdate(tour: RelayTour)(using me: Me): Fu[Boolean] =
@@ -412,7 +434,8 @@ final class RelayApi(
       ownerIds = NonEmptyList.one(me.userId),
       createdAt = nowInstant,
       syncedAt = none,
-      visibility = if from.official then lila.core.study.Visibility.`private` else from.visibility
+      visibility = if from.official then lila.core.study.Visibility.`private` else from.visibility,
+      spotlight = from.spotlight.map(_.copy(enabled = false))
     )
     for
       _ <- tourRepo.coll.insert.one(tour)
@@ -420,7 +443,7 @@ final class RelayApi(
         .byTourOrderedCursor(from.id)
         .documentSource()
         .mapAsync(1)(cloneWithStudy(_, tour))
-        .runWith(Sink.ignore)
+        .run()
     yield tour
 
   private def cloneWithStudy(from: RelayRound, to: RelayTour)(using me: Me): Fu[RelayRound] =
@@ -472,25 +495,26 @@ final class RelayApi(
   export roundRepo.nextRoundThatStartsAfterThisOneCompletes
 
   object image:
-    def rel(rt: RelayTour, tag: Option[String]) =
-      tag.fold(s"relay:${rt.id}")(t => s"relay.$t:${rt.id}")
+    private[RelayApi] def markdownRef(rt: RelayTour) = s"relay:${rt.id}"
+    private[RelayApi] def headRef(rt: RelayTour, tag: Option[String]) =
+      tag.fold(s"relayHead:${rt.id}")(t => s"relayHead.$t:${rt.id}")
 
     def upload(
         t: RelayTour,
         picture: PicfitApi.FilePart,
         tag: Option[String] = None
     )(using me: Me): Fu[RelayTour] = for
-      image <- picfitApi.uploadFile(rel(t, tag), picture, userId = me.userId)
+      image <- picfitApi.uploadFile(picture, userId = me.userId, headRef(t, tag).some)
       _ <- tourRepo.coll.updateField($id(t.id), tag.getOrElse("image"), image.id)
     yield t.copy(image = image.id.some)
 
-    def delete(t: RelayTour, tag: Option[String] = None): Fu[RelayTour] = for
-      _ <- picfitApi.deleteByRel(rel(t, tag))
+    def delete(t: RelayTour, tag: Option[String] = None)(using me: Me): Fu[RelayTour] = for
+      _ <- picfitApi.pullRef(headRef(t, tag))
       _ <- tourRepo.coll.unsetField($id(t.id), tag.getOrElse("image"))
     yield t.copy(image = none)
 
   private[relay] def autoStart(only: Option[RelayRoundId] = none): Funit =
-    roundRepo.coll
+    roundRepo.coll.secondary
       .list[RelayRound](
         $doc(
           "startsAt"
@@ -498,6 +522,7 @@ final class RelayApi(
             .$lt(nowInstant.plusSeconds(RelayDelay.maxSeconds.value))
             .$gt(nowInstant.minusDays(1)), // bit late now
           "startedAt".$exists(false),
+          "finishedAt".$exists(false),
           "sync.upstream".$exists(true),
           $or("sync.until".$exists(false), "sync.until".$lt(nowInstant))
         ) ++ only.so($id(_))
@@ -535,7 +560,7 @@ final class RelayApi(
   private[relay] def onStudyRemove(studyId: StudyId) =
     roundRepo.coll.delete.one($id(studyId.into(RelayRoundId))).void
 
-  private[relay] def becomeStudyAdmin(studyId: StudyId, me: Me): Funit =
+  def becomeStudyAdmin(studyId: StudyId, me: Me): Funit =
     roundRepo
       .tourIdByStudyId(studyId)
       .flatMapz: tourId =>
@@ -544,9 +569,20 @@ final class RelayApi(
           .flatMap:
             _.sequentiallyVoid(studyApi.becomeAdmin(_, me))
 
+  private[relay] def setOwnerOfGroupOrTour(anyId: String, userId: UserId): Fu[List[RelayTourId]] =
+    for
+      tourIds <- groupRepo
+        .byId(RelayGroupId(anyId))
+        .map2(_.tours.toList)
+        .orElse(tourRepo.byId(RelayTourId(anyId)).map2(_.id :: Nil))
+        .map(_.orZero)
+      _ <- tourRepo.addOwnerToTours(tourIds, userId)
+      _ <- tourIds.sequentiallyVoid(studyPropagation.onOwnerChange(_, userId))
+    yield tourIds
+
   private def sendToContributors(id: RelayRoundId, t: String, msg: JsObject): Funit =
     studyApi
-      .members(id.into(StudyId))
+      .members(id.studyId)
       .map:
         _.map(_.contributorIds).withFilter(_.nonEmpty).foreach { userIds =>
           import lila.core.socket.SendTos

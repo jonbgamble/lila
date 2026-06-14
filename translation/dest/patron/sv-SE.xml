@@ -3,7 +3,7 @@
   <string name="donate">Donera</string>
   <string name="donateAsX">Donera som %s</string>
   <string name="lichessPatron">Lichess-donator</string>
-  <string name="patronSince" comment="%s is a date e.g. &quot;21 Jan 2025&quot;,&#10;meaning the final text would be something like &quot;Patron since 21 Jan 2025&quot;.">Beskyddare sedan %s</string>
+  <string name="patronSince" comment="string is a date">Beskyddare sedan %s</string>
   <string name="freeAccount">Gratis konto</string>
   <string name="becomePatron">Bli en Lichess Patron</string>
   <string name="xBecamePatron">%s blev en Lichess Patron</string>
@@ -40,8 +40,6 @@ Sedan betalar vi en heltidsutvecklare: %s, grundaren av Lichess.</string>
   <string name="officialNonProfit">Är Lichess en officiell ideell organisation?</string>
   <string name="actOfCreation">Ja, här är den skapande handlingen (på franska)</string>
   <string name="changeMonthlySupport">Kan jag ändra/avbryta mitt månatliga bidrag?</string>
-  <string name="changeOrContact">Ja, när som helst, från den här sidan.
-Eller så kan du %s.</string>
   <string name="contactSupport">kontakta Lichess support</string>
   <string name="otherMethods">Andra metoder för donation?</string>
   <string name="lichessIsRegisteredWith">Lichess är registrerad till %s.</string>

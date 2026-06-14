@@ -1,8 +1,8 @@
+import { requestIdleCallbackSafe } from 'lib';
 import * as licon from 'lib/licon';
-import { text as xhrText } from 'lib/xhr';
-import { requestIdleCallback } from 'lib';
-import { spinnerHtml } from 'lib/view';
 import { pubsub } from 'lib/pubsub';
+import { spinnerHtml } from 'lib/view';
+import { text as xhrText } from 'lib/xhr';
 
 // Thanks Steven Benner! - adapted from https://github.com/stevenbenner/jquery-powertip
 
@@ -25,7 +25,8 @@ const userPowertip = (el: HTMLElement, pos?: PowerTip.Placement) =>
     .removeClass('ulpt')
     .powerTip({
       preRender: onPowertipPreRender('powerTip', (url: string) => {
-        const u = url.slice(3);
+        const u = url.split('@/')[1];
+        if (!u) return;
         const name = el.dataset.name || $(el).html();
         $('#powerTip').html(
           '<div class="upt__info"><div class="upt__info__top"><span class="user-link offline">' +
@@ -47,6 +48,7 @@ const gamePowertip = (el: HTMLElement) =>
     .powerTip({
       preRender: onPowertipPreRender('miniGame', () => spinnerHtml),
       placement: inCrosstable(el) ? 'n' : 'w',
+      defaultSize: [264, 264],
       popupId: 'miniGame',
     });
 
@@ -57,7 +59,7 @@ function powerTipWith(el: HTMLElement, ev: Event, f: (el: HTMLElement) => void) 
 }
 
 function onIdleForAll(par: HTMLElement, sel: string, f: (el: HTMLElement) => void) {
-  requestIdleCallback(
+  requestIdleCallbackSafe(
     () => Array.prototype.forEach.call(par.querySelectorAll(sel), (el: HTMLElement) => f(el)), // do not codegolf to `f`
     800,
   );
@@ -93,7 +95,9 @@ interface WithTooltip extends HTMLElement {
   forcedOpen: boolean;
 }
 
-const session: { [key: string]: any; scoped: { [key: string]: any } } = {
+type ScopedData = Record<string, any>;
+
+const session: { scoped: ScopedData } & Record<string, any> = {
   // for each popupId
   scoped: {
     // isTipOpen: false,
@@ -133,8 +137,8 @@ $.fn.powerTip = function (opts) {
   const options = Object.assign({}, defaults, opts) as Options,
     tipController = new TooltipController(options);
 
-  // hook mouse and viewport dimension tracking
-  initTracking();
+  // hook mouse and viewport dimension tracking, causes layout reflow
+  requestIdleCallbackSafe(() => initTracking());
 
   // setup the elements
   this.each((_, el: WithTooltip) => {
@@ -153,10 +157,10 @@ $.fn.powerTip = function (opts) {
   // attach events to matched elements if the manual options is not enabled
   this.on({
     // mouse events
-    mouseenter: function (event) {
+    mouseenter(event) {
       $.powerTip.show(this, event);
     },
-    mouseleave: function () {
+    mouseleave() {
       $.powerTip.hide(this);
     },
   });
@@ -164,9 +168,7 @@ $.fn.powerTip = function (opts) {
   return this;
 };
 
-interface Options extends PowerTip.Options {
-  defaultSize: [number, number];
-}
+type Options = PowerTip.Options & Required<Pick<PowerTip.Options, 'defaultSize'>>;
 
 const defaults: Options = {
   popupId: 'powerTip',
@@ -179,7 +181,7 @@ const defaults: Options = {
   offset: 10,
 };
 
-const smartPlacementLists: { [key: string]: string[] } = {
+const smartPlacementLists: Record<PowerTip.BasePlacement, string[]> = {
   n: ['n', 'ne', 'nw', 's', 'se', 'sw', 'e', 'w'],
   e: ['e', 'ne', 'se', 'w', 'nw', 'sw', 'n', 's'],
   s: ['s', 'se', 'sw', 'n', 'ne', 'nw', 'e', 'w'],
@@ -238,7 +240,7 @@ function cssCoordinates(): Coords {
 // displaycontroller.js
 
 class DisplayController {
-  scoped: { [key: string]: any } = {};
+  scoped: ScopedData = {};
   hoverTimer?: Timeout;
   el: WithTooltip;
 
@@ -328,9 +330,9 @@ function placementCalculator() {
     ) {
       placement = site.powertip.forcePlacementHook?.(element[0]!) ?? placement;
 
-      const placementBase = placement.split('-')[0], // ignore 'alt' for corners
-        coords = cssCoordinates(),
-        position = getHtmlPlacement(element, placementBase);
+      const placementBase = placement.split('-')[0]; // ignore 'alt' for corners
+      const coords = cssCoordinates();
+      const position = getHtmlPlacement(element, placementBase);
 
       // calculate the appropriate x and y position in the document
       switch (placement) {
@@ -372,11 +374,11 @@ function placementCalculator() {
   };
 
   function getHtmlPlacement(element: Cash, placement: string) {
-    const objectOffset = element.offset()!,
-      objectWidth = element.outerWidth(),
-      objectHeight = element.outerHeight();
-    let left = 0,
-      top = 0;
+    const objectOffset = element.offset()!;
+    const objectWidth = element.outerWidth();
+    const objectHeight = element.outerHeight();
+    let left = 0;
+    let top = 0;
 
     // calculate the appropriate x and y position in the document
     switch (placement) {
@@ -421,7 +423,7 @@ function placementCalculator() {
 // tooltipcontroller.js
 
 class TooltipController {
-  scoped: { [key: string]: any };
+  scoped: ScopedData;
   tipElement: Cash;
   placementCalculator = placementCalculator();
 
@@ -479,20 +481,19 @@ class TooltipController {
       return;
     }
 
-    this.tipElement.empty();
+    // set tooltip position
+    this.resetPosition(element);
 
     // trigger powerTipPreRender event
     if (this.options.preRender) {
+      this.tipElement.empty();
       this.options.preRender($as(element));
     }
 
     this.scoped.activeHover = element;
     this.scoped.isTipOpen = true;
 
-    // set tooltip position
-    this.resetPosition(element);
-
-    this.tipElement.show();
+    this.tipElement.css('visibility', 'visible');
 
     // start desync polling
     if (!this.scoped.desyncTimeout) {
@@ -514,42 +515,51 @@ class TooltipController {
     $as<WithTooltip>(element).forcedOpen = false;
 
     // fade out
-    this.tipElement.hide();
+    this.tipElement.css('visibility', 'hidden');
+    // move outside of viewport to hide `position: absolute` elements it contains
     const coords = cssCoordinates();
+    coords.top = -9999;
+    coords.left = -9999;
+    this.tipElement.css(coords);
 
     // reset session and tooltip element
     this.scoped.isClosing = false;
     this.tipElement.removeClass();
-
-    // support mouse-follow and fixed position tips at the same time by
-    // moving the tooltip to the last cursor location after it is hidden
-    coords.top = session.currentY + this.options.offset!;
-    coords.left = session.currentX + this.options.offset!;
-    this.tipElement.css(coords);
   }
 
+  isBasePlacement = (p: string): p is PowerTip.BasePlacement => p in smartPlacementLists;
+
   resetPosition(element: Cash) {
-    if (this.options.smartPlacement) {
-      let priorityList = smartPlacementLists[this.options.placement!];
-      if ($as<WithTooltip>(element).classList.contains('mobile-powertip'))
+    const { placement, defaultSize } = this.options;
+
+    if (this.options.smartPlacement && placement && this.isBasePlacement(placement)) {
+      let priorityList = smartPlacementLists[placement];
+      if ($as<WithTooltip>(element).classList.contains('mobile-powertip')) {
         priorityList = [...priorityList, 's']; // so that 's' is used in case all are incorrectly judged as collisions on phones
+      }
+      const elementWidth = this.tipElement.outerWidth() || defaultSize[0];
+      const elementHeight = this.tipElement.outerHeight() || defaultSize[1];
       // iterate over the priority list and use the first placement option
       // that does not collide with the view port. If they all collide
       // then the last placement in the list will be used.
-      $.each(priorityList, (_, pos: PowerTip.Placement) => {
+      $.each(priorityList, (_, pos: PowerTip.BasePlacement) => {
         // place tooltip and find collisions
-        const collisions = getViewportCollisions(
-          this.placeTooltip(element, pos),
-          this.tipElement.outerWidth() || this.options.defaultSize[0],
-          this.tipElement.outerHeight() || this.options.defaultSize[1],
-        );
+        const coords = this.placeTooltip(element, pos);
+        const collisions = getViewportCollisions(coords, elementWidth, elementHeight);
+        // only attempt to nudge when the issue is horizontal overflow
+        if (collisions & (Collision.left | Collision.right)) {
+          const nudged = nudgeToFit(coords, collisions, elementWidth);
+          if (nudged) {
+            this.tipElement.css(nudged);
+            return false; // stop iterating – nudge is good enough
+          }
+        }
         // continue/break if there were/weren't collisions (cash loop mechanism):
         return collisions !== Collision.none;
       });
     } else {
-      // if we're not going to use the smart placement feature then just
-      // compute the coordinates and do it
-      this.placeTooltip(element, this.options.placement!);
+      // if placement is not a base placement (or smartPlacement is off), use regular (non-smart) logic
+      this.placeTooltip(element, placement!);
     }
   }
 
@@ -558,11 +568,6 @@ class TooltipController {
       tipWidth,
       tipHeight,
       coords = cssCoordinates();
-
-    // set the tip to 0,0 to get the full expanded width
-    coords.top = 0;
-    coords.left = 0;
-    this.tipElement.css(coords);
 
     // to support elastic tooltips we need to check for a change in the
     // rendered dimensions after the tooltip has been positioned
@@ -689,6 +694,34 @@ function isMouseOver(element: Cash) {
     session.currentY >= elementPosition.top &&
     session.currentY <= elementPosition.top + element.outerHeight()
   );
+}
+
+/**
+ * Try to shift `coords` along the colliding horizontal axis so the tooltip fits
+ * inside the viewport without changing its preferred placement mode.
+ *
+ * Strategy: only nudge when the required shift is ≤ half the tip's dimension
+ * on that axis – this keeps the tooltip visually "anchored" to its preferred
+ * side.
+ */
+function nudgeToFit(coords: Coords, collisions: number, tipWidth: number): Coords | null {
+  const hasHoriz = collisions & (Collision.left | Collision.right);
+  const nudged: Coords = { ...coords };
+  const EDGE_OFFSET = 4;
+
+  if (hasHoriz && typeof coords.left === 'number') {
+    const vLeft = session.scrollLeft;
+    const vRight = session.scrollLeft + session.windowWidth;
+    if (collisions & Collision.left) {
+      if (vLeft - coords.left > tipWidth / 2) return null;
+      nudged.left = vLeft - EDGE_OFFSET; // shift right
+    } else {
+      if (coords.left + tipWidth - vRight > tipWidth / 2) return null;
+      nudged.left = vRight - tipWidth - EDGE_OFFSET; // shift left
+    }
+  }
+
+  return nudged;
 }
 
 function getViewportCollisions(coords: Coords, elementWidth: number, elementHeight: number) {

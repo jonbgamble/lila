@@ -1,13 +1,16 @@
 import { h, type VNode } from 'snabbdom';
-import * as licon from 'lib/licon';
-import type { Notification, Renderer, Renderers } from './interfaces';
+
 import { timeago } from 'lib/i18n';
+import * as licon from 'lib/licon';
+import { iconTag } from 'lib/view';
+
+import type { Notification, Renderer, Renderers } from './interfaces';
 
 export default function makeRenderers(): Renderers {
   return {
     streamStart: {
       html: n =>
-        generic(n, `/streamer/${n.content.sid}/redirect`, licon.Mic, [
+        generic(n, `/streamer/${n.content.sid}?redirect=1`, licon.Mic, [
           h('span', [h('strong', n.content.name), drawTime(n)]),
           h('span', i18n.site.startedStreaming),
         ]),
@@ -142,12 +145,16 @@ export default function makeRenderers(): Renderers {
     irwinDone: jobDone('Irwin'),
     kaladinDone: jobDone('Kaladin'),
     recap: {
-      html: n =>
-        generic(n, '/recap', licon.Logo, [
-          h('span', h('strong', `Your ${n.content.year} recap is ready!`)),
-          h('span', 'What have you been up to this year?'),
-        ]),
-      text: n => `Your ${n.content.year} recap is ready!`,
+      html: n => {
+        site.asset.loadI18n('recap');
+        const title = i18n.recap?.recapReady?.(n.content.year) || `Your ${n.content.year} recap is ready!`;
+        const text = i18n.recap?.awaitQuestion || 'What have you been up to this year?';
+        return generic(n, '/recap', licon.Logo, [h('span', h('strong', title)), h('span', text)]);
+      },
+      text: n => {
+        site.asset.loadI18n('recap');
+        return i18n.recap?.recapReady?.(n.content.year) || `Your ${n.content.year} recap is ready!`;
+      },
     },
   };
 }
@@ -161,14 +168,14 @@ const jobDone = (name: string): Renderer => ({
   text: n => `${n.content.user!.name}: ${name} job complete!`,
 });
 
-function generic(n: Notification, url: string | undefined, icon: string, content: VNode[]): VNode {
+function generic(n: Notification, url: string | undefined, icon: LiconType, content: VNode[]): VNode {
   return h(
     url ? 'a' : 'span',
     {
       class: { site_notification: true, [n.type]: true, new: !n.read },
       attrs: { key: n.date, ...(url ? { href: url } : {}) },
     },
-    [h('i', { attrs: { 'data-icon': icon } }), h('span.content', content)],
+    [iconTag(icon), h('span.content', content)],
   );
 }
 

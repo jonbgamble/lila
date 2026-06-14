@@ -1,5 +1,7 @@
-import { script as xhrScript } from 'lib/xhr';
+import { COLORS } from 'chessops';
+
 import { memoize } from 'lib';
+import { script as xhrScript } from 'lib/xhr';
 
 export const baseUrl = memoize(() => document.body.getAttribute('data-asset-url') || '');
 
@@ -52,17 +54,14 @@ export const removeCss = (href: string) => $(`head > link[href="${href}"]`).remo
 
 export const removeCssPath = (key: string) => $(`head > link[data-css-key="${key}"]`).remove();
 
-export const jsModule = (name: string, prefix: string = 'compiled/') => {
+export const jsModule = (name: string, prefix = 'compiled/') => {
   if (name.endsWith('.js')) name = name.slice(0, -3);
   const hash = site.manifest.js[name];
   return `${prefix}${name}${hash ? `.${hash}` : ''}.js`;
 };
 
-const scriptCache = new Map<string, Promise<void>>();
-
 export const loadIife = (u: string, opts: AssetUrlOpts = {}): Promise<void> => {
-  if (!scriptCache.has(u)) scriptCache.set(u, xhrScript(url(u, opts)));
-  return scriptCache.get(u)!;
+  return xhrScript(url(u, opts));
 };
 
 export async function loadEsm<T>(name: string, opts: EsmModuleOpts = {}): Promise<T> {
@@ -80,6 +79,11 @@ export const loadEsmPage = async (name: string) => {
   module.initModule ? module.initModule(opts) : module.default(opts);
 };
 
+export const loadI18n = async (catalog: string) => {
+  await import(document.body.dataset.i18nCatalog!);
+  await import(url(`compiled/i18n/${catalog}.${window.site.manifest.i18n![catalog]}.js`));
+};
+
 export function embedChessground() {
   return import(url('npm/chessground.min.js'));
 }
@@ -87,8 +91,9 @@ export function embedChessground() {
 export const loadPieces = new Promise<void>((resolve, reject) => {
   if (document.getElementById('main-wrap')?.classList.contains('is3d')) return resolve();
   const style = window.getComputedStyle(document.body);
-  const urls = ['white', 'black']
-    .flatMap(c => ['pawn', 'knight', 'bishop', 'rook', 'queen', 'king'].map(r => `---${c}-${r}`))
+  const urls = COLORS.flatMap(c =>
+    ['pawn', 'knight', 'bishop', 'rook', 'queen', 'king'].map(r => `---${c}-${r}`),
+  )
     .map(
       u =>
         style

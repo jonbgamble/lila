@@ -1,4 +1,4 @@
-/* eslint no-restricted-syntax:"error" */ // no side effects allowed due to re-export by index.ts
+// no side effects allowed due to re-export by index.ts
 
 import {
   type VNode,
@@ -50,14 +50,34 @@ export const bindNonPassive = <K extends keyof GlobalEventHandlersEventMap>(
 ): Hooks => bind(eventName, f, redraw, false);
 
 export function bindSubmit(f: (e: SubmitEvent) => unknown, redraw?: () => void): Hooks {
-  return bind('submit', e => (e.preventDefault(), f(e)), redraw, false);
+  return bind(
+    'submit',
+    e => {
+      e.preventDefault();
+      f(e);
+    },
+    redraw,
+    false,
+  );
 }
 
-export const dataIcon = (icon: string): Attrs => ({
+export const dataIcon = (icon: LiconType): Attrs => ({
   'data-icon': icon,
 });
 
-export const iconTag = (icon: string): VNode => snabH('i', { attrs: dataIcon(icon) });
+export const testId = (id: string): Attrs => (site.debug ? { 'data-testid': id } : {});
+
+export const iconTag = (icon: LiconType, attrs?: Attrs & { cls?: string }): VNode => {
+  let sel = 'icon';
+  if (attrs?.cls) {
+    sel += '.' + attrs.cls;
+    delete attrs.cls;
+  }
+  return snabH(sel, { attrs: { ...attrs, ...dataIcon(icon) } });
+};
+
+export const iconCls = (icon: LiconType, cls: string): VNode =>
+  snabH('icon.' + cls, { attrs: dataIcon(icon) });
 
 export type LooseVNode = VNodeChildElement | boolean;
 export type LooseVNodes = LooseVNode | LooseVNodes[];
@@ -90,3 +110,15 @@ const flattenKids = (maybeArray: LooseVNodes, out: LooseVNode[]) => {
 };
 
 export const noTrans: (s: string) => VNode = s => snabH('span', { attrs: { lang: 'en' } }, s);
+
+export const requiresI18n = <Cat extends keyof I18n>(
+  catalog: Cat,
+  redraw: Redraw,
+  render: (cat: I18n[Cat]) => VNode,
+): VNode => {
+  if (!window.i18n[catalog]) {
+    site.asset.loadI18n(catalog).then(redraw);
+    return snabH('span', '...');
+  }
+  return render(window.i18n[catalog]);
+};

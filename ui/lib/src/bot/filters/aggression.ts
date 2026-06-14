@@ -1,7 +1,9 @@
 import * as co from 'chessops';
-import type { SearchMove, MoveArgs } from '../types';
-import type { FilterResult, FilterSpec } from '../filter';
+
 import { normalMove } from '@/game';
+
+import type { FilterResult, FilterSpec } from '../filter';
+import type { SearchMove, MoveArgs } from '../types';
 
 export const aggression: FilterSpec = {
   info: {

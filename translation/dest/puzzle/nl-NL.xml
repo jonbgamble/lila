@@ -8,11 +8,11 @@
   <string name="advanced">Geavanceerd</string>
   <string name="lengths">Duur</string>
   <string name="mates">Schaakmat</string>
+  <string name="mateThemes">Matsituaties</string>
   <string name="goals">Doelen</string>
   <string name="origin">Herkomst</string>
   <string name="specialMoves">Speciale zetten</string>
   <string name="didYouLikeThisPuzzle">Vond je deze puzzel leuk?</string>
-  <string name="voteToLoadNextOne">Stem om de volgende te laden!</string>
   <string name="upVote">Puzzel leuk vinden</string>
   <string name="downVote">Puzzel niet leuk vinden</string>
   <string name="yourPuzzleRatingWillNotChange">Je puzzelrating zal niet veranderen: puzzels zijn geen competitie. De rating helpt bij het selecteren van de beste puzzels voor je huidige vaardigheid.</string>
@@ -36,7 +36,7 @@
   <string name="notTheMove">Dat is niet de juiste zet!</string>
   <string name="trySomethingElse">Probeer iets anders.</string>
   <string name="ratingX">Rating: %s</string>
-  <string name="hidden">verborgen</string>
+  <string name="hidden">Verborgen</string>
   <plurals name="playedXTimes">
     <item quantity="one">%s keer gespeeld</item>
     <item quantity="other">%s keer gespeeld</item>

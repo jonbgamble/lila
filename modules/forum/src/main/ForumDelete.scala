@@ -1,7 +1,5 @@
 package lila.forum
 
-import akka.stream.scaladsl.*
-
 import lila.common.Bus
 import lila.core.forum.BusForum
 import lila.core.perm.Granter as MasterGranter
@@ -11,7 +9,8 @@ final class ForumDelete(
     topicRepo: ForumTopicRepo,
     postApi: ForumPostApi,
     topicApi: ForumTopicApi,
-    categApi: ForumCategApi
+    categApi: ForumCategApi,
+    picfitApi: lila.memo.PicfitApi
 )(using Executor, akka.stream.Materializer):
 
   def allByUser(user: User)(using Me): Funit =
@@ -20,11 +19,13 @@ final class ForumDelete(
       .documentSource()
       .mapAsyncUnordered(4): post =>
         postApi.viewOf(post).flatMap(_.so(deletePost))
-      .runWith(Sink.ignore)
+      .run()
       .void
 
   def deleteTopic(view: PostView)(using Me): Funit =
     for
+      ids <- postRepo.idsByTopicId(view.topic.id)
+      _ <- ids.traverse(id => picfitApi.pullRef(picRef(id)))
       _ <- postRepo.removeByTopic(view.topic.id)
       _ <- topicRepo.remove(view.topic)
       _ <- categApi.denormalize(view.categ)
@@ -37,6 +38,7 @@ final class ForumDelete(
         if _ then deleteTopic(view)
         else
           for
+            _ <- picfitApi.pullRef(picRef(view.post.id))
             _ <- postRepo.remove(view.post)
             _ <- topicApi.denormalize(view.topic)
             _ <- categApi.denormalize(view.categ)

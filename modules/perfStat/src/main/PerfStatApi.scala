@@ -3,9 +3,10 @@ package lila.perfStat
 import chess.IntRating
 import lila.core.perf.{ PerfId, UserWithPerfs }
 import lila.core.perm.Granter
+import lila.core.rating.UserRankMap
 import lila.rating.Glicko.minRating
 import lila.rating.PerfExt.established
-import lila.rating.{ PerfType, UserRankMap }
+import lila.rating.PerfType
 import lila.rating.PerfType.GamePerf
 
 case class PerfStatData(
@@ -39,7 +40,7 @@ final class PerfStatApi(
           .withPerfs(name.id)
           .flatMap:
             _.filter: u =>
-              (u.enabled.yes && (!u.lame || me.exists(_.is(u.user)))) || me.soUse(Granter(_.UserModView))
+              (u.enabled.yes && (!u.lame || me.exists(_.is(u.user)))) || me.soUse(Granter(_.AccountInfo))
             .filter: u =>
               !u.isBot || (perfKey != PerfKey.ultraBullet)
             .traverse: u =>

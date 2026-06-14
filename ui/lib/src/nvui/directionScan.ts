@@ -1,5 +1,6 @@
 import type { Pieces, Pos } from '@lichess-org/chessground/types';
 import { key2pos, pos2key } from '@lichess-org/chessground/util';
+
 import { keyFromAttrs, type MoveStyle, renderKey, transPieceStr } from './chess';
 
 const directions = ['top', 'topRight', 'right', 'bottomRight', 'bottom', 'bottomLeft', 'left', 'topLeft'];
@@ -50,12 +51,12 @@ export function scanDirectionsHandler(pov: Color, pieces: Pieces, style: MoveSty
   return (ev: KeyboardEvent): void => {
     const target = ev.target as HTMLElement;
     const originKey = keyFromAttrs(target) as Key;
-    const currentDirection: Direction | null = target.getAttribute('ray') as Direction | null;
+    const currentDirection: Direction | null = target.getAttribute('ray');
 
     let nextRay: Key[] = [];
     let nextDirectionIndex = 0;
 
-    if (currentDirection == null) {
+    if (currentDirection === null) {
       nextDirectionIndex = ev.altKey ? 0 : 1;
     } else {
       nextDirectionIndex = directions.indexOf(currentDirection);
@@ -66,7 +67,7 @@ export function scanDirectionsHandler(pov: Color, pieces: Pieces, style: MoveSty
 
     for (let i = 0; i < 4; i++) {
       const rayKeys = getKeysOnRay(originKey, directions[nextDirectionIndex], pov);
-      if (rayKeys.length == 0) {
+      if (rayKeys.length === 0) {
         nextDirectionIndex = (nextDirectionIndex + (ev.shiftKey ? 6 : 2)) % 8;
       } else {
         nextRay = rayKeys;

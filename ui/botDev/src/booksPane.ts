@@ -1,11 +1,13 @@
-import { Pane, RangeSetting } from './pane';
-import * as licon from 'lib/licon';
-import { frag } from 'lib';
-import type { PaneArgs, BooksInfo, RangeInfo } from './devTypes';
-import type { Book } from 'lib/bot/types';
-import { renderRemoveButton } from './devUtil';
-import { env } from './devEnv';
 import { opposite } from 'chessops';
+
+import { frag } from 'lib';
+import type { Book } from 'lib/bot/types';
+import * as licon from 'lib/licon';
+
+import { env } from './devEnv';
+import type { PaneArgs, BooksInfo, RangeInfo } from './devTypes';
+import { renderRemoveButton } from './devUtil';
+import { Pane, RangeSetting } from './pane';
 
 export class BooksPane extends Pane {
   info: BooksInfo;
@@ -13,14 +15,12 @@ export class BooksPane extends Pane {
   constructor(p: PaneArgs) {
     super(p);
     this.label?.prepend(
-      frag(`<i role="button" tabindex="0" data-icon="${licon.PlusButton}" data-action="add">`),
+      frag(`<icon role="button" tabindex="0" data-icon="${licon.PlusButton}" data-action="add">`),
     );
     this.template = {
       type: 'range',
       class: ['setting', 'book'],
-      ...Object.fromEntries(
-        [...Object.entries((p.info as BooksInfo).template)].map(([k, v]) => [k, v.weight]),
-      ),
+      ...Object.fromEntries(Object.entries((p.info as BooksInfo).template).map(([k, v]) => [k, v.weight])),
     } as RangeInfo;
     if (!this.value) this.setProperty([]);
     this.value.forEach((_, index) => this.makeBook(index));
@@ -43,7 +43,7 @@ export class BooksPane extends Pane {
 
   getWeight(pane: BookPane): number | undefined {
     const index = this.index(pane);
-    return index == -1 ? undefined : (this.value[this.index(pane)]?.weight ?? 1);
+    return index === -1 ? undefined : (this.value[index]?.weight ?? 1);
   }
 
   setColor(pane: BookPane, color?: Color): void {

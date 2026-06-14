@@ -11,17 +11,19 @@
     flex-direction: column;
     padding: 2em 2em 0;
     row-gap: 2em;
+
     @include mq-at-least-picture {
       flex-direction: row;
     }
 
     .picture-edit {
       @extend %flex-column;
+
       row-gap: 2em;
 
       > span {
-        @extend %flex-center;
-        justify-content: center;
+        @extend %flex-center-center;
+
         column-gap: 1em;
       }
     }
@@ -30,6 +32,23 @@
       align-self: center;
       width: min(350px, calc(100vw - 4em));
       height: min(350px, calc(100vw - 4em));
+    }
+  }
+
+  .twitch-link-box,
+  .youtube-link-box {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: start;
+    gap: 1em;
+
+    &.linked button.link {
+      display: none;
+    }
+
+    &:not(.linked) button.unlink {
+      display: none;
     }
   }
 
@@ -71,7 +90,7 @@
   text-indent: -2.2em;
 
   &::before {
-    font-family: 'lichess';
+    font-family: lichess;
     content: $licon-Checkmark;
     font-size: 1.5em;
     margin-inline-end: 0.5em;

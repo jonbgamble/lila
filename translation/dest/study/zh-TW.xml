@@ -38,7 +38,6 @@
   <string name="youAreNowASpectator">你現在是觀眾</string>
   <string name="pgnTags">PGN 標籤</string>
   <string name="like">喜歡</string>
-  <string name="unlike">取消喜歡</string>
   <string name="newTag">新標籤</string>
   <string name="commentThisPosition">對於目前局面的評論</string>
   <string name="commentThisMove">對於此棋步的評論</string>
@@ -163,4 +162,5 @@
   <string name="perPage">%s 每頁</string>
   <string name="getTheTour">需要幫助？查看導覽！</string>
   <string name="welcomeToLichessStudyTitle">歡迎來到 Lichess 研究區！</string>
+  <string name="blackDefeatWhiteCanNotWin">黑敗，但白無法取勝</string>
 </resources>

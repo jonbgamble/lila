@@ -1,6 +1,6 @@
-import { updateElements, formatClockTimeVerbal } from './clockView';
 import { ShowClockTenths } from '@/prefs';
-import { reducedMotion } from '@/device';
+
+import { updateElements, formatClockTimeVerbal } from './clockView';
 
 export interface ClockOpts {
   onFlag(): void;
@@ -58,6 +58,7 @@ export interface SetData {
 }
 
 export class ClockCtrl {
+  readonly config: ClockConfig;
   emergSound: EmergSound = {
     play: () => site.sound.play('lowTime'),
     delay: 20000,
@@ -86,6 +87,7 @@ export class ClockCtrl {
     ticking: Color | undefined,
     readonly opts: ClockOpts,
   ) {
+    this.config = data;
     this.showTenths =
       pref.clockTenths === ShowClockTenths.Never
         ? () => false
@@ -93,11 +95,13 @@ export class ClockCtrl {
           ? time => time < 10000
           : time => time < 3600000;
 
-    this.showBar = pref.clockBar && !site.blindMode && !reducedMotion();
+    this.showBar = pref.clockBar && !site.blindMode;
     this.barTime = 1000 * (Math.max(data.initial, 2) + 5 * data.increment);
     this.timeRatioDivisor = 1 / this.barTime;
 
-    this.emergMs = 1000 * Math.min(60, Math.max(10, data.initial * 0.125));
+    this.emergMs =
+      1000 *
+      Math.min(60, data.initial < 60 ? Math.max(2, data.initial * 0.2) : Math.max(10, data.initial * 0.125));
 
     this.setClock({
       white: data.white,
@@ -137,18 +141,23 @@ export class ClockCtrl {
 
   hardStopClock = (): void => (this.times.activeColor = undefined);
 
-  private scheduleTick = (time: Millis, extraDelay: Millis) => {
+  private readonly scheduleTick = (time: Millis, extraDelay: Millis) => {
     if (this.tickTimeout !== undefined) clearTimeout(this.tickTimeout);
-    this.tickTimeout = setTimeout(
-      this.tick,
-      // changing the value of active node confuses the chromevox screen reader
-      // so update the clock less often
-      site.blindMode ? 1000 : (time % (this.showTenths(time) ? 100 : 500)) + 1 + extraDelay,
-    );
+    // changing the value of active node confuses the chromevox screen reader
+    // so update the clock less often for blind mode.
+    // Otherwise: on the 500ms because that affects separator
+    // When tenths are shown, update every 100ms to show tenths.
+    const tickInterval = site.blindMode ? 1000 : this.showTenths(time) ? 100 : 500;
+
+    // Schedule the next tick to occur immediately after the interval boundary.
+    // Note that extraDelay is a value from server which predicts opp lag comp.
+    // It delays a clock from counting down, so should be included in the
+    // calculation of scheduling (when the clock display will need to be updated)
+    this.tickTimeout = setTimeout(this.tick, (time % tickInterval) + 1 + extraDelay);
   };
 
   // Should only be invoked by scheduleTick.
-  private tick = (): void => {
+  private readonly tick = (): void => {
     this.tickTimeout = undefined;
 
     const color = this.times.activeColor;

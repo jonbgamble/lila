@@ -14,8 +14,8 @@ trait CtrlFilters(using Executor) extends ControllerHelpers with ResponseBuilder
   export Granter.{ apply as isGranted, opt as isGrantedOpt }
 
   def NoCurrentGame(a: => Fu[Result])(using ctx: Context): Fu[Result] =
-    ctx.me
-      .soUse(env.preloader.currentGameMyTurn)
+    ctx
+      .useMe(env.preloader.currentGameMyTurn)
       .flatMap:
         _.fold(a): current =>
           negotiate(keyPages.home(Results.Forbidden), currentGameJsonError(current))
@@ -38,7 +38,7 @@ trait CtrlFilters(using Executor) extends ControllerHelpers with ResponseBuilder
     else keyPages.blacklisted
 
   def WithProxy[A](res: IsProxy ?=> Fu[A])(using req: RequestHeader): Fu[A] =
-    env.security.ip2proxy.ofIp(req.ipAddress).flatMap(res(using _))
+    env.security.ip2proxy.ofReq(req).flatMap(res(using _))
 
   def NoTor(res: => Fu[Result])(using ctx: Context): Fu[Result] =
     env.security.ipTrust

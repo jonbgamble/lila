@@ -47,7 +47,7 @@
   <string name="fidePlayerNotFound">FIDE-Spieler nicht gefunden</string>
   <string name="fideProfile">FIDE-Profil</string>
   <string name="federation">Verband</string>
-  <string name="ageThisYear">Alter in diesem Jahr</string>
+  <string name="age">Alter</string>
   <string name="unrated">Ungewertet</string>
   <string name="recentTournaments">Letzte Turniere</string>
   <string name="openLichess">In Lichess öffnen</string>
@@ -63,12 +63,14 @@
   <string name="notYetStarted">Die Übertragung hat noch nicht begonnen.</string>
   <string name="officialWebsite">Offizielle Webseite</string>
   <string name="officialStandings">Offizielle Rangliste</string>
+  <string name="regulations">Regeln</string>
   <string name="iframeHelp" comment="%s is 'webmasters page'">Weitere Optionen auf der %s</string>
   <string name="webmastersPage">Webmaster-Seite</string>
   <string name="embedThisBroadcast">Bette diese Übertragung in deine Webseite ein</string>
   <string name="ratingDiff">Wertungsdifferenz</string>
   <string name="gamesThisTournament">Partien in diesem Turnier</string>
   <string name="score">Punktestand</string>
+  <string name="standingsDisclaimer">Die Platzierungen werden anhand der übertragenen Partien berechnet und können sich von den offiziellen Ergebnissen unterscheiden.</string>
   <string name="allTeams">Alle Teams</string>
   <string name="tournamentFormat">Turnierformat</string>
   <string name="tournamentLocation">Turnierort</string>
@@ -83,4 +85,28 @@
   <string name="liveboard">Live-Brett</string>
   <string name="communityBroadcast">Gemeinschafts-Übertragung</string>
   <string name="createdAndManagedBy">Erstellt und verwaltet von %s.</string>
+  <string name="matchPoints">Match-Punkte</string>
+  <string name="gamePoints">Partie-Punkte</string>
+  <string name="matches">Paarungen</string>
+  <string name="matchHistory">Spielverlauf</string>
+  <string name="teamResults">Teamergebnisse</string>
+  <string name="termsAutomaticallyTranslated">Die folgenden Begriffe werden automatisch übersetzt: %s.</string>
+  <string name="roundX">Runde %s</string>
+  <string name="defaultRoundNameHelp">Wenn der Standardname beibehalten wird, wird er automatisch in alle anderen Sprachen übersetzt.</string>
+  <string name="openTournament">Open</string>
+  <string name="womenTournament">Frauen</string>
+  <string name="menTournament">Männer</string>
+  <string name="girlsTournament">Mädchen</string>
+  <string name="boysTournament">Jungen</string>
+  <string name="openUnderXAgeTournament">Open U%s</string>
+  <string name="girlsUnderXAgeTournament">Mädchen U%s</string>
+  <string name="boysUnderXAgeTournament">Jungen U%s</string>
+  <string name="quarterfinals">Viertelfinale</string>
+  <string name="semifinals">Halbfinale</string>
+  <string name="finals">Finale</string>
+  <string name="tiebreaks">Tiebreak</string>
+  <string name="gameX">Partie %s</string>
+  <string name="knockouts">K.O.-Runde</string>
+  <string name="underXAgeTournament" comment="%s is the maximum age set by the organiser for a tournament. e.g.    'U18' will mean it is an tournament for under-18 years.    Please use your language's conventions in sporting activities for how the 'U' should be translated and keep it short.">U%s</string>
+  <string name="underXEloTournament" comment="%s is the maximum Elo rating set by the organiser for a tournament.     e.g. 'U2000' will mean it is an tournament for players with Elo under 2000.    Please use your language's conventions in sporting activities for how the 'U' should be translated and keep it short.">U%s</string>
 </resources>

@@ -1,10 +1,12 @@
 #settings .toggle-box {
   > div > div {
     @extend %flex-column;
+
     gap: 1.5em;
     padding-bottom: 2em;
   }
 }
+
 #settings form {
   @extend %flex-center;
 
@@ -48,5 +50,14 @@
     font-size: 1.3em;
     background: #000;
     color: #759900;
+  }
+}
+
+#ip-tiers {
+  textarea {
+    font-size: 1.1em;
+    width: 100%;
+    font-family: monospace;
+    height: 60vh;
   }
 }

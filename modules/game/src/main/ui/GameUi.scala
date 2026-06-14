@@ -5,6 +5,7 @@ import chess.format.Fen
 import chess.format.pgn.PgnStr
 
 import lila.core.game.{ Game, Player }
+import lila.core.i18n.I18nKey
 import lila.game.GameExt.*
 import lila.ui.*
 
@@ -47,6 +48,8 @@ final class GameUi(helpers: Helpers):
         else Fen.writeBoardAndColor(pov.game.position)
       dataState := s"${fen},${pov.color.name},${~pov.game.lastMoveKeys}"
 
+    private def showTimeControl(c: chess.Clock.Config) = s"${c.limitSeconds}+${c.incrementSeconds}"
+
     private def renderMini(
         pov: Pov,
         link: Option[String],
@@ -54,12 +57,11 @@ final class GameUi(helpers: Helpers):
     )(using Translate, Option[Me]): Tag =
       import pov.game
       val tag = if link.isDefined then a else span
-      def showTimeControl(c: chess.Clock.Config) = s"${c.limitSeconds}+${c.increment}"
       tag(
         href := link,
         cls := s"mini-game mini-game-${game.id} mini-game--init ${game.variant.key} is2d",
         dataLive := game.isBeingPlayed.option(game.id),
-        dataTimeControl := game.clock.map(_.config).fold("correspondence")(showTimeControl(_)),
+        dataTimeControl := game.clock.map(_.config).fold("correspondence")(showTimeControl),
         renderState(pov)
       )(
         renderPlayer(!pov, withRating = showRatings),
@@ -98,11 +100,18 @@ final class GameUi(helpers: Helpers):
     else if game.hasAi then Icon.Cogs
     else game.perfType.icon
 
+  def abortReason(game: Game): I18nKey =
+    game.abortedBy match
+      case Some(chess.White) => trans.site.whiteAborted
+      case Some(chess.Black) => trans.site.blackAborted
+      case _ if game.playedPlies == chess.Ply.initial => trans.site.whiteDidntMove
+      case _ => trans.site.blackDidntMove
+
   def gameEndStatus(game: Game)(using Translate): String =
     import chess.{ White, Black, Status as S }
     import lila.game.GameExt.drawReason
     game.status match
-      case S.Aborted => trans.site.gameAborted.txt()
+      case S.Aborted => abortReason(game).txt()
       case S.Mate => trans.site.checkmate.txt()
       case S.Resign =>
         (if game.loser.exists(_.color.white) then trans.site.whiteResigned else trans.site.blackResigned)
@@ -134,8 +143,8 @@ final class GameUi(helpers: Helpers):
           case (Black, Some(_)) => trans.site.blackTimeOut.txt()
           case (Black, None) => trans.site.blackTimeOut.txt() + " • " + trans.site.draw.txt()
       case S.NoStart =>
-        (if game.loser.exists(_.color.white) then trans.site.whiteDidntMove else trans.site.blackDidntMove)
-          .txt()
+        if game.loser.exists(_.color.white) then trans.site.whiteDidntMove.txt()
+        else trans.site.blackDidntMove.txt()
       case S.Cheat => trans.site.cheatDetected.txt()
       case S.VariantEnd =>
         game.variant match
@@ -231,11 +240,10 @@ final class GameUi(helpers: Helpers):
               },
               form3.group(form("pgnFile"), trans.site.orUploadPgnFile(), klass = "upload"): f =>
                 form3.file.pgn(f.name),
-              form3.checkbox(
+              form3.checkboxGroup(
                 form("analyse"),
                 trans.site.requestAComputerAnalysis(),
-                help = Some(analyseHelp),
-                disabled = !ctx.isAuth
+                help = analyseHelp
               ),
               form3.action(form3.submit(trans.site.importGame(), Icon.UploadCloud.some))
             )
@@ -245,7 +253,7 @@ final class GameUi(helpers: Helpers):
 
     val separator = " • "
 
-    def apply(g: Game, note: Option[String], user: Option[User], ownerLink: Boolean)(
+    def apply(g: Game, user: Option[User], ownerLink: Boolean)(
         contextLink: Option[Tag]
     )(using Context): Frag =
       val fromPlayer = user.flatMap(g.player)
@@ -257,11 +265,23 @@ final class GameUi(helpers: Helpers):
           div(cls := "header", dataIcon := gameIcon(g))(
             div(cls := "header__text")(
               source(g),
-              g.pgnImport.flatMap(_.date).fold[Frag](momentFromNowWithPreload(g.createdAt))(frag(_)),
+              g.pgnImport.flatMap(_.date).fold[Frag](pastMomentWithPreload(g.createdAt))(frag(_)),
               contextLink.map(l => frag(separator, l))
             )
           ),
-          content(g, note, fromPlayer)
+          div(cls := "versus")(
+            gamePlayer(g.whitePlayer),
+            div(cls := "swords", dataIcon := Icon.Swords),
+            gamePlayer(g.blackPlayer)
+          ),
+          result(g, fromPlayer),
+          if g.playedPlies > 0 then opening(g) else frag(br, br),
+          g.metadata.analysed.option(
+            div(cls := "metadata text", dataIcon := Icon.BarChart)(trans.site.computerAnalysisAvailable())
+          ),
+          g.pgnImport.flatMap(_.user).map { user =>
+            div(cls := "metadata")("PGN import by ", userIdLink(user.some))
+          }
         )
       )
 
@@ -273,24 +293,6 @@ final class GameUi(helpers: Helpers):
         if pov.game.variant == chess.variant.RacingKings then chess.White else pov.player.color,
         pov.game.history.lastMove
       )
-
-    def content(g: Game, note: Option[String], as: Option[Player])(using Context) = frag(
-      div(cls := "versus")(
-        gamePlayer(g.whitePlayer),
-        div(cls := "swords", dataIcon := Icon.Swords),
-        gamePlayer(g.blackPlayer)
-      ),
-      result(g, as),
-      if g.playedPlies > 0 then opening(g) else frag(br, br),
-      note.map: note =>
-        div(cls := "notes")(strong("Notes: "), note),
-      g.metadata.analysed.option(
-        div(cls := "metadata text", dataIcon := Icon.BarChart)(trans.site.computerAnalysisAvailable())
-      ),
-      g.pgnImport.flatMap(_.user).map { user =>
-        div(cls := "metadata")("PGN import by ", userIdLink(user.some))
-      }
-    )
 
     def source(g: Game)(using Context) =
       strong(

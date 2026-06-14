@@ -37,10 +37,10 @@ const makeEmojiData = async () => {
   const res = await fetch(site.asset.url('flair/list.txt', { pathVersion: true }));
   const text = await res.text();
   const lines = text.split('\n').slice(0, -1);
-  const data = {
+  return {
     categories: categories.map(([id, name]) => ({
-      id: id,
-      name: name,
+      id,
+      name,
       emojis: lines.filter(line => line.startsWith(id)),
     })),
     emojis: Object.fromEntries(
@@ -50,7 +50,7 @@ const makeEmojiData = async () => {
           key,
           {
             id: key,
-            name: name,
+            name,
             keywords: [categ, ...name.split('-')],
             skins: [
               {
@@ -62,7 +62,6 @@ const makeEmojiData = async () => {
       }),
     ),
   };
-  return data;
 };
 
 const categories: [string, string][] = [

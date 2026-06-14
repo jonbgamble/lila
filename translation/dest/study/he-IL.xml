@@ -47,7 +47,6 @@
   <string name="youAreNowASpectator">כעת את/ת צופה</string>
   <string name="pgnTags">תוויות PGN</string>
   <string name="like">אהבתי</string>
-  <string name="unlike">ביטול \"אהבתי\"</string>
   <string name="newTag">תג חדש</string>
   <string name="commentThisPosition">הערה לגבי העמדה</string>
   <string name="commentThisMove">הערה לגבי המסע</string>
@@ -174,4 +173,7 @@
   <string name="perPage">%s לכל עמוד</string>
   <string name="getTheTour">זקוקים לעזרה? קבלו הדרכה!</string>
   <string name="welcomeToLichessStudyTitle">ברוכים הבאים ללוחות הלמידה של Lichess!</string>
+  <string name="doubleDefeat">תבוסה כפולה</string>
+  <string name="blackDefeatWhiteCanNotWin">השחור הובס, אבל הלבן אינו יכול לנצח</string>
+  <string name="whiteDefeatBlackCanNotWin">הלבן הובס, אבל השחור אינו יכול לנצח</string>
 </resources>

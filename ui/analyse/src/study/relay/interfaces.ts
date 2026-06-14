@@ -1,3 +1,6 @@
+import type { Federation, FideId, PointsStr } from '../interfaces';
+import type { RelayPlayer } from './relayPlayers';
+
 export interface RelayData {
   tour: RelayTour;
   rounds: RelayRound[];
@@ -9,6 +12,15 @@ export interface RelayData {
   note?: string;
   lcc?: boolean;
   delayedUntil?: number;
+  photos: Photos;
+}
+
+export type Photos = Record<FideId, Photo>;
+
+export interface Photo {
+  small: string;
+  medium: string;
+  credit?: string;
 }
 
 export interface RelayGroup {
@@ -28,6 +40,13 @@ export interface RelayTourPreview {
   live?: boolean; // see modules/relay/src/main/RelayTour.scala
 }
 
+interface CustomScore {
+  win: number;
+  draw: number;
+}
+
+export type CustomScoring = ByColor<CustomScore>;
+
 export interface RelayRound {
   id: RoundId;
   name: string;
@@ -37,16 +56,21 @@ export interface RelayRound {
   ongoing?: boolean;
   startsAt?: number;
   startsAfterPrevious?: boolean;
+  customScoring?: CustomScoring;
 }
+
+export type FideTC = 'standard' | 'rapid' | 'blitz';
+export type StatByFideTC = Record<FideTC, number>;
 
 export interface RelayTourInfo {
   format?: string;
   tc?: string;
-  fideTc?: string;
+  fideTC?: FideTC;
   location?: string;
   players?: string;
   website?: string;
   standings?: string;
+  regulations?: string;
 }
 
 export type RelayTourDates = [number] | [number, number];
@@ -59,9 +83,10 @@ export interface RelayTour {
   info: RelayTourInfo;
   image?: string;
   teamTable?: boolean;
+  showTeamScores?: boolean;
   tier?: number;
   dates?: RelayTourDates;
-  tc?: 'standard' | 'rapid' | 'blitz';
+  tc?: FideTC;
   communityOwner?: LightUser;
 }
 
@@ -83,3 +108,28 @@ export interface LogEvent {
   error?: string;
   at: number;
 }
+
+export interface POVTeamMatch {
+  roundId: RoundId;
+  opponent: RelayTeamName;
+  points?: PointsStr;
+  mp?: number;
+  gp?: number;
+}
+
+export type RelayTeamName = string;
+
+export interface RelayTeamStandingsFromServer {
+  name: RelayTeamName;
+  mp: number;
+  gp: number;
+  matches: POVTeamMatch[];
+  players: RelayPlayer[];
+  averageRating?: number;
+}
+
+export interface RelayTeamStandingsEntry extends RelayTeamStandingsFromServer {
+  fed?: Federation;
+}
+
+export type RelayTeamStandings = RelayTeamStandingsEntry[];

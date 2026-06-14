@@ -2,12 +2,11 @@
   @include box-radius;
 }
 
+/* helps with clipping background into border-radius */
 %box-radius-force {
   @extend %box-radius;
 
   overflow: hidden;
-
-  /* helps with clipping background into border-radius */
 }
 
 %box-radius-inline-start {
@@ -22,6 +21,16 @@
   border-end-end-radius: $box-radius-size;
 }
 
+%box-radius-inline-start-only {
+  border-start-start-radius: $box-radius-size;
+  border-end-start-radius: $box-radius-size;
+}
+
+%box-radius-inline-end-only {
+  border-start-end-radius: $box-radius-size;
+  border-end-end-radius: $box-radius-size;
+}
+
 %box-radius-left {
   border-radius: $box-radius-size 0 0 $box-radius-size;
 }
@@ -31,7 +40,7 @@
 }
 
 %box-radius-top {
-  border-radius: $box-radius-size $box-radius-size 0 0;
+  @include box-radius-top;
 }
 
 %box-radius-bottom {
@@ -54,14 +63,24 @@
   @include box-shadow;
 }
 
+%box-bordered {
+  @extend %box-radius;
+  @include backdrop-blur-if-transparent;
+
+  border: $border;
+}
+
 %box-neat {
   @extend %box-shadow, %box-radius;
+  @include backdrop-blur-if-transparent;
 }
 
 %box-neat-top {
   @extend %box-shadow, %box-radius-top;
+  @include backdrop-blur-if-transparent;
 }
 
 %box-neat-force {
   @extend %box-shadow, %box-radius-force;
+  @include backdrop-blur-if-transparent;
 }

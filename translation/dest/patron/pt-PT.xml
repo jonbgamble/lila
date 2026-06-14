@@ -3,7 +3,7 @@
   <string name="donate">Doar</string>
   <string name="donateAsX">Doar em nome de %s</string>
   <string name="lichessPatron">Patrono do Lichess</string>
-  <string name="patronSince" comment="%s is a date e.g. &quot;21 Jan 2025&quot;,&#10;meaning the final text would be something like &quot;Patron since 21 Jan 2025&quot;.">Patrono desde %s</string>
+  <string name="patronSince" comment="string is a date">Patrono desde %s</string>
   <string name="freeAccount">Conta gratuita</string>
   <string name="becomePatron">Tornar-se um patrono do Lichess</string>
   <string name="xBecamePatron">%s tornou-se um patrono do Lichess</string>
@@ -40,8 +40,6 @@ De seguida, pagamos a um desenvolvedor a tempo inteiro: %s, o fundador do Liches
   <string name="officialNonProfit">O Lichess é uma organização sem fins lucrativos oficial?</string>
   <string name="actOfCreation">Sim, aqui está o ato de criação (em francês)</string>
   <string name="changeMonthlySupport">Posso mudar/cancelar o meu suporte mensal?</string>
-  <string name="changeOrContact">Sim, a qualquer momento, a partir desta página.
-Ou podes %s.</string>
   <string name="contactSupport">contactar o suporte do Lichess</string>
   <string name="otherMethods">Outros métodos de doação?</string>
   <string name="lichessIsRegisteredWith">O Lichess está registado com %s.</string>

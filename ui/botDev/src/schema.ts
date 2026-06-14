@@ -1,7 +1,8 @@
-import type { Schema, InfoKey, PropertyValue } from './devTypes';
-import type { FilterInfo } from 'lib/bot/filter';
 import { deepFreeze } from 'lib/algo';
+import type { FilterInfo } from 'lib/bot/filter';
 import { pubsub } from 'lib/pubsub';
+
+import type { Schema, InfoKey, PropertyValue } from './devTypes';
 
 // describe dialog content, define constraints, maps to Bot instance data
 
@@ -24,6 +25,7 @@ export const infoKeys: InfoKey[] = [
   'toggle',
 ]; // InfoKey in file://./devTypes.ts
 
+// oxlint-disable-next-line no-inferrable-types This collides with out TS config.
 export const requiresOpRe: RegExp = /==|>=|>|<<=|<=|<|!=/; // <<= means startsWith
 
 const base: Schema = {
@@ -251,7 +253,7 @@ const base: Schema = {
   },
 };
 
-const lastFilter: { [key: string]: FilterInfo } = {
+const lastFilter: Record<string, FilterInfo> = {
   moveDecay: {
     label: 'move quality decay',
     type: 'filter',
@@ -293,7 +295,7 @@ export function getSchemaDefault(id: string): PropertyValue {
   return typeof setting === 'object' && 'value' in setting ? setting.value : undefined;
 }
 
-pubsub.on('botdev.update.filters', (filters: { [key: string]: FilterInfo }) => {
+pubsub.on('botdev.update.filters', (filters: Record<string, FilterInfo>) => {
   const withFilters = structuredClone(base);
   Object.assign(withFilters['bot_filters']!, { ...filters, lastFilter });
   schema = deepFreeze<Schema>(withFilters);

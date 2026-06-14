@@ -48,7 +48,6 @@
   <string name="youAreNowASpectator">Теперь вы зритель</string>
   <string name="pgnTags">Теги PGN</string>
   <string name="like">Нравится</string>
-  <string name="unlike">Не нравится</string>
   <string name="newTag">Новый тег</string>
   <string name="commentThisPosition">Комментировать эту позицию</string>
   <string name="commentThisMove">Комментировать этот ход</string>
@@ -195,7 +194,7 @@
   <string name="fromInitialPositionTitle">Из начальной позиции</string>
   <string name="fromInitialPositionText">Расстановка для новой партии.&lt;br&gt;Подходит для исследования дебютов.</string>
   <string name="customPositionTitle">Пользовательская расстановка</string>
-  <string name="customPositionText">Расставьте фигуры по своему усмотрению.&lt;br&gt;Подходит для исследования эндшпилей.</string>
+  <string name="customPositionText">Расставьте фигуры по своему усмотрению. &lt;br&gt;Подходит для исследования эндшпилей.</string>
   <string name="loadExistingLichessGameTitle">Загрузите существующую партию Lichess</string>
   <string name="loadExistingLichessGameText">Вставьте URL игры Lichess&lt;br&gt;(например, lichess.org/7fHIU0XI)&lt;br&gt;для загрузки ходов партии в главу.</string>
   <string name="fromFenStringTitle">Из нотации FEN</string>

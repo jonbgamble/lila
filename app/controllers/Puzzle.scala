@@ -22,6 +22,7 @@ import lila.rating.PerfType
 import lila.ui.LangPath
 import scalalib.model.Days
 import lila.common.HTTPRequest
+import lila.common.Json.given
 
 final class Puzzle(env: Env, apiC: => Api) extends LilaController(env):
 
@@ -53,12 +54,15 @@ final class Puzzle(env: Env, apiC: => Api) extends LilaController(env):
   def apiDaily = Anon:
     Found(env.puzzle.daily.get): daily =>
       WithPuzzlePerf:
-        JsonOk(env.puzzle.jsonView(daily.puzzle, none, none))
+        apiSinglePuzzle(daily.puzzle)
 
   def apiShow(id: PuzzleId) = Anon:
     Found(env.puzzle.api.puzzle.find(id)): puzzle =>
       WithPuzzlePerf:
-        JsonOk(env.puzzle.jsonView(puzzle, none, none))
+        apiSinglePuzzle(puzzle)
+
+  def apiSinglePuzzle(puzzle: Puz)(using Context, Perf) =
+    JsonOk(env.puzzle.jsonView(puzzle, none, none, withInitialPos = true))
 
   def home = Open(serveHome)
 
@@ -117,7 +121,7 @@ final class Puzzle(env: Env, apiC: => Api) extends LilaController(env):
   private def streakJsonAndPuzzle(using Context) =
     given Perf = lila.rating.Perf.default
     env.puzzle.streak.apply.flatMapz { case PuzzleStreak(ids, puzzle) =>
-      env.puzzle.jsonView(puzzle = puzzle, PuzzleAngle.mix.some, none).map { puzzleJson =>
+      env.puzzle.jsonView.analysis(puzzle = puzzle, PuzzleAngle.mix).map { puzzleJson =>
         (puzzleJson ++ Json.obj("streak" -> ids), puzzle).some
       }
     }
@@ -154,6 +158,30 @@ final class Puzzle(env: Env, apiC: => Api) extends LilaController(env):
             .so(env.irc.api.reportPuzzle(me.light, id, reportText))
             .inject(jsonOkResult)
       )
+  }
+
+  def apiBatchVoteThemes = SecuredScopedBody(_.PuzzleCurator)(_.Puzzle.Write) { _ ?=> me ?=>
+    bindForm(env.puzzle.forms.batchVotes)(
+      jsonFormError,
+      _.votes
+        .sequentially(puzzleVotes =>
+          puzzleVotes.themes
+            .sequentially: themeVote =>
+              allow:
+                env.puzzle.api.theme
+                  .vote(puzzleVotes.puzzleId, themeVote.theme, themeVote.vote)
+                  .inject(none)
+              .rescue: err =>
+                fuccess(Json.obj("theme" -> themeVote.theme, "msg" -> err.message).some)
+            .map:
+              _.flatten.map: errors =>
+                Json.obj("puzzleId" -> puzzleVotes.puzzleId, "errors" -> errors)
+        )
+        .map(_.flatten)
+        .map:
+          case Nil => jsonOkResult
+          case errors => BadRequest(jsonError(errors))
+    )
   }
 
   def voteTheme(id: PuzzleId, themeStr: String) = AuthOrScopedBody(_.Puzzle.Write) { _ ?=> me ?=>
@@ -341,9 +369,12 @@ final class Puzzle(env: Env, apiC: => Api) extends LilaController(env):
       else if ctx.isAuth then nb / 3
       else nb
     fetchRateLimit(rateLimited, cost = cost):
-      WithPuzzlePerf:
-        for puzzles <- batchSelect(PuzzleAngle.findOrMix(angleStr), reqSettings, nb)
-        yield Ok(puzzles)
+      PuzzleAngle
+        .find(angleStr)
+        .fold(fuccess(notFoundJson(s"No $angleStr puzzles found"))): angle =>
+          WithPuzzlePerf:
+            for puzzles <- batchSelect(angle, reqSettings, nb)
+            yield Ok(puzzles)
 
   private def reqSettings(using req: RequestHeader) = PuzzleSettings(
     PuzzleDifficulty.orDefault(~get("difficulty")),
@@ -372,9 +403,10 @@ final class Puzzle(env: Env, apiC: => Api) extends LilaController(env):
                 case Some(me) =>
                   given Me = me
                   WithPuzzlePerf:
-                    env.puzzle.finisher.batch(angle, data.solutions).map {
-                      _.map { (round, rDiff) => env.puzzle.jsonView.roundJson.api(round, rDiff) }
-                    }
+                    for
+                      solves <- env.puzzle.finisher.batch(angle, data.solutions)
+                      _ <- env.puzzle.session.onComplete(me.userId, angle, solves.size)
+                    yield solves.map(env.puzzle.jsonView.roundJson.api.tupled)
                 case None =>
                   data.solutions
                     .sequentiallyVoid { sol => env.puzzle.finisher.incPuzzlePlays(sol.id) }
@@ -435,7 +467,7 @@ final class Puzzle(env: Env, apiC: => Api) extends LilaController(env):
                   case None =>
                     Ok(env.puzzle.jsonView.bc.userJson(perf.intRating))
                   case Some(round, newPerf) =>
-                    env.puzzle.session.onComplete(round, PuzzleAngle.mix)
+                    env.puzzle.session.onComplete(round.userId, PuzzleAngle.mix)
                     Ok(env.puzzle.jsonView.bc.userJson(newPerf.intRating))
         )
   }

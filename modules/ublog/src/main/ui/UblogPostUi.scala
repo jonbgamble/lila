@@ -19,18 +19,20 @@ final class UblogPostUi(helpers: Helpers, ui: UblogUi)(connectLinks: Frag):
       followed: Boolean,
       isInCarousel: Boolean
   )(using ctx: Context) =
+    val imageUrl = post.image.isDefined.option(ui.thumbnailUrl(post, _.Size.Large))
     Page(s"${trans.ublog.xBlog.txt(user.username)} • ${post.title}")
       .css("bits.ublog")
       .js(Esm("bits.expandText") ++ ctx.isAuth.so(Esm("bits.ublog")))
       .graph(
         OpenGraph(
           `type` = "article",
-          image = post.image.isDefined.option(ui.thumbnailUrl(post, _.Size.Large)),
+          image = imageUrl,
           title = post.title,
           url = routeUrl(routes.Ublog.post(user.username, post.slug, post.id)),
           description = post.intro
         )
       )
+      .preloadImage(imageUrl)(helpers)
       .copy(atomLinkTag =
         link(
           href := routes.Ublog.userAtom(user.username),
@@ -90,7 +92,7 @@ final class UblogPostUi(helpers: Helpers, ui: UblogUi)(connectLinks: Frag):
                     routes.Report.form.url,
                     Map(
                       "username" -> user.username.value,
-                      "postUrl" -> s"$netBaseUrl${ui.urlOfPost(post)}",
+                      "postUrl" -> routeUrl(ui.urlOfPost(post)).value,
                       "from" -> "ublog"
                     )
                   ),
@@ -150,13 +152,13 @@ final class UblogPostUi(helpers: Helpers, ui: UblogUi)(connectLinks: Frag):
   )(trans.site.edit())
 
   private def likeButton(post: UblogPost, liked: Boolean, showText: Boolean)(using Context) =
-    val text = if liked then trans.study.unlike.txt() else trans.study.like.txt()
+    val text = if liked then trans.site.liked.txt() else trans.site.like.txt()
     button(
       tpe := "button",
       cls := List(
         "ublog-post__like is" -> true,
         "ublog-post__like--liked" -> liked,
-        "ublog-post__like--big button button-red" -> showText,
+        "ublog-post__like--big button button-metal" -> showText,
         "ublog-post__like--mini button-link" -> !showText
       ),
       dataRel := post.id,
@@ -165,31 +167,24 @@ final class UblogPostUi(helpers: Helpers, ui: UblogUi)(connectLinks: Frag):
       span(cls := "ublog-post__like__nb")(post.likes.value.localize),
       showText.option(
         span(
-          cls := "button-label",
-          attr("data-i18n-like") := trans.study.like.txt(),
-          attr("data-i18n-unlike") := trans.study.unlike.txt()
+          cls := "button-label"
         )(text)
       )
     )
 
   private def followButton(user: User, followed: Boolean)(using Context) =
-    div(
+    val (text, route) =
+      if followed then (trans.site.unfollowX, routes.Relation.unfollow)
+      else (trans.site.followX, routes.Relation.follow)
+    button(
       cls := List(
-        "ublog-post__follow" -> true,
-        "followed" -> followed
-      )
-    ):
-      List(
-        ("yes", trans.site.unfollowX, routes.Relation.unfollow, Icon.Checkmark),
-        ("no", trans.site.followX, routes.Relation.follow, Icon.ThumbsUp)
-      ).map: (role, text, route, icon) =>
-        button(
-          cls := s"ublog-post__follow__$role button",
-          dataIcon := icon,
-          dataRel := s"${route(user.id)}?mini=1"
-        )(
-          span(cls := "button-label")(text(user.titleUsername))
-        )
+        "ublog-post__follow button button-metal is" -> true,
+        "ublog-post__follow__followed" -> followed
+      ),
+      dataRel := s"${route(user.id)}?mini=1"
+    )(
+      span(cls := "button-label", attr("data-username") := user.titleUsername)(text(user.titleUsername))
+    )
 
   def modTools(post: UblogPost, isInCarousel: Boolean) =
     val am = post.automod

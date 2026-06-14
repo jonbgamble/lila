@@ -1,8 +1,10 @@
 import * as co from 'chessops';
-import type { SearchMove, MoveArgs } from '../types';
-import type { FilterResult, FilterSpec } from '../filter';
+
 import { clamp } from '@/algo';
 import { normalMove } from '@/game';
+
+import type { FilterResult, FilterSpec } from '../filter';
+import type { SearchMove, MoveArgs } from '../types';
 
 export const pawnStructure: FilterSpec = {
   score,
@@ -27,7 +29,7 @@ export const pawnStructure: FilterSpec = {
 };
 
 function score(moves: SearchMove[], args: MoveArgs, limiter: number): Promise<FilterResult> {
-  const rawScores: { [uci: Uci]: number } = {};
+  const rawScores: Record<Uci, number> = {};
   for (const { uci } of moves) {
     const chess = args.chess.clone();
     chess.play(normalMove(chess, uci)!.move);

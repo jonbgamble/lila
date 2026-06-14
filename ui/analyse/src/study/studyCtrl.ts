@@ -1,20 +1,23 @@
 import type { DrawShape } from '@lichess-org/chessground/draw';
+import { opposite } from 'chessops/util';
+
 import { prop, defined } from 'lib';
 import { debounce, throttle, throttlePromiseDelay } from 'lib/async';
-import type AnalyseCtrl from '../ctrl';
-import { StudyMemberCtrl } from './studyMembers';
-import StudyPracticeCtrl from './practice/studyPracticeCtrl';
-import type { StudyPracticeData } from './practice/interfaces';
-import { CommentForm } from './commentForm';
-import { GlyphForm } from './studyGlyph';
-import { StudyForm } from './studyForm';
-import TopicsCtrl from './topics';
-import { NotifCtrl } from './notif';
-import { StudyShare } from './studyShare';
-import { TagsForm } from './studyTags';
-import ServerEval from './serverEval';
-import * as xhr from './studyXhr';
+import { displayColumns } from 'lib/device';
+import { pubsub } from 'lib/pubsub';
+import { storedMap } from 'lib/storage';
+import { completeNode } from 'lib/tree/node';
 import { path as treePath, ops as treeOps } from 'lib/tree/tree';
+import type { Glyph, Shape, TreeComment, TreeNode, TreePath } from 'lib/tree/types';
+import { alert } from 'lib/view';
+
+import type AnalyseCtrl from '../ctrl';
+import type { EvalHitMulti, EvalHitMultiArray } from '../interfaces';
+import type { StudySocketSendParams } from '../socket';
+import { CommentForm } from './commentForm';
+import { DescriptionCtrl } from './description';
+import GamebookPlayCtrl from './gamebook/gamebookPlayCtrl';
+import type { GamebookOverride } from './gamebook/interfaces';
 import type {
   StudyVm,
   Tab,
@@ -36,22 +39,24 @@ import type {
   ChapterPreviewFromServer,
   ChapterSelect,
 } from './interfaces';
-import GamebookPlayCtrl from './gamebook/gamebookPlayCtrl';
-import { DescriptionCtrl } from './description';
-import RelayCtrl from './relay/relayCtrl';
-import type { RelayData } from './relay/interfaces';
 import { MultiBoardCtrl } from './multiBoard';
-import type { StudySocketSendParams } from '../socket';
-import { storedMap } from 'lib/storage';
-import { opposite } from 'chessops/util';
-import StudyChaptersCtrl, { isFinished } from './studyChapters';
-import { SearchCtrl } from './studySearch';
-import type { GamebookOverride } from './gamebook/interfaces';
-import type { EvalHitMulti, EvalHitMultiArray } from '../interfaces';
 import { MultiCloudEval } from './multiCloudEval';
-import { pubsub } from 'lib/pubsub';
-import { alert } from 'lib/view';
-import { displayColumns } from 'lib/device';
+import { NotifCtrl } from './notif';
+import type { StudyPracticeData } from './practice/interfaces';
+import StudyPracticeCtrl from './practice/studyPracticeCtrl';
+import type { RelayData } from './relay/interfaces';
+import RelayCtrl from './relay/relayCtrl';
+import ServerEval from './serverEval';
+import StudyChaptersCtrl, { isFinished } from './studyChapters';
+import { StudyForm } from './studyForm';
+import { GlyphForm } from './studyGlyph';
+import studyKeyboard from './studyKeyboard';
+import { StudyMemberCtrl } from './studyMembers';
+import { SearchCtrl } from './studySearch';
+import { StudyShare } from './studyShare';
+import { TagsForm } from './studyTags';
+import * as xhr from './studyXhr';
+import TopicsCtrl from './topics';
 
 interface Handlers {
   path(d: WithWhoAndPos): void;
@@ -60,16 +65,16 @@ interface Handlers {
   promote(d: WithWhoAndPos & { toMainline: boolean }): void;
   liking(d: WithWho & { l: { likes: number; me: boolean } }): void;
   shapes(d: WithWhoAndPos & { s: DrawShape[] }): void;
-  members(d: { [id: string]: { user: { name: string; id: string }; role: 'r' | 'w' } }): void;
-  setComment(d: WithWhoAndPos & { c: Tree.Comment }): void;
+  members(d: Record<string, { user: { name: string; id: string }; role: 'r' | 'w' }>): void;
+  setComment(d: WithWhoAndPos & { c: TreeComment }): void;
   deleteComment(d: WithWhoAndPos & { id: string }): void;
-  glyphs(d: WithWhoAndPos & { g: Tree.Glyph[] }): void;
+  glyphs(d: WithWhoAndPos & { g: Glyph[] }): void;
   clock(d: ServerClockMsg): void;
   forceVariation(d: WithWhoAndPos & { force: boolean }): void;
   chapters(d: ChapterPreviewFromServer[]): void;
-  reload(): void;
+  reload(d: { reason?: 'overweight' }): void;
   changeChapter(d: WithWhoAndPos): void;
-  updateChapter(d: WithWhoAndChap): void;
+  reloadStudy(d: WithWho): void;
   descChapter(d: WithWhoAndChap & { desc?: string }): void;
   descStudy(d: WithWho & { desc?: string }): void;
   setTopics(d: WithWho & { topics: string[] }): void;
@@ -87,7 +92,7 @@ export default class StudyCtrl {
   relayRecProp = prop(false);
   nonRelayRecMapProp = storedMap<boolean>('study.rec', 100, () => true);
   chapterFlipMapProp = storedMap<boolean>('chapter.flip', 400, () => false);
-  arrowHistory: Tree.Shape[][] = [];
+  arrowHistory: Shape[][] = [];
   data: StudyData;
   vm: StudyVm;
   notif: NotifCtrl;
@@ -119,7 +124,12 @@ export default class StudyCtrl {
     this.data = data;
     this.notif = new NotifCtrl(ctrl.redraw);
     const isManualChapter = data.chapter.id !== data.position.chapterId;
-    const sticked = data.features.sticky && !ctrl.initialPath && !isManualChapter && !practiceData;
+    const sticked =
+      data.features.sticky &&
+      !ctrl.initialPath &&
+      ctrl.requestInitialPly === undefined &&
+      !isManualChapter &&
+      !practiceData;
     this.vm = {
       loading: false,
       tab: prop<Tab>(!relayData && data.chapters?.[1] ? 'chapters' : 'members'),
@@ -135,7 +145,6 @@ export default class StudyCtrl {
       // how stale is the study
       updatedAt: Date.now() - data.secondsSinceUpdate * 1000,
       gamebookOverride: undefined,
-      scrollToActiveChapter: 'instant',
     };
 
     this.members = new StudyMemberCtrl({
@@ -156,19 +165,14 @@ export default class StudyCtrl {
       defined(relayData),
       () => this.setTab('chapters'),
       chapterId => xhr.chapterConfig(data.id, chapterId),
-      () => this.data.federations,
       this.ctrl,
+      () => this.data.chapter,
     );
     this.multiCloudEval = this.isCevalAllowed()
-      ? new MultiCloudEval(this.redraw, this.chapters.list, this.send)
+      ? new MultiCloudEval(this.redraw, () => this.ctrl.variantKey, this.chapters.list, this.send)
       : undefined;
     if (relayData) this.relay = new RelayCtrl(this, relayData);
-    this.multiBoard = new MultiBoardCtrl(
-      this.chapters.list,
-      defined(this.relay),
-      this.multiCloudEval,
-      this.redraw,
-    );
+    this.multiBoard = new MultiBoardCtrl(this.chapters.list, this.relay, this.multiCloudEval, this.redraw);
     this.form = new StudyForm(
       (d, isNew) => {
         this.send('editStudy', d);
@@ -178,8 +182,9 @@ export default class StudyCtrl {
           ctrl.mainline.length === 1 &&
           !data.chapter.setup.fromFen &&
           !this.relay
-        )
+        ) {
           this.chapters.newForm.openInitial();
+        }
       },
       () => data,
       this.redraw,
@@ -247,6 +252,8 @@ export default class StudyCtrl {
 
     this.instantiateGamebookPlay();
 
+    studyKeyboard(this);
+
     window.addEventListener('popstate', () => window.location.reload());
   }
 
@@ -263,7 +270,7 @@ export default class StudyCtrl {
   };
 
   setTab = (tab: Tab) => {
-    if (tab === 'chapters') this.vm.scrollToActiveChapter = 'instant';
+    if (tab === 'chapters') this.chapters.scroller.request('instant');
     this.vm.tab(tab);
     this.redraw();
   };
@@ -274,13 +281,13 @@ export default class StudyCtrl {
 
   isWriting = (): boolean => this.vm.mode.write && !this.isGamebookPlay();
 
-  private updateShapes = (shapes: Tree.Shape[]) => {
+  private readonly updateShapes = (shapes: Shape[]) => {
     this.ctrl.tree.setShapes(shapes, this.ctrl.path);
     this.makeChange(
       'shapes',
       this.addChapterId({
         path: this.ctrl.path,
-        shapes: shapes,
+        shapes,
       }),
     );
   };
@@ -321,13 +328,15 @@ export default class StudyCtrl {
     pubsub.emit('chat.writeable', this.data.features.chat);
     // official broadcasts cannot have local mods
     pubsub.emit('chat.permissions', { local: canContribute && !this.relay?.isOfficial() });
-    pubsub.emit('voiceChat.toggle', this.data.features.chat && !!this.members.myMember());
+    pubsub.emit('voiceChat.toggle', this.data.features.chat && !!this.members.myMember() && !this.relay);
     if (!this.data.chapter.features.explorer) this.ctrl.explorer.disable();
     this.ctrl.explorer.allowed(this.data.chapter.features.explorer);
   };
 
   isCevalAllowed = () =>
-    !this.isGamebookPlay() && !!(this.data.chapter.features.computer || this.data.chapter.practice);
+    (!this.relay?.tourShow() || site.blindMode) &&
+    !this.isGamebookPlay() &&
+    !!(this.data.chapter.features.computer || this.data.chapter.practice);
 
   configurePractice = () => {
     if (!this.data.chapter.practice && this.ctrl.practice) this.ctrl.togglePractice();
@@ -339,6 +348,9 @@ export default class StudyCtrl {
     const s = d.study;
     const prevPath = this.ctrl.path;
     const sameChapter = this.data.chapter.id === s.chapter.id;
+    const changeInChapterOrientation =
+      sameChapter && // changes on orientation are only relevant for the same chapter
+      this.data.chapter.setup.orientation !== s.chapter.setup.orientation;
     this.vm.mode.sticky =
       (this.vm.mode.sticky && s.features.sticky) || (!this.data.features.sticky && s.features.sticky);
     if (this.vm.mode.sticky) this.vm.behind = 0;
@@ -354,9 +366,10 @@ export default class StudyCtrl {
     this.data.description = s.description;
     this.chapterDesc.set(this.data.chapter.description);
     this.studyDesc.set(this.data.description);
-    document.title = this.data.name;
+    document.title = this.relay?.fullRoundName() ?? this.data.name;
     this.members.dict(s.members);
     if (s.chapters) this.chapters.loadFromServer(s.chapters);
+    if (changeInChapterOrientation) this.chapterFlipMapProp(this.data.chapter.id, false);
     this.ctrl.flipped = this.chapterFlipMapProp(this.data.chapter.id);
 
     const merge = !this.vm.mode.write && sameChapter;
@@ -367,7 +380,7 @@ export default class StudyCtrl {
 
     this.instantiateGamebookPlay();
 
-    let nextPath: Tree.Path;
+    let nextPath: TreePath;
 
     if (this.vm.mode.sticky) {
       this.vm.chapterId = this.data.position.chapterId;
@@ -396,21 +409,23 @@ export default class StudyCtrl {
   };
 
   xhrReload = throttlePromiseDelay(
-    () => 500,
-    (withChapters: boolean = false) => {
+    () => 400,
+    /* `callback` runs immediately after the xhr, and is not affected by the delay */
+    (withChapters = false, immediateCallback: () => void = () => {}) => {
       this.vm.loading = true;
       return xhr
         .reload(
           this.practice ? 'practice/load' : 'study',
           this.data.id,
           this.vm.mode.sticky ? undefined : this.vm.chapterId,
-          (withChapters = withChapters),
+          withChapters,
         )
-        .then(this.onReload, site.reload);
+        .then(this.onReload, site.reload)
+        .then(immediateCallback);
     },
   );
 
-  onSetPath = throttle(300, (path: Tree.Path) => {
+  onSetPath = throttle(300, (path: TreePath) => {
     if (this.vm.mode.sticky && path !== this.data.position.path)
       this.makeChange('setPath', this.addChapterId({ path }));
   });
@@ -434,18 +449,20 @@ export default class StudyCtrl {
     return undefined;
   };
 
-  mutateCgConfig = (config: Required<Pick<CgConfig, 'drawable'>>) => {
-    config.drawable.onChange = (shapes: Tree.Shape[]) => {
-      if (this.vm.mode.write) {
-        this.arrowHistory.push(this.ctrl.node.shapes?.slice() ?? []);
-        this.updateShapes(shapes);
-      }
-      this.gamebookPlay?.onShapeChange(shapes);
-    };
+  mutateCgConfig = (config: CgConfig) => {
+    if (config.drawable) {
+      config.drawable.onChange = (shapes: Shape[]) => {
+        if (this.vm.mode.write) {
+          this.arrowHistory.push(this.ctrl.node.shapes?.slice() ?? []);
+          this.updateShapes(shapes);
+        }
+        this.gamebookPlay?.onShapeChange(shapes);
+      };
+    }
   };
 
   wrongChapter = (serverData: WithPosition & { s?: boolean }): boolean => {
-    // #TODO why vm.chapterId when we have data.chapter.id
+    // #TODO why vm.chapterId when we have data.chapter.id?
     if (serverData.p.chapterId !== this.vm.chapterId) {
       // sticky should really be on the same chapter
       if (this.vm.mode.sticky && serverData.s) this.xhrReload();
@@ -468,8 +485,7 @@ export default class StudyCtrl {
   likeToggler = debounce(() => this.send('like', { liked: this.data.liked }), 1000);
 
   setChapter = async (idOrNumber: ChapterId | number, force?: boolean): Promise<boolean> => {
-    const prev = this.chapters.list.get(idOrNumber);
-    const id = prev?.id;
+    const id = this.chapters.list.get(idOrNumber)?.id;
     if (!id) {
       console.warn(`Chapter ${idOrNumber} not found`);
       return false;
@@ -483,7 +499,7 @@ export default class StudyCtrl {
       this.redraw();
       return true;
     }
-    this.vm.scrollToActiveChapter = 'smooth';
+    this.chapters.scroller.request('smooth');
     this.vm.nextChapterId = id;
     this.vm.justSetChapterId = id;
     if (this.vm.mode.sticky && this.makeChange('setChapter', id)) {
@@ -497,9 +513,8 @@ export default class StudyCtrl {
       this.vm.mode.sticky = false;
       if (!this.vm.behind) this.vm.behind = 1;
       this.vm.chapterId = id;
-      this.relay?.liveboardPlugin?.reset();
-      await this.xhrReload();
-      componentCallbacks(id);
+      this.chapters.scroller.request('smooth'); // sticky scroll request is set in `changeChapter`
+      await this.xhrReload(false, () => componentCallbacks(id));
     }
     if (displayColumns() > 2) window.scrollTo(0, 0);
     return true;
@@ -511,7 +526,7 @@ export default class StudyCtrl {
     get: () => this.data.chapter.id,
   };
 
-  private deltaChapter = (delta: number): ChapterPreview | undefined => {
+  private readonly deltaChapter = (delta: number): ChapterPreview | undefined => {
     const chs = this.chapters.list.all();
     const i = chs.findIndex(ch => ch.id === this.vm.chapterId);
     return i < 0 ? undefined : chs[i + delta];
@@ -530,7 +545,7 @@ export default class StudyCtrl {
     this.likeToggler();
   };
   position = () => this.data.position;
-  canJumpTo = (path: Tree.Path) =>
+  canJumpTo = (path: TreePath) =>
     this.gamebookPlay
       ? this.gamebookPlay.canJumpTo(path)
       : this.data.chapter.conceal === undefined ||
@@ -548,7 +563,7 @@ export default class StudyCtrl {
     return true;
   };
 
-  isClockTicking = (path: Tree.Path) =>
+  isClockTicking = (path: TreePath) =>
     path !== '' && this.data.chapter.relayPath === path && !isFinished(this.data.chapter);
 
   isRelayAwayFromLive = (): boolean =>
@@ -560,12 +575,12 @@ export default class StudyCtrl {
   isRelayAndInVariation = (): boolean =>
     this.isRelayAwayFromLive() && !treePath.contains(this.data.chapter.relayPath!, this.ctrl.path);
 
-  setPath = (path: Tree.Path, node: Tree.Node) => {
+  setPath = (path: TreePath, node: TreeNode) => {
     this.arrowHistory = [];
     this.onSetPath(path);
     this.commentForm.onSetPath(this.vm.chapterId, path, node);
   };
-  deleteNode = (path: Tree.Path) =>
+  deleteNode = (path: TreePath) =>
     this.makeChange(
       'deleteNode',
       this.addChapterId({
@@ -573,7 +588,7 @@ export default class StudyCtrl {
         jumpTo: this.ctrl.path,
       }),
     );
-  promote = (path: Tree.Path, toMainline: boolean) =>
+  promote = (path: TreePath, toMainline: boolean) =>
     this.makeChange(
       'promote',
       this.addChapterId({
@@ -581,7 +596,7 @@ export default class StudyCtrl {
         path,
       }),
     );
-  forceVariation = (path: Tree.Path, force: boolean) =>
+  forceVariation = (path: TreePath, force: boolean) =>
     this.makeChange(
       'forceVariation',
       this.addChapterId({
@@ -599,6 +614,11 @@ export default class StudyCtrl {
     else this.nonRelayRecMapProp(this.data.id, this.vm.mode.write);
     this.xhrReload();
   };
+  toggleStudyFormIfAllowed = () => {
+    if (!this.members.isOwner()) return;
+    this.form.open.toggle();
+    this.redraw();
+  };
   goToPrevChapter = () => {
     const chapter = this.prevChapter();
     if (chapter) this.setChapter(chapter.id);
@@ -614,6 +634,7 @@ export default class StudyCtrl {
     this.configureAnalysis();
     this.ctrl.userJump(this.ctrl.path);
     if (!o) this.xhrReload();
+    else if (o === 'analyse') this.ctrl.startCeval();
   };
   explorerGame = (gameId: string, insert: boolean) =>
     this.makeChange('explorerGame', this.withPosition({ gameId, insert }));
@@ -629,6 +650,12 @@ export default class StudyCtrl {
     const chapterUrl = `${studyUrl}/${this.vm.chapterId}`;
     if (this.relay) this.relay.updateAddressBar(studyUrl, chapterUrl);
     else if (chapterUrl !== location.href) history.replaceState({}, '', chapterUrl);
+  };
+  socketSendNodeData = () => {
+    if (!this.isWriting()) return false;
+    const data: { ch: string; sticky?: false } = { ch: this.vm.chapterId };
+    if (!this.vm.mode.sticky) data.sticky = false;
+    return data;
   };
   socketHandler = (t: string, d: any) => {
     const handler = (this.socketHandlers as any as SocketHandlers)[t];
@@ -663,14 +690,11 @@ export default class StudyCtrl {
       this.redraw();
     },
     addNode: d => {
-      if (d.relayPath === '!') d.relayPath = d.p.path + d.n.id;
       const position = d.p,
-        node = {
-          ...d.n,
-          children: d.n.children || [],
-        },
+        node = completeNode(this.ctrl.variantKey)(d.n),
         who = d.w,
         sticky = d.s;
+      if (d.relayPath === '!') d.relayPath = d.p.path + d.n.id;
       this.setMemberActive(who);
       this.chapters.addNode(d);
       this.multiCloudEval?.addNode(d);
@@ -687,7 +711,6 @@ export default class StudyCtrl {
       this.data.chapter.relayPath = d.relayPath;
       const newPath = this.ctrl.tree.addNode(node, position.path);
       if (!newPath) return this.xhrReload();
-      if (d.n.dests) this.ctrl.tree.addDests(d.n.dests, newPath);
       if (d.relayPath && !this.ctrl.tree.pathIsMainline(d.relayPath))
         this.ctrl.tree.promoteAt(d.relayPath, true);
       if (sticky) this.data.position.path = newPath;
@@ -715,23 +738,29 @@ export default class StudyCtrl {
       const position = d.p,
         who = d.w;
       this.setMemberActive(who);
-      if (this.wrongChapter(d)) return;
-      if (who && who.s === site.sri) return;
+      if (this.wrongChapter(d) || (who && who.s === site.sri)) return;
       if (!this.ctrl.tree.pathExists(d.p.path)) return this.xhrReload();
       this.ctrl.tree.promoteAt(position.path, d.toMainline);
       if (this.vm.mode.sticky) this.ctrl.jump(this.ctrl.path);
       else if (this.relay) this.ctrl.jump(d.p.path);
       return this.redraw();
     },
-    reload: () => this.xhrReload(),
+    reload: d => {
+      if (d?.reason === 'overweight') alert('This chapter is too big to add moves.');
+      this.xhrReload();
+    },
     changeChapter: d => {
       this.setMemberActive(d.w);
-      if (!this.vm.mode.sticky) this.vm.behind++;
       this.data.position = d.p;
-      if (this.vm.mode.sticky) this.xhrReload();
-      else this.redraw();
+      if (this.vm.mode.sticky) {
+        this.chapters.scroller.request('smooth'); // non-sticky scroll request is set in `setChapter`
+        this.xhrReload();
+      } else {
+        this.vm.behind++;
+        this.redraw();
+      }
     },
-    updateChapter: d => {
+    reloadStudy: d => {
       this.setMemberActive(d.w);
       this.xhrReload();
     },
@@ -763,7 +792,9 @@ export default class StudyCtrl {
       if (d.w?.s === site.sri) {
         this.vm.mode.write = this.relay ? this.relayRecProp() : this.nonRelayRecMapProp(this.data.id);
         this.vm.chapterId = d.p.chapterId;
-      }
+        this.vm.nextChapterId = d.p.chapterId;
+        this.chapters.scroller.request('instant');
+      } else this.chapters.scroller.request('smooth');
       this.xhrReload(true);
     },
     members: d => {
@@ -772,9 +803,12 @@ export default class StudyCtrl {
       this.redraw();
     },
     chapters: d => {
+      const prevChapters = this.chapters.list.all();
       this.chapters.loadFromServer(d);
       if (!this.currentChapter()) {
-        this.vm.chapterId = d[0].id;
+        const prevIndex = prevChapters.findIndex(ch => ch.id === this.vm.chapterId);
+        const newIndex = prevIndex === -1 ? 0 : prevIndex >= d.length ? d.length - 1 : prevIndex;
+        this.vm.chapterId = d[newIndex].id;
         if (!this.vm.mode.sticky) this.xhrReload();
       }
       this.redraw();

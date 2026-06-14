@@ -8,11 +8,11 @@
   <string name="advanced">Napredno</string>
   <string name="lengths">Dolžine</string>
   <string name="mates">Mati</string>
+  <string name="mateThemes">Matne teme</string>
   <string name="goals">Cilji</string>
   <string name="origin">Izvor</string>
   <string name="specialMoves">Posebne poteze</string>
   <string name="didYouLikeThisPuzzle">Ali ti je všeč šahovski problem?</string>
-  <string name="voteToLoadNextOne">Glasujte za nalaganje naslednjega!</string>
   <string name="upVote">Glas ZA uganko</string>
   <string name="downVote">Glas PROTI uganki</string>
   <string name="yourPuzzleRatingWillNotChange">Vaša ocena uganke se ne bo spremenila. Upoštevajte, da uganke niso tekmovanje. Ocena pomaga izbrati najboljše uganke za vaše trenutno znanje.</string>
