@@ -11,10 +11,7 @@
         throw new Error('Expected global function "score(moves, args, limiter)"');
       }
       args.chess = Object.assign(globalThis.co.Chess.default(), args.chess);
-      const maybeAsync = globalThis.score(moves, args, limiter);
-      const result =
-        'then' in maybeAsync && typeof maybeAsync.then === 'function' ? await maybeAsync : maybeAsync;
-      postToIframe({ type: 'result', result });
+      postToIframe({ type: 'result', result: await globalThis.score(moves, args, limiter) });
     } catch (err) {
       postToIframe({ type: 'error', message: err && err.message ? err.message : String(err) });
     }
@@ -56,8 +53,6 @@
     try {
       Reflect.deleteProperty(globalThis, key);
       Object.defineProperty(globalThis, key, { value: undefined, writable: false, configurable: false });
-    } catch {
-      console.info('no undefine', key);
-    }
+    } catch {}
   }
 })();

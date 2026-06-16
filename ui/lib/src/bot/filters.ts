@@ -5,10 +5,12 @@ import { pubsub } from '@/pubsub';
 import type { FilterSpec, FilterInfo } from './filter';
 import { aggression } from './filters/aggression';
 import { fuzz } from './filters/fuzz';
+import { makeOpaqueOriginFilter } from './filters/opaque/opaqueOriginFilter';
 import { pawnStructure } from './filters/pawnStructure';
-import { makeSandboxFilter } from './filters/sandbox/sandboxFilter';
 
 export const filterRegistry: () => FilterRegistry = memoize(() => new FilterRegistry());
+
+// WIP
 
 class FilterRegistry {
   private readonly registry: Map<string, FilterSpec> = new Map();
@@ -21,14 +23,25 @@ class FilterRegistry {
   }
 
   notify(): void {
+    // editor only
     pubsub.emit(
       'botdev.update.filters',
       Object.fromEntries([...this.registry.entries()].map(([k, spec]) => [k, spec.info])),
     );
     this.running = true;
   }
+
   getFilter(key: string): FilterSpec | undefined {
     return this.registry.get(key);
+  }
+
+  reset(): void {
+    for (const [key, filter] of this.registry.entries()) {
+      if (!filter.terminate) continue;
+
+      filter.terminate();
+      this.registry.delete(key);
+    }
   }
 }
 
@@ -54,4 +67,4 @@ const exampleInfo: FilterInfo = {
 filterRegistry().register('aggression', aggression);
 filterRegistry().register('pawnStructure', pawnStructure);
 filterRegistry().register('fuzz', fuzz);
-filterRegistry().register('example', makeSandboxFilter(example, exampleInfo));
+filterRegistry().register('example', makeOpaqueOriginFilter(example, exampleInfo));
