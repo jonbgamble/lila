@@ -6,12 +6,12 @@ import type { Filters } from './filter';
 //export type { Filter, FilterName, FilterFacetKey, FilterInfo, Filters, BotLoader };
 
 export type Sound = { key: string; chance: number; delay: Seconds; mix: number };
-export type SoundEvents = Record<SoundEvent, Sound[]>;
+export type SoundEvents = Partial<Record<SoundEvent, Sound[]>>;
 export type ZeroSearch = { multipv: number; net: string; nodes?: number };
 export type FishSearch = { multipv: number; depth: number };
 export type Book = { key: string; weight: number; color?: Color };
 export type LocalSpeed = Exclude<Speed, 'correspondence'>;
-export type Ratings = Record<LocalSpeed, number | undefined>;
+export type Ratings = Partial<Record<LocalSpeed, number>>;
 export type AssetType = 'image' | 'book' | 'sound' | 'net';
 export type BotUid = string;
 
@@ -37,7 +37,7 @@ export interface MoveSource {
 export interface MoveArgs {
   pos: Position;
   chess: Chess;
-  ply: number; // this is metainfo, not an index. it can exceed moves.length if initial fen isn't default
+  ply: number; // can exceed moves.length depending on setupFen
   avoid: Uci[]; // moves that would 3fold
   initial: Seconds;
   increment: Seconds;
