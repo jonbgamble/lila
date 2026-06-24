@@ -161,6 +161,15 @@ export function view(ctrl: AnalyseCtrl): VNode {
           },
           i18n.site.clearSavedMoves,
         ),
+      displayColumns() > 1 &&
+        hl(
+          'button',
+          {
+            attrs: { 'data-icon': licon.Expand },
+            on: { click: () => ctrl.presentationMode(true) },
+          },
+          'Presentation mode',
+        ),
       hl(
         'button',
         {
