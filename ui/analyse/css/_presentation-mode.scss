@@ -1,0 +1,40 @@
+main.presentation-mode {
+  grid-template-columns: min(90vw, 86vh) $analyse-block-gap !important;
+  grid-template-rows: 1fr !important;
+  grid-template-areas: 'board gauge' !important;
+
+  cg-resize,
+  > *:not(.main-board, .eval-gauge) {
+    display: none;
+  }
+}
+
+.presentation-controls {
+  position: fixed;
+  left: 12px;
+  top: 8px;
+  display: none;
+}
+
+body:has(.presentation-mode) {
+  header#top {
+    display: none;
+  }
+
+  .presentation-controls {
+    display: flex;
+  }
+
+  .exit-presentation-mode,
+  .screencast-mode {
+    display: flex;
+    padding: 6px 12px;
+    font-size: 18px;
+  }
+}
+
+body:fullscreen:has(.presentation-mode) {
+  .screencast-mode {
+    display: none;
+  }
+}
