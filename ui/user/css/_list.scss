@@ -79,10 +79,6 @@ $user-list-width: 30ch;
         a {
           color: #fff;
         }
-
-        @include if-light {
-          background: $c-mistake;
-        }
       }
 
       li {

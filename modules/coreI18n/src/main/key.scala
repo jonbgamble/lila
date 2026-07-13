@@ -2280,6 +2280,7 @@ object I18nKey:
     val `background`: I18nKey = "background"
     val `theme`: I18nKey = "theme"
     val `light`: I18nKey = "light"
+    val `clouds`: I18nKey = "clouds"
     val `dark`: I18nKey = "dark"
     val `picture`: I18nKey = "picture"
     val `deviceTheme`: I18nKey = "deviceTheme"
