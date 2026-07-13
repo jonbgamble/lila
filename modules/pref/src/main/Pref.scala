@@ -61,7 +61,10 @@ case class Pref(
 
   val themeColorLight = "#dbd7d1"
   val themeColorDark = "#2e2a24"
-  def themeColor = if bg == Bg.LIGHT || bg == Bg.LIGHT_TRANSP then themeColorLight else themeColorDark
+  def themeColor =
+    if bg == Bg.LIGHT || bg == Bg.LIGHT_TRANSP then themeColorLight
+    else if bg == Bg.CLOUDS then "#b9b9be"
+    else themeColorDark
 
   def realSoundSet = SoundSet(soundSet)
 
@@ -128,6 +131,7 @@ case class Pref(
     if bg == Bg.DARK_TRANSP then "transp dark"
     else if bg == Bg.LIGHT_TRANSP then "transp light"
     else if bg == Bg.LIGHT then "light"
+    else if bg == Pref.Bg.CLOUDS then "light clouds"
     else if bg == Bg.SYSTEM then "system"
     else if bg == Bg.SYSTEM_TRANSP then "transp system"
     else "dark"
@@ -158,6 +162,7 @@ object Pref:
 
   object Bg:
     val LIGHT = 100
+    val CLOUDS = 110
     val DARK = 200
     val DARK_TRANSP = 400
     val LIGHT_TRANSP = 401
@@ -166,6 +171,7 @@ object Pref:
 
     val choices = Seq(
       LIGHT -> "Light",
+      CLOUDS -> "Clouds",
       DARK -> "Dark",
       DARK_TRANSP -> "Transparent Dark",
       LIGHT_TRANSP -> "Transparent Light",
@@ -175,6 +181,7 @@ object Pref:
 
     val fromString = Map(
       "light" -> LIGHT,
+      "clouds" -> CLOUDS,
       "dark" -> DARK,
       "transp dark" -> DARK_TRANSP,
       "transp light" -> LIGHT_TRANSP,

@@ -1,5 +1,6 @@
 import { h, type VNode } from 'snabbdom';
 
+import { myUserId } from 'lib';
 import { debounce, throttlePromiseDelay } from 'lib/async';
 import { prefersLightThemeQuery } from 'lib/device';
 import { pubsub } from 'lib/pubsub';
@@ -41,8 +42,9 @@ export class ThemeCtrl extends PaneCtrl {
     this.list = [
       { key: 'system', name: i18n.site.deviceTheme },
       { key: 'light', name: i18n.site.light },
-      { key: 'dark', name: i18n.site.dark },
     ];
+    if (myUserId()) this.list.push({ key: 'clouds', name: i18n.site.clouds });
+    this.list.push({ key: 'dark', name: i18n.site.dark });
   }
 
   render(): VNode {
@@ -67,16 +69,18 @@ export class ThemeCtrl extends PaneCtrl {
           );
         }),
         this.propSlider('ui-roundness', i18n.site.roundness, { min: 0, max: 15, step: 1 }),
-        cmnToggleWrap({
-          id: 'background-picture-toggle',
-          name: i18n.site.backgroundImage,
-          checked: isTransp,
-          change: () => {
-            const { theme, isTransp } = this.getThemeData();
-            this.set(isTransp ? theme.replace('transp ', '') : `transp ${theme}`);
-          },
-          redraw: this.redraw,
-        }),
+        theme !== 'light clouds'
+          ? cmnToggleWrap({
+              id: 'background-picture-toggle',
+              name: i18n.site.backgroundImage,
+              checked: isTransp,
+              change: () => {
+                const { theme, isTransp } = this.getThemeData();
+                this.set(isTransp ? theme.replace('transp ', '') : `transp ${theme}`);
+              },
+              redraw: this.redraw,
+            })
+          : undefined,
         isTransp
           ? this.propSlider(
               'bg-opacity',
