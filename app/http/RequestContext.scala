@@ -81,6 +81,11 @@ trait RequestContext(using Executor):
   private def makeUserContext(req: RequestHeader): Fu[LoginContext] =
     env.security.api
       .restoreUser(req)
+      .flatMap:
+        case some @ Some(_) => fuccess(some)
+        case None =>
+          env.demo.userFor(req).map:
+            _.map(me => Right(FingerPrintedUser(me, hasFingerPrint = true)))
       .map:
         case Some(Left(AppealUser(me))) if lila.web.ClosedLogin.acceptsPath(req) =>
           FingerPrintedUser(me, true).some

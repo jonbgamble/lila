@@ -86,7 +86,7 @@ final class Auth(env: Env, accountC: => Account) extends LilaController(env):
     env.security.lilaCookie.ensureAndGet: sid =>
       val switch = get("switch").orElse(get("as"))
       t3Counter(_.login.load(sid))
-      referrer.ifTrue(ctx.isAuth).ifTrue(switch.isEmpty) match
+      referrer.ifTrue(ctx.isAuth && !env.demo.enabled).ifTrue(switch.isEmpty) match
         case Some(url) =>
           t3Counter(_.login.success)
           Redirect(url.value) // redirect immediately if already logged in

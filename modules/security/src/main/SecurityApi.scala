@@ -134,6 +134,15 @@ final class SecurityApi(
             sessionId <- store.save(isSignup = false, userId, req, apiVersion, fp = none, proxy, pwned)
           yield sessionId
 
+  def saveDemoAuthentication(userId: UserId)(using req: RequestHeader): Fu[SessionId] =
+    for
+      proxy <- ip2proxy.ofReq(req)
+      sessionId <- store.save(isSignup = false, userId, req, apiVersion = none, fp = none, proxy, IsPwned.No)
+    yield sessionId
+
+  def hasAuthentication(req: RequestHeader): Fu[Boolean] =
+    reqSessionId(req).traverse(store.authInfo).map(_.flatten.isDefined)
+
   def saveSignup(userId: UserId, apiVersion: Option[ApiVersion], fp: Option[FingerPrint], pwned: IsPwned)(
       using req: RequestHeader
   ): Funit =
