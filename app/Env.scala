@@ -39,6 +39,7 @@ final class Env(
   val mailer: lila.mailer.Env = wire[lila.mailer.Env]
   val oAuth: lila.oauth.Env = wire[lila.oauth.Env]
   val security: lila.security.Env = wire[lila.security.Env]
+  val demo = http.Demo(net, user.repo, security.api, security.lilaCookie)
   val pref: lila.pref.Env = wire[lila.pref.Env]
   val relation: lila.relation.Env = wire[lila.relation.Env]
   val title: lila.title.Env = wire[lila.title.Env]

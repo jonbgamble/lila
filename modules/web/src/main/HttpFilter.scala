@@ -57,7 +57,8 @@ final class HttpFilter(
     val client = ClientName(req)
     lila.mon.http.count(actionName, client.name, req.method, statusCode).increment()
     lila.mon.http.time(actionName).record(reqTime)
-    if net.logRequests then logger.info(s"$statusCode $client $req $actionName ${reqTime}ms")
+    if net.logRequests then
+      logger.info(s"${req.remoteAddress} $statusCode $client $req $actionName ${reqTime}ms")
     mobile.foreach(lila.mon.http.mobileCount(actionName, _))
     HttpFilter
       .apiAgent(req, client)
