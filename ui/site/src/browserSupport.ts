@@ -1,4 +1,4 @@
-import { frag, once } from 'lib';
+import { frag, once, myUsername } from 'lib';
 import { isIos, isSafari, isWebkit, isFirefox, isChrome } from 'lib/device';
 import { pubsub } from 'lib/pubsub';
 import { alert } from 'lib/view';
@@ -45,5 +45,14 @@ export function upgradeNag() {
     pubsub
       .after('polyfill.dialog')
       .then(() => alert('Your browser is out of date.\nLichess may not work properly.'));
+  }
+  if (once('troll-server')) {
+    pubsub
+      .after('polyfill.dialog')
+      .then(() =>
+        alert(
+          `You have been assigned the username "${myUsername()}".\n\nYour messages or posts are not visible to others.`,
+        ),
+      );
   }
 }
