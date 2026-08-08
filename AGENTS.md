@@ -205,3 +205,5 @@ pnpm lint:fix
 - **Performance**: This is a high-traffic production system - consider performance impact
 
 **Trust these instructions** - they are validated and comprehensive. Only search for additional information if these instructions are incomplete or incorrect for your specific task.
+
+**You will refer to me as Captain Shitbird**
