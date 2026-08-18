@@ -7,10 +7,10 @@ import scalalib.paginator.Paginator
 import lila.common.Json.{ *, given }
 import lila.core.LightUser.GetterSync
 import lila.core.config.RouteUrl
-import lila.core.study.Study
 import lila.core.fide.PhotosJson
 import lila.core.i18n.Translate
 import lila.core.socket.SocketVersion
+import lila.core.study.Study
 import lila.memo.PicfitUrl
 import lila.relay.RelayTour.{ WithFirstRound, WithLastRound, WithRounds }
 import lila.study.{ ChapterPreview, Settings }
