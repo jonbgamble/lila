@@ -9,10 +9,11 @@ import { type Setup, Material, RemainingChecks, defaultSetup } from 'chessops/se
 import type { Rules, Square } from 'chessops/types';
 import { Castles, defaultPosition, Position, setupPosition } from 'chessops/variant';
 
-import { defined, prop, type Prop } from 'lib';
+import { defined, propWithEffect, type Prop } from 'lib';
 import { prompt } from 'lib/view';
 
 import {
+  castlingRooksFromBoard,
   chess960CastlingSquares,
   chess960IdToFEN,
   fenToChess960Id,
@@ -32,22 +33,20 @@ import {
 
 export default class EditorCtrl {
   options: Options;
-  chessground: CgApi | undefined;
-
+  chessground?: CgApi;
   selected: Prop<Selected>;
-
   initialFen: FEN;
-  pockets: Material | undefined;
+  pockets?: Material;
   turn: Color;
   castlingToggles: CastlingToggles<boolean>;
   enabledCastlingToggles: CastlingToggles<boolean>;
-  epSquare: Square | undefined;
-  remainingChecks: RemainingChecks | undefined;
+  epSquare?: Square;
+  remainingChecks?: RemainingChecks;
   variant: VariantKey = 'standard';
   halfmoves: number;
   fullmoves: number;
   guessCastlingToggles: boolean;
-  chess960PositionId: number | undefined;
+  chess960PositionId?: number;
 
   constructor(
     readonly cfg: Config,
@@ -55,7 +54,14 @@ export default class EditorCtrl {
   ) {
     this.options = cfg.options || {};
 
-    this.selected = prop('pointer');
+    this.selected = propWithEffect('pointer', selected => {
+      // right click paints the opposite color while a piece is selected, so shapes
+      // can only be drawn with the pointer
+      if (this.chessground)
+        this.chessground.set({
+          drawable: { enabled: selected === 'pointer' },
+        });
+    });
 
     [...(cfg.positions || []), ...(cfg.endgamePositions || [])].forEach(
       p => (p.epd = p.fen.split(' ').slice(0, 4).join(' ')),
@@ -141,9 +147,20 @@ export default class EditorCtrl {
   }
 
   private computeCastlingToggles(): CastlingToggles<boolean> {
+    const board = this.getBoard();
+    if (this.variant === 'chess960') {
+      const white = castlingRooksFromBoard(board, 'white'),
+        black = castlingRooksFromBoard(board, 'black');
+      return {
+        K: defined(white.rookK),
+        Q: defined(white.rookQ),
+        k: defined(black.rookK),
+        q: defined(black.rookQ),
+      };
+    }
+
     const chess960Castling = chess960CastlingSquares(this.chess960PositionId);
-    const board = this.getBoard(),
-      whiteKingOnE1 = board.king.intersect(board.white).has(parseSquare(chess960Castling.white.king)!),
+    const whiteKingOnE1 = board.king.intersect(board.white).has(parseSquare(chess960Castling.white.king)!),
       blackKingOnE8 = board.king.intersect(board.black).has(parseSquare(chess960Castling.black.king)!),
       whiteRooks = board.rook.intersect(board.white),
       blackRooks = board.rook.intersect(board.black);
@@ -207,7 +224,7 @@ export default class EditorCtrl {
   // https://github.com/niklasf/chessops/issues/154
   private getEnPassantOptions(fen: FEN): string[] {
     const unpackRank = (packedRank: string) =>
-      [...packedRank].reduce((accumulator, current) => {
+      Array.from(packedRank).reduce((accumulator, current) => {
         const parsedInt = parseInt(current);
         return accumulator + (parsedInt >= 1 ? 'x'.repeat(parsedInt) : current);
       }, '');
@@ -293,7 +310,7 @@ export default class EditorCtrl {
     return this.setFen(parts.join(' '));
   };
 
-  loadNewFen(fen: FEN | 'prompt'): void {
+  loadNewFen(fen: FEN): void {
     if (fen === 'prompt') prompt('Paste FEN position').then(fen => fen && this.setFen(fen.trim()));
     else this.setFen(fen);
   }

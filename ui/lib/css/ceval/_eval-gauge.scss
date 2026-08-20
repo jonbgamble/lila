@@ -1,5 +1,8 @@
 .eval-gauge {
+  @extend %box-radius;
+
   width: $block-gap;
+  height: var(---cg-height, 100%);
   position: relative;
   background: #c0c0c0;
   overflow: hidden;
@@ -21,11 +24,13 @@
   }
 
   &::after {
+    @extend %box-radius;
+
     content: '';
     display: block;
     position: absolute;
     inset: 0;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5) inset;
+    box-shadow: 0 0 5px rgb(0 0 0 / 0.5) inset;
   }
 
   tick {
@@ -40,13 +45,13 @@
     @include if-light {
       border-bottom-color: #ccc;
     }
-  }
 
-  tick.zero {
-    top: 6px;
-    opacity: 1;
-    border-bottom: 7px solid $m-accent--fade-50 !important;
-    margin-top: -3px;
+    &.zero {
+      top: 6px;
+      opacity: 1;
+      border-bottom: 7px solid $c-accent-cloud !important;
+      margin-top: -3px;
+    }
   }
 
   .black {

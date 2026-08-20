@@ -85,6 +85,7 @@ object IsProxy extends OpaqueString[IsProxy]:
     def isFloodish: Boolean = in(_.public, _.web, _.tor, _.server)
     def isCrawler: Boolean = a == search
     def isHttp1: Boolean = a == http1
+    def couldBeEnum = isFloodish || isCrawler || isHttp1
     def name = a.value.nonEmpty.option(a.value)
   def unapply(a: IsProxy): Option[String] = a.name
   // https://blog.ip2location.com/knowledge-base/what-are-the-proxy-types-supported-in-ip2proxy/
@@ -112,6 +113,6 @@ trait UserTrustApi:
 
 def canUploadImages(toRel: String)(using me: Me) = !me.marks.troll && me.kid.no && {
   me.isVerified ||
-  toRel == "ublogBody" ||
+  toRel.startsWith("ublog") ||
   (me.createdSinceDays(7) && !me.marks.alt)
 }

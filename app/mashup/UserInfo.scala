@@ -53,9 +53,8 @@ object UserInfo:
       relationApi: RelationApi,
       noteApi: lila.user.NoteApi,
       prefApi: lila.pref.PrefApi
-  ):
+  )(using Executor):
     def apply(u: User)(using ctx: Context): Fu[Social] =
-      given scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.parasitic
       (
         ctx.userId.so(relationApi.fetchRelation(_, u.id).mon(lila.mon.user.segment("relation"))),
         ctx.useMe(noteApi.getForMyPermissions(u).mon(lila.mon.user.segment("notes"))),
@@ -78,9 +77,8 @@ object UserInfo:
       bookmarkApi: BookmarkApi,
       gameCached: lila.game.Cached,
       crosstableApi: lila.game.CrosstableApi
-  ):
+  )(using Executor):
     def apply(u: User, withCrosstable: Boolean)(using me: Option[Me]): Fu[NbGames] =
-      given scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.parasitic
       (
         withCrosstable.so:
           me
@@ -118,7 +116,9 @@ object UserInfo:
         perfsRepo.withPerfs(user),
         userApi.getTrophiesAndAwards(user).mon(lila.mon.user.segment("trophies")),
         (nbs.playing > 0).so(simulApi.isSimulHost(user.id).mon(lila.mon.user.segment("simul"))),
-        showRatings.so(ratingChartApi(user)).mon(lila.mon.user.segment("ratingChart")),
+        showRatings
+          .so(ratingChartApi(user, computeIfNeeded = ctx.isAuth))
+          .mon(lila.mon.user.segment("ratingChart")),
         (!user.is(UserId.lichess) && !user.isBot).so:
           postApi.nbByUser(user.id).mon(lila.mon.user.segment("nbForumPosts"))
         ,

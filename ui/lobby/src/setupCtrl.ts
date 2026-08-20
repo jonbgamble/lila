@@ -67,6 +67,7 @@ export default class SetupController {
       increment: 3,
       days: 2,
       gameMode: gameType === 'ai' || !this.root.me ? 'casual' : 'rated',
+      color: 'random',
       ratingMin: -500,
       ratingMax: 500,
       aiLevel: 1,
@@ -91,7 +92,7 @@ export default class SetupController {
     this.ratingMin = this.propWithApply(storeProps.ratingMin);
     this.ratingMax = this.propWithApply(storeProps.ratingMax);
     this.aiLevel = this.propWithApply(storeProps.aiLevel);
-    this.color(forceOptions?.color || 'random');
+    this.color(forceOptions?.color || storeProps.color || 'random');
 
     this.enforcePropRules();
     // Upon loading the props from the store, overriding with forced options, and enforcing rules,
@@ -117,21 +118,27 @@ export default class SetupController {
     }
   };
 
-  private readonly savePropsToStore = (override: Partial<SetupStore> = {}) =>
-    this.gameType &&
+  private readonly savePropsToStore = (override: Partial<SetupStore> = {}) => {
+    if (!this.gameType) return;
+
+    // Don't persist position passed through URL
+    const prevSetup = this.forced?.fen ? this.store[this.gameType]() : undefined;
+
     this.store[this.gameType]({
-      variant: this.variant(),
-      fen: this.fen(),
+      variant: prevSetup?.variant ?? this.variant(),
+      fen: prevSetup?.fen ?? this.fen(),
       timeMode: this.timeControl.mode(),
       time: this.timeControl.time(),
       increment: this.timeControl.increment(),
       days: this.timeControl.days(),
       gameMode: this.gameMode(),
+      color: this.color(),
       ratingMin: this.ratingMin(),
       ratingMax: this.ratingMax(),
       aiLevel: this.aiLevel(),
       ...override,
     });
+  };
 
   private readonly savePropsToStoreExceptRating = () =>
     this.gameType &&
