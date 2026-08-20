@@ -1,4 +1,3 @@
-import './filters';
 import makeZerofish, { type Zerofish } from '@lichess-org/zerofish';
 
 import { definedMap } from '../algo';
