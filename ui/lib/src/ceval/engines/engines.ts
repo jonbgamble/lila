@@ -56,6 +56,7 @@ export class Engines {
           minMem: 2560,
           supportsCloudEval: true,
           supportsPuzzleReport: true,
+          nodeEfficiencyVsFishnet: 1.0,
           assets: {
             root: 'npm/stockfish-web',
             js: 'sf_19.js',
@@ -75,6 +76,7 @@ export class Engines {
           supportsCloudEval: true,
           supportsPuzzleReport: true,
           preferred: true,
+          nodeEfficiencyVsFishnet: 0.3,
           assets: {
             root: 'npm/stockfish-web',
             js: 'sf_19_smallnet.js',
@@ -166,6 +168,7 @@ export class Engines {
           minThreads: 1,
           variants: ['chess', ...variants.map(v => v.key)],
           supportsNonStandardMaterial: true,
+          nodeEfficiencyVsFishnet: 0.08,
           assets: {
             version: 'a022fa',
             root: 'npm/stockfish-mv.wasm',
@@ -228,7 +231,11 @@ export class Engines {
       this.ctrl.opts.externalEngines?.map(e => ({ tech: 'EXTERNAL', preferred: true, ...e })) ?? [];
   }
 
-  getEngine(selector?: { id?: string; rules: Rules; nonStandardMaterial: boolean }): EngineInfo | undefined {
+  getEngine(selector?: {
+    id?: string;
+    rules?: Rules;
+    nonStandardMaterial?: boolean;
+  }): EngineInfo | undefined {
     const id = selector?.id ?? this.activeEngine?.id;
     const engines = this.supporting({
       rules: selector?.rules || 'chess',
@@ -270,8 +277,8 @@ export class Engines {
   }
 
   supporting(selector: {
-    rules: Rules;
-    nonStandardMaterial: boolean;
+    rules?: Rules;
+    nonStandardMaterial?: boolean;
     filter?: 'browser' | 'external';
   }): EngineInfo[] {
     const engines: EngineInfo[] = [
@@ -280,9 +287,14 @@ export class Engines {
     ];
     return engines.filter(
       info =>
-        (!selector.nonStandardMaterial || info.supportsNonStandardMaterial) &&
-        (info.variants ?? ['chess']).includes(selector.rules),
+        (!selector.nonStandardMaterial || info.supportsNonStandardMaterial === true) &&
+        (!selector.rules || (info.variants ?? ['chess']).includes(selector.rules)),
     );
+  }
+
+  matchEngines(match: (info: EngineInfo) => boolean): EngineInfo[] {
+    const engines = [...this.externalEngines, ...[...this.localEngineMap.values()].map(e => e.info)];
+    return engines.filter(info => match(info));
   }
 
   makeEngine(selector?: { id?: string; rules: Rules; nonStandardMaterial: boolean }): CevalEngine {
