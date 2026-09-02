@@ -24,7 +24,7 @@ import {
 import type { CevalCtrl } from '../ctrl';
 import { fewerCores } from '../util';
 
-const allSearchTicks: number[] = [2, 4, 6, 8, 10, 12, 15, 20, 30];
+export const allSearchTicks: number[] = [2, 4, 6, 8, 10, 12, 15, 20, 30];
 if (!isMobile()) allSearchTicks.push(60, 120, 300, Number.POSITIVE_INFINITY);
 
 export function renderCevalSettings(ctrl: CevalHandler): VNode | null {

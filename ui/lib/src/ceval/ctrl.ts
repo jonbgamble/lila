@@ -10,7 +10,11 @@ import { clamp } from '@/algo';
 import { throttleWithFlush } from '@/async';
 import { isTouchDevice } from '@/device';
 import { pubsub } from '@/pubsub';
+<<<<<<< HEAD
 import { storedIntProp, storedStringProp, storage } from '@/storage';
+=======
+import { storedIntProp, storedStringProp, storage, storedMap } from '@/storage';
+>>>>>>> bd448283fd (cherry pick da04bbe123ba6901e99552be68be664e95668881)
 import type { ClientEval, LocalEval, TreePath } from '@/tree/types';
 
 import { prop, type Prop, type Toggle, toggle } from '../index';
@@ -45,6 +49,9 @@ interface Started {
   threatMode: boolean;
 }
 
+type ThreadCount = number;
+type NodesPerSecond = number;
+
 export class CevalCtrl {
   rules: Rules;
   nonStandardMaterial: boolean;
@@ -62,6 +69,11 @@ export class CevalCtrl {
   showEnginePrefs: Toggle = toggle(false);
   wasUnloadedByAnotherWindow = false;
 
+  private readonly performanceMap = storedMap<Record<ThreadCount, NodesPerSecond[]>>(
+    'ceval.perf',
+    12,
+    () => ({}),
+  );
   private worker?: CevalEngine;
 
   constructor(public opts: CevalOpts) {
@@ -71,7 +83,7 @@ export class CevalCtrl {
 
     // another tab has started ceval, we should stop:
     storage.make('ceval.fen').listen(() => {
-      if (!this.worker) return;
+      if (this.isBackground || !this.worker) return;
       this.worker.destroy();
       this.worker = undefined; // release memory
       this.wasUnloadedByAnotherWindow = true;
@@ -79,11 +91,16 @@ export class CevalCtrl {
     });
 
     document.addEventListener('visibilitychange', () => {
-      if (this.engines.external) return;
-      if (this.curEval?.bestmove) return;
-      if (!this.lastStarted) return;
-      if (!this.analysable) return;
-      if (!isTouchDevice()) return;
+      if (
+        this.engines.external ||
+        this.curEval?.bestmove ||
+        !this.lastStarted ||
+        !this.analysable ||
+        this.isBackground ||
+        !isTouchDevice()
+      ) {
+        return;
+      }
       if (document.hidden) this.worker?.stop();
       else this.doStart(this.lastStarted);
     });
@@ -110,7 +127,7 @@ export class CevalCtrl {
   }
 
   available(): boolean {
-    return !document.hidden && this.analysable;
+    return (this.isBackground || !document.hidden) && this.analysable;
   }
 
   goDeeper = (): void => {
@@ -150,14 +167,7 @@ export class CevalCtrl {
         min: 16,
         max: active.maxHash,
       }),
-      engine:
-        (custom?.engine &&
-          this.engines.getEngine({
-            id: custom.engine.id,
-            rules: this.rules,
-            nonStandardMaterial: this.nonStandardMaterial,
-          })) ||
-        active,
+      engine: (custom?.engine && this.engines.getEngine({ id: custom.engine.id })) || active,
       search:
         typeof maybeSearch === 'object'
           ? maybeSearch
@@ -216,6 +226,14 @@ export class CevalCtrl {
     return Boolean(this.engines.active()?.supportsCloudEval);
   }
 
+  get engineVersion(): string | undefined {
+    return (this.engines.external && this.worker?.version?.()) || this.engines.active()?.name;
+  }
+
+  get isBackground(): boolean {
+    return this.opts.custom?.canBackground === true;
+  }
+
   get showingCloud(): boolean {
     if (!this.lastStarted) return false;
     const curr = this.lastStarted.steps[this.lastStarted.steps.length - 1];
@@ -268,6 +286,24 @@ export class CevalCtrl {
     return latest.nodes >= stored.nodes;
   }
 
+<<<<<<< HEAD
+=======
+  nodesPerSecond(engineId: string, threads: number): number | undefined {
+    const snapshots = this.performanceMap(engineId);
+    if (!snapshots) return undefined;
+
+    const average = (arr: number[]) => arr.reduce((a: number, b: number) => a + b, 0) / arr.length;
+
+    if (snapshots[threads]?.length) return average(snapshots[threads]);
+
+    const perfs: number[] = [];
+    for (const thread in snapshots) {
+      perfs.push((average(snapshots[thread]) * threads) / Number(thread));
+    }
+    return average(perfs);
+  }
+
+>>>>>>> bd448283fd (cherry pick da04bbe123ba6901e99552be68be664e95668881)
   private readonly doStart = (s: Started) => {
     this.lastStarted = s;
     const step = s.steps[s.steps.length - 1];
@@ -290,7 +326,6 @@ export class CevalCtrl {
       threatMode: s.threatMode,
       emit: this.makeThrottledEmitter(),
     };
-
     if (s.threatMode) {
       const fields = step.fen.split(' ');
       fields[1] = step.ply % 2 === 1 ? 'w' : 'b';
@@ -330,6 +365,7 @@ export class CevalCtrl {
       started: this.lastStarted!,
       fen: undefined as string | undefined,
       emit: this.opts.emit,
+      background: this.isBackground,
       movetime: 'movetime' in this.search.by && this.search.by.movetime,
       dontStop: Boolean(this.engines.external || this.opts.custom || this.isDeeper() || this.isInfinite),
     };
@@ -337,6 +373,7 @@ export class CevalCtrl {
       this.curEval = ev;
       ev.engineId = this.engines.active()?.id;
       if (ev.bestmove && ev.bestmove !== '(none)' && working.movetime !== false) {
+        this.snapshotPerformance(ev);
         ev.millis = Math.max(ev.millis, working.movetime); // ensure bestmove eval matches movetime target
       }
       if (!working.fen) {
@@ -368,5 +405,15 @@ export class CevalCtrl {
         emitter.clear();
       }
     };
+  }
+
+  private snapshotPerformance(ev: LocalEval) {
+    const { engine, threads } = this.info()!;
+    if (ev.pvs.length > 1 || !engine) return;
+
+    const snapshots = this.performanceMap(engine.id);
+    (snapshots[threads] ??= []).push(ev.nodes / (ev.millis / 1000));
+    snapshots[threads] = snapshots[threads].slice(-5);
+    this.performanceMap(engine.id, snapshots);
   }
 }
