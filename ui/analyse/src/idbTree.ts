@@ -5,6 +5,9 @@ import * as treeOps from 'lib/tree/ops';
 import type { TreeNodeLite, TreePath } from 'lib/tree/types';
 
 import type AnalyseCtrl from './ctrl';
+import type { AnalysisMeta } from './interfaces';
+import type { LocalAnalysisResult, ServerAnalysisDocument } from './local/localAnalysisEngine';
+import { pruneStaticAnalysis } from './util';
 
 export type DiscloseState = undefined | 'expanded' | 'collapsed';
 export class IdbTree {
@@ -12,6 +15,9 @@ export class IdbTree {
   private readonly collapseDb = memoize(() => objectStorage<TreePath[]>({ store: 'analyse-collapse' }));
   private readonly moveDb = memoize(() =>
     objectStorage<{ root: TreeNodeLite | undefined }>({ store: 'analyse-state', db: 'lichess' }),
+  );
+  private readonly analysisDb = memoize(() =>
+    objectStorage<LocalAnalysisResult>({ store: 'analyse-static' }),
   );
 
   constructor(private readonly ctrl: AnalyseCtrl) {}
@@ -86,17 +92,31 @@ export class IdbTree {
   clear = async (what?: 'analysis' | 'collapse' | 'moves'): Promise<void> => {
     if (this.noop) return;
     await Promise.all([
+      (!what || what === 'analysis') && this.analysisDb().then(db => db.removeVerified(this.id)),
       (!what || what === 'collapse') && this.collapseDb().then(db => db.remove(this.id)),
       !this.ctrl.study && (!what || what === 'moves') && this.moveDb().then(db => db.remove(this.id)),
     ]);
-    site.reload();
+    if (what !== 'analysis') site.reload();
+    else this.cache.localAnalysis = undefined;
   };
 
   async saveMoves(force = false): Promise<IDBValidKey | undefined> {
     if (this.noop || this.ctrl.study || !(this.cache.movesDirty || force)) return undefined;
-    return this.moveDb().then(db =>
-      db.put(this.id, { root: treeOps.structuredCloneLite(this.ctrl.tree.root) }),
-    );
+    const root = treeOps.structuredCloneLite(this.ctrl.tree.root);
+    pruneStaticAnalysis(root);
+    return this.moveDb().then(db => db.put(this.id, { root }));
+  }
+
+  async saveAnalysis(analysis: LocalAnalysisResult) {
+    if (this.noop) return undefined;
+    this.cache.localAnalysis = analysis.localUpdate.meta;
+    return this.analysisDb().then(db => db.putVerified(this.id, analysis));
+  }
+
+  async serverDocument(): Promise<ServerAnalysisDocument | undefined> {
+    return this.analysisDb()
+      .then(db => db.getVerified(this.id))
+      .then(result => result?.serverDocument);
   }
 
   async merge(): Promise<void> {
@@ -104,6 +124,14 @@ export class IdbTree {
     try {
       this.cacheMap.set(this.id, { movesDirty: false });
       await Promise.all([
+        this.analysisDb()
+          .then(db => db.getVerified(this.id))
+          .then(analysis => {
+            if (analysis) {
+              this.cache.localAnalysis = analysis.localUpdate.meta;
+              this.ctrl.mergeLocalAnalysisData(analysis.localUpdate);
+            }
+          }),
         this.collapseDb()
           .then(db => db.getOpt(this.id))
           .then(collapsedPaths => {
@@ -127,11 +155,30 @@ export class IdbTree {
     }
   }
 
+  get hasLocalAnalysis(): boolean {
+    return Boolean(this.cache.localAnalysis);
+  }
+
+  get localAnalysis(): AnalysisMeta | undefined {
+    return this.cache.localAnalysis;
+  }
+
+  get localAnalysisNpm(): number | undefined {
+    return this.cache.localAnalysis?.engine?.nodesPerMove;
+  }
+
+  get localAnalysisIsBetter(): boolean {
+    return (
+      (this.cache.localAnalysis?.engine?.nodesPerMove ?? 0) >
+      (this.ctrl.data.analysis?.engine?.nodesPerMove ?? 0) + 200_000
+    );
+  }
+
   get movesDirty(): boolean {
     return this.cache.movesDirty;
   }
 
-  private get id(): string {
+  get id(): string {
     return this.ctrl.study?.data.chapter.id ?? this.ctrl.data.game.id;
   }
 
@@ -151,6 +198,7 @@ export class IdbTree {
   }
 
   private isCollapsible(node: TreeNodeLite, isMainline: boolean): boolean {
+    if (!node) return false;
     const [first, second, third] = node.children.filter(
       n => this.ctrl.settings.showStaticAnalysis || !n.comp,
     );
@@ -160,7 +208,7 @@ export class IdbTree {
       (second && treeOps.hasBranching(second, 6)) ||
       (isMainline &&
         this.ctrl.treeView.mode === 'column' &&
-        (second || first?.comments?.filter(Boolean).length)),
+        (second || first?.comments?.filter(Boolean).filter(comment => !comment.comp).length)),
     );
   }
 
@@ -197,4 +245,4 @@ export class IdbTree {
   }
 }
 
-type State = { movesDirty: boolean };
+type State = { movesDirty: boolean; localAnalysis?: AnalysisMeta };

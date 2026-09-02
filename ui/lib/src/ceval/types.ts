@@ -57,7 +57,6 @@ export interface ExternalEngineInfoFromServer extends BaseEngineInfo {
 
 export interface ExternalEngineInfo extends ExternalEngineInfoFromServer {
   tech: 'EXTERNAL';
-  cloudEval?: false;
 }
 
 export interface BrowserEngineInfo extends BaseEngineInfo {
@@ -87,6 +86,7 @@ export enum CevalState {
 export interface CevalEngine {
   getInfo(): EngineInfo;
   getState(): CevalState;
+  version?(): string | undefined;
   start(work: Work): void;
   stop(): void;
   destroy(): void;
@@ -104,6 +104,7 @@ export interface EngineArgs {
 export interface CustomSearch {
   engine?: EngineArgs;
   search?: () => Search | Millis; // pass number as millis to cap user defined search
+  canBackground?: boolean;
 }
 
 export interface CustomCeval extends CustomSearch {

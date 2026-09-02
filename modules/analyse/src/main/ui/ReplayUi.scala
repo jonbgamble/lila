@@ -133,16 +133,34 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
                   div(cls := "analyse__underboard__panels")(
                     analysable.option(
                       div(cls := "computer-analysis")(
-                        if hasAnalysis then div(id := "acpl-chart-container")(canvas(id := "acpl-chart"))
+                        if hasAnalysis then
+                          div(id := "acpl-chart-container", cls := "analysis-chart")(
+                            button(
+                              cls := "analysis-chart-action local-analysis",
+                              tpe := "button",
+                              title := trans.site.deviceLocalAnalysis.txt(),
+                              iconEl := Icon.cogs
+                            ),
+                            canvas(id := "acpl-chart")
+                          )
                         else
-                          postForm(
-                            cls := s"future-game-analysis${ctx.isAuth.not.so(" must-login")}",
-                            action := routes.Analyse.requestAnalysis(gameId)
-                          ):
-                            submitButton(cls := "button text"):
-                              span(cls := "is3 text", iconEl := Icon.barChart)(
-                                trans.site.requestAComputerAnalysis()
+                          frag(
+                            postForm(
+                              cls := s"future-game-analysis${ctx.isAuth.not.so(" must-login")}",
+                              action := routes.Analyse.requestAnalysis(gameId)
+                            )(
+                              submitButton(cls := "button text")(
+                                span(cls := "is3 text", iconEl := Icon.barChart)(
+                                  trans.site.requestAServerAnalysis()
+                                )
                               )
+                            ),
+                            button(cls := "button text local-analysis", tpe := "button")(
+                              span(cls := "is3 text", iconEl := Icon.cogs)(
+                                trans.site.deviceLocalAnalysis()
+                              )
+                            )
+                          )
                       )
                     ),
                     div(cls := "move-times")(

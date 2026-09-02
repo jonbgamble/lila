@@ -1,11 +1,13 @@
 import { isEmpty } from 'lib';
 import { displayColumns } from 'lib/device';
 import { cont as contRoute } from 'lib/game/router';
-import { domDialog, bind, hl, snabIcon, type VNode } from 'lib/view';
+import { structuredCloneLite } from 'lib/tree/ops';
+import { domDialog, bind, snabIcon, hl, type VNode } from 'lib/view';
 
 import type { AutoplayDelay } from '@/autoplay';
 import type AnalyseCtrl from '@/ctrl';
 import * as pgnExport from '@/pgnExport';
+import { pruneStaticAnalysis } from '@/util';
 
 import { showSettingsDialog } from './settingsView';
 
@@ -63,7 +65,9 @@ function studyButton(ctrl: AnalyseCtrl) {
       hook: bind('submit', e => {
         const pgnInput = (e.target as HTMLElement).querySelector('input[name=pgn]') as HTMLInputElement;
         if (pgnInput && (ctrl.synthetic || ctrl.idbTree.movesDirty)) {
-          pgnInput.value = pgnExport.renderFullTxt(ctrl);
+          const root = structuredCloneLite(ctrl.tree.root);
+          pruneStaticAnalysis(root);
+          pgnInput.value = pgnExport.renderFullTxt(ctrl, root);
         }
       }),
     },
@@ -144,16 +148,30 @@ export function view(ctrl: AnalyseCtrl): VNode {
           [snabIcon('swords'), i18n.site.continueFromHere],
         ),
       studyButton(ctrl),
-      ctrl.idbTree.movesDirty &&
+      ctrl.canAnalyse() &&
+        hl(
+          'a',
+          {
+            on: {
+              click: () => {
+                site.asset.loadEsm('analyse.local', { init: ctrl });
+                ctrl.actionMenu(false);
+                ctrl.redraw();
+              },
+            },
+          },
+          [snabIcon('cogs'), i18n.site.justTheWordAnalysis],
+        ),
+      (ctrl.idbTree.movesDirty || ctrl.idbTree.hasLocalAnalysis) &&
         hl(
           'a',
           {
             attrs: {
-              title: i18n.site.clearSavedMoves,
+              title: i18n.site.clearLocalData,
             },
-            hook: bind('click', () => ctrl.idbTree.clear('moves')),
+            hook: bind('click', () => ctrl.idbTree.clear()),
           },
-          [snabIcon('trash'), i18n.site.clearSavedMoves],
+          [snabIcon('trash'), i18n.site.clearLocalData],
         ),
       hl(
         'button',

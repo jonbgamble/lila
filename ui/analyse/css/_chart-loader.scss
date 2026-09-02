@@ -2,6 +2,47 @@
   cursor: pointer;
 }
 
+.analysis-chart {
+  position: relative;
+
+  canvas {
+    transition: opacity 150ms;
+  }
+
+  &:has(.analysis-chart-action.delete:hover) {
+    background-color: color-mix(in oklab, $c-bad 20%, $c-bg-box);
+
+    canvas {
+      opacity: 0.35;
+    }
+  }
+}
+
+.analysis-chart-action {
+  position: absolute;
+  z-index: 2;
+  top: 0.5em;
+  width: 2em;
+  height: 2em;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.5);
+  color: $c-font-clear;
+  opacity: 0.7;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &.local-analysis {
+    left: 0.5em;
+  }
+
+  &.delete {
+    right: 0.5em;
+    color: $c-bad;
+  }
+}
+
 #acpl-chart-container-loader {
   @include padding-direction(7px, 10px, 7px, 0);
 
