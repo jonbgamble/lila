@@ -2,6 +2,58 @@
   cursor: pointer;
 }
 
+.analysis-chart {
+  position: relative;
+
+  canvas {
+    transition: opacity 150ms;
+  }
+
+  &:has(.analysis-chart-action.delete:hover) {
+    background-color: color-mix(in oklab, $c-bad 20%, $c-bg-box);
+
+    canvas {
+      opacity: 0.35;
+    }
+  }
+}
+
+.analysis-chart-actions {
+  position: absolute;
+  border-radius: $box-radius-size;
+  box-sizing: border-box;
+  pointer-events: none;
+  inset: 0;
+  padding: 4px;
+  display: flex;
+  align-items: start;
+  justify-content: end;
+  gap: 4px;
+
+  i,
+  button {
+    pointer-events: auto;
+    padding: 4px;
+    border-radius: $box-radius-size;
+    border: $border;
+    background: rgb(0 0 0 / 0.5);
+    color: $c-font-clear;
+    opacity: 0.6;
+  }
+
+  :where(i, button):hover {
+    opacity: 1;
+  }
+
+  .delete {
+    color: $c-bad;
+  }
+
+  &:has(.delete:hover) {
+    outline: 1px solid hsl(from $c-bad h s l / 0.5);
+  }
+}
+
 #acpl-chart-container-loader {
   @include padding-direction(7px, 10px, 7px, 0);
 

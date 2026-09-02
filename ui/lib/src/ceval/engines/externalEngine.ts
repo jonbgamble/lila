@@ -111,7 +111,7 @@ export class ExternalEngine implements CevalEngine {
     this.req?.abort();
   }
 
-  engineName(): string {
+  version(): string {
     return this.opts.name;
   }
 
