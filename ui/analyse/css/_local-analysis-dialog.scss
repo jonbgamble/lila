@@ -143,7 +143,7 @@ $c-content: color-mix(in oklab, var(--c-bg) 50%, var(--c-bg-page));
       color: $c-font-dimmer;
     }
 
-    .row-val {
+    .whole-row {
       grid-column: span 3;
     }
 

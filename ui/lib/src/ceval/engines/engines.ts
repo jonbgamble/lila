@@ -6,6 +6,7 @@ import { log } from '@/permalog';
 import { xhrHeader } from '@/xhr';
 
 import type { CevalCtrl } from '../ctrl';
+import type { FishnetEfficiency } from '../types';
 import { ExternalEngine } from './externalEngine';
 import { SimpleEngine } from './simpleEngine';
 import { StockfishWebEngine } from './stockfishWebEngine';
@@ -17,9 +18,14 @@ interface WithMake {
 }
 
 export class Engines {
-  private activeEngine: EngineInfo | undefined = undefined;
   localEngineMap: Map<string, WithMake>;
   externalEngines: ExternalEngineInfo[];
+  private activeEngine: EngineInfo | undefined = undefined;
+  readonly retiredEnginesVsFishnet: Map<string, FishnetEfficiency> = new Map([
+    // This map estimates search node efficiency for retired engines vs the latest fishnet
+    // Live engines should use the EngineInfo field instead
+    ['__example_legacy_engine_id', { chess: 0.001, variant: 0.001 }],
+  ]);
 
   constructor(private readonly ctrl: CevalCtrl) {
     type Variant = { key: Rules; nnue: string };
@@ -52,11 +58,11 @@ export class Engines {
           short: 'SF 19 94MB',
           url: 'https://github.com/lichess-org/stockfish-web#sf_19-stockfish-19',
           tech: 'NNUE',
+          nodeEfficiencyVsFishnet: { chess: 1.0 },
           requires: ['sharedMem', 'simd', 'dynamicImportFromWorker'],
           minMem: 2560,
           supportsCloudEval: true,
           supportsPuzzleReport: true,
-          nodeEfficiencyVsFishnet: 1.0,
           assets: {
             root: 'npm/stockfish-web',
             js: 'sf_19.js',
@@ -71,12 +77,12 @@ export class Engines {
           short: 'SF 19 1MB',
           url: 'https://github.com/lichess-org/stockfish-web#sf_19_smallnet-stockfish-19-with-sscg13size-optimize-nnue',
           tech: 'NNUE',
+          nodeEfficiencyVsFishnet: { chess: 0.3 },
           requires: ['sharedMem', 'simd', 'dynamicImportFromWorker'],
           minMem: 1536,
           supportsCloudEval: true,
           supportsPuzzleReport: true,
           preferred: true,
-          nodeEfficiencyVsFishnet: 0.3,
           assets: {
             root: 'npm/stockfish-web',
             js: 'sf_19_smallnet.js',
@@ -92,6 +98,7 @@ export class Engines {
             short: 'FSF 14+',
             url: 'https://github.com/lichess-org/stockfish-web#fsf_14-fairy-stockfish-14',
             tech: 'NNUE',
+            nodeEfficiencyVsFishnet: { chess: 0.01, variant: 10 },
             requires: ['sharedMem', 'simd', 'dynamicImportFromWorker'],
             variants: [key],
             supportsCloudEval: true,
@@ -111,6 +118,7 @@ export class Engines {
           short: 'SF 14',
           url: 'https://github.com/lichess-org/stockfish-nnue.wasm',
           tech: 'NNUE',
+          nodeEfficiencyVsFishnet: { chess: 0.1 },
           obsoletedBy: 'dynamicImportFromWorker',
           requires: ['sharedMem', 'simd'],
           minMem: 2048,
@@ -130,6 +138,7 @@ export class Engines {
           short: 'FSF 14+',
           url: 'https://github.com/lichess-org/stockfish-web#fsf_14-fairy-stockfish-14',
           tech: 'HCE',
+          nodeEfficiencyVsFishnet: { chess: 0.01, variant: 1 }, // for variants only
           requires: ['sharedMem', 'simd', 'dynamicImportFromWorker'],
           variants: ['chess', ...variants.map(v => v.key)],
           supportsNonStandardMaterial: true,
@@ -147,6 +156,7 @@ export class Engines {
           short: 'SF 11',
           url: 'https://github.com/lichess-org/stockfish.wasm',
           tech: 'HCE',
+          nodeEfficiencyVsFishnet: { chess: 0.01 },
           requires: ['sharedMem'],
           minThreads: 1,
           assets: {
@@ -164,11 +174,11 @@ export class Engines {
           name: 'Stockfish 11 Multi-Variant',
           short: 'SF 11 MV',
           tech: 'HCE',
+          nodeEfficiencyVsFishnet: { variant: 0.1 }, // for variants only
           requires: ['sharedMem'],
           minThreads: 1,
           variants: ['chess', ...variants.map(v => v.key)],
           supportsNonStandardMaterial: true,
-          nodeEfficiencyVsFishnet: 0.08,
           assets: {
             version: 'a022fa',
             root: 'npm/stockfish-mv.wasm',
@@ -188,6 +198,7 @@ export class Engines {
           tech: 'HCE',
           minThreads: 1,
           maxThreads: 1,
+          nodeEfficiencyVsFishnet: { chess: 0.007 },
           requires: ['wasm'],
           obsoletedBy: 'sharedMem',
           assets: {
@@ -207,6 +218,7 @@ export class Engines {
           tech: 'HCE',
           minThreads: 1,
           maxThreads: 1,
+          nodeEfficiencyVsFishnet: { chess: 0.007 },
           requires: [],
           obsoletedBy: 'wasm',
           assets: {
@@ -238,8 +250,8 @@ export class Engines {
   }): EngineInfo | undefined {
     const id = selector?.id ?? this.activeEngine?.id;
     const engines = this.supporting({
-      rules: selector?.rules || 'chess',
-      nonStandardMaterial: !!selector?.nonStandardMaterial,
+      rules: selector?.rules ?? this.ctrl.rules,
+      nonStandardMaterial: selector?.nonStandardMaterial ?? this.ctrl.nonStandardMaterial,
     });
     return engines.find(info => info.id === id) ?? engines.find(info => info.preferred) ?? engines[0];
   }
@@ -292,11 +304,6 @@ export class Engines {
     );
   }
 
-  matchEngines(match: (info: EngineInfo) => boolean): EngineInfo[] {
-    const engines = [...this.externalEngines, ...[...this.localEngineMap.values()].map(e => e.info)];
-    return engines.filter(info => match(info));
-  }
-
   makeEngine(selector?: { id?: string; rules: Rules; nonStandardMaterial: boolean }): CevalEngine {
     const e = (this.activeEngine = this.getEngine(selector));
     if (!e) throw Error(`Engine not found ${selector?.id ?? selector?.rules}`);
@@ -304,6 +311,14 @@ export class Engines {
     return e.tech === 'EXTERNAL'
       ? new ExternalEngine(e, this.statusCallback)
       : this.localEngineMap.get(e.id)!.make(e);
+  }
+
+  nodeEfficiencyVsFishnet(id: string, rules: Rules = this.ctrl.rules): number | undefined {
+    const local = this.localEngineMap.get(id)?.info.nodeEfficiencyVsFishnet;
+    const external = this.externalEngines.find(e => e.id === id)?.nodeEfficiencyVsFishnet;
+    const retired = this.retiredEnginesVsFishnet.get(id);
+    if (rules === 'chess') return local?.chess ?? external?.chess ?? retired?.chess;
+    return local?.variant ?? external?.variant ?? retired?.variant;
   }
 
   private readonly statusCallback = (

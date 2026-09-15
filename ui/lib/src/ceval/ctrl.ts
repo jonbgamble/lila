@@ -10,8 +10,8 @@ import { clamp } from '@/algo';
 import { throttleWithFlush } from '@/async';
 import { isTouchDevice } from '@/device';
 import { pubsub } from '@/pubsub';
-import { storedIntProp, storedStringProp, storage } from '@/storage';
-import type { LocalEval, TreePath } from '@/tree/types';
+import { storedIntProp, storedStringProp, storage, storedMap } from '@/storage';
+import type { ClientEval, LocalEval, TreePath } from '@/tree/types';
 
 import { prop, type Prop, type Toggle, toggle } from '../index';
 import { Engines } from './engines/engines';
@@ -45,6 +45,9 @@ interface Started {
   threatMode: boolean;
 }
 
+type ThreadCount = number;
+type NodesPerSecond = number;
+
 export class CevalCtrl {
   rules: Rules;
   nonStandardMaterial: boolean;
@@ -62,6 +65,11 @@ export class CevalCtrl {
   showEnginePrefs: Toggle = toggle(false);
   wasUnloadedByAnotherWindow = false;
 
+  private readonly performanceMap = storedMap<Record<ThreadCount, NodesPerSecond[]>>(
+    'ceval.perf',
+    12,
+    () => ({}),
+  );
   private worker?: CevalEngine;
 
   constructor(public opts: CevalOpts) {
@@ -155,14 +163,7 @@ export class CevalCtrl {
         min: 16,
         max: active.maxHash,
       }),
-      engine:
-        (custom?.engine &&
-          this.engines.getEngine({
-            id: custom.engine.id,
-            rules: this.rules,
-            nonStandardMaterial: this.nonStandardMaterial,
-          })) ||
-        active,
+      engine: (custom?.engine && this.engines.getEngine({ id: custom.engine.id })) || active,
       search:
         typeof maybeSearch === 'object'
           ? maybeSearch
@@ -208,7 +209,9 @@ export class CevalCtrl {
   }
 
   get canGoDeeper(): boolean {
-    return this.state !== CevalState.Computing && (this.curEval?.depth ?? 0) < 99;
+    // recently raised from 99. keep an eye out for screenshots of wasm exceptions in github issues and
+    // feedback forum.
+    return this.state !== CevalState.Computing && (this.opts.localEval?.()?.depth ?? 0) < 245;
   }
 
   get isComputing(): boolean {
@@ -220,7 +223,7 @@ export class CevalCtrl {
   }
 
   get engineVersion(): string | undefined {
-    return this.worker?.version?.() ?? this.engines.active()?.name;
+    return (this.engines.external && this.worker?.version?.()) || this.engines.active()?.name;
   }
 
   get isBackground(): boolean {
@@ -253,19 +256,53 @@ export class CevalCtrl {
     this.unload();
   }
 
+  isFinished(search: Search, step: Step): boolean {
+    return (
+      !this.isDeeper() &&
+      'movetime' in search.by &&
+      !step.ceval?.cloud &&
+      (step.threat?.millis ?? step.ceval?.millis ?? 0) >= search.by.movetime &&
+      step.ceval?.pvs.length === search.multiPv &&
+      step.ceval?.engineId === this.engines.active()?.id
+    );
+  }
+
+  // Node counts, like depth, dont compare well across engines, but cloud evals have no engineId field.
+  // So cross-engine comparisons are only allowed for cloud evals (a tradeoff that defers to their utility).
+  // This function always prefers the latest unless:
+  // - latest has the wrong multipv and stored eval has the right one
+  // - stored eval has higher node count AND either stored and latest lack engineId or their engineIds match
+
+  preferLatestEval(latest: ClientEval, stored: ClientEval | null | undefined): boolean {
+    if (!stored) return true;
+    const multipv = this.search.multiPv;
+    if (stored.pvs.length === multipv && latest.pvs.length !== multipv) return false;
+    if (latest.pvs.length === multipv && stored.pvs.length !== multipv) return true;
+    if ('engineId' in stored && 'engineId' in latest && stored.engineId !== latest.engineId) return true;
+    return latest.nodes >= stored.nodes;
+  }
+
+  nodesPerSecond(engineId: string, threads: number): number | undefined {
+    const snapshots = this.performanceMap(engineId);
+    if (!snapshots) return undefined;
+
+    const average = (arr: number[]) => arr.reduce((a: number, b: number) => a + b, 0) / arr.length;
+
+    if (snapshots[threads]?.length) return average(snapshots[threads]);
+
+    const perfs: number[] = [];
+    for (const thread in snapshots) {
+      perfs.push((average(snapshots[thread]) * threads) / Number(thread));
+    }
+    return average(perfs);
+  }
+
   private readonly doStart = (s: Started) => {
     this.lastStarted = s;
     const step = s.steps[s.steps.length - 1];
     const { search, threads, hashSize, engine } = this.info(this.opts.custom)!;
-    const lastEvalMillis = (s.threatMode ? step.threat : step.ceval)?.millis ?? 0;
-    if (
-      !this.isDeeper() &&
-      'movetime' in search.by &&
-      lastEvalMillis >= search.by.movetime &&
-      step.ceval?.pvs.length === search.multiPv
-    ) {
-      return;
-    }
+    if (this.isFinished(search, step)) return;
+
     const work: Work = {
       variant: this.rules,
       threads,
@@ -327,7 +364,9 @@ export class CevalCtrl {
     };
     const emitter = throttleWithFlush(125, (ev: LocalEval, meta: EvalMeta) => {
       this.curEval = ev;
+      ev.engineId = this.engines.active()?.id;
       if (ev.bestmove && ev.bestmove !== '(none)' && working.movetime !== false) {
+        this.snapshotPerformance(ev);
         ev.millis = Math.max(ev.millis, working.movetime); // ensure bestmove eval matches movetime target
       }
       if (!working.fen) {
@@ -359,5 +398,15 @@ export class CevalCtrl {
         emitter.clear();
       }
     };
+  }
+
+  private snapshotPerformance(ev: LocalEval) {
+    const { engine, threads } = this.info()!;
+    if (ev.pvs.length > 1 || !engine) return;
+
+    const snapshots = this.performanceMap(engine.id);
+    (snapshots[threads] ??= []).push(ev.nodes / (ev.millis / 1000));
+    snapshots[threads] = snapshots[threads].slice(-5);
+    this.performanceMap(engine.id, snapshots);
   }
 }

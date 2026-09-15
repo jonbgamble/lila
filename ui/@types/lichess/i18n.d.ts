@@ -1883,8 +1883,8 @@ interface I18n {
     currentAnalysis: string;
     /** Custom */
     custom: string;
-    /** Use your own engine settings. Your device should outperform broadcast quality at %s seconds per move. */
-    customQualityXSeconds: I18nFormat;
+    /** Use your current engine settings. */
+    customQuality: string;
     /** Done in %s seconds */
     doneInX: I18nFormat;
     /** Keep mine */
@@ -1897,10 +1897,12 @@ interface I18n {
     localAnalysis: string;
     /** Looks like a similar or better analysis already exists. */
     looksLikeASimilar: string;
-    /** Nodes */
-    nodes: string;
-    /** Ply %1$s of %2$s */
-    plyXOfY: I18nFormat;
+    /** Move %1$s of %2$s */
+    moveXOfY: I18nFormat;
+    /** Nodes per move */
+    nodesPerMove: string;
+    /** This should outperform broadcast quality at %s seconds per move. */
+    outperformBroadcastXSeconds: I18nFormat;
     /** Projected */
     projected: string;
     /** Publish */
@@ -1909,8 +1911,6 @@ interface I18n {
     published: string;
     /** Quality */
     quality: string;
-    /** Server */
-    server: string;
     /** The server already has analysis of this strength. */
     serverAlreadyHas: string;
     /** There is a server analysis in progress for this game. You can try again when that's done. */

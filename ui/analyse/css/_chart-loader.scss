@@ -33,20 +33,30 @@
   i,
   button {
     pointer-events: auto;
-    padding: 4px;
+    padding: 5px;
     border-radius: $box-radius-size;
     border: $border;
-    background: rgb(0 0 0 / 0.5);
-    color: $c-font-clear;
-    opacity: 0.6;
-  }
-
-  :where(i, button):hover {
-    opacity: 1;
+    background: $c-dimmer;
+    color: $c-font-dim;
+    opacity: 0.8;
+    font-size: 0.9em;
   }
 
   .delete {
     color: $c-bad;
+  }
+
+  @include mq-has-hover {
+    :where(i, button):hover {
+      opacity: 1;
+      color: $c-primary;
+      border-color: $c-primary;
+
+      &.delete {
+        color: $c-bad;
+        border-color: $c-bad;
+      }
+    }
   }
 
   &:has(.delete:hover) {

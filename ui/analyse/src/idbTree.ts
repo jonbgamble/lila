@@ -1,5 +1,4 @@
 import { memoize } from 'lib';
-import { useFirstEval } from 'lib/ceval';
 import { objectStorage } from 'lib/objectStorage';
 import { completeNode } from 'lib/tree/node';
 import * as treeOps from 'lib/tree/ops';
@@ -159,10 +158,8 @@ export class IdbTree {
       }
       for (const { path, ceval } of cevals) {
         this.ctrl.tree.updateAt(path, node => {
-          if (
-            node.fen === ceval.fen &&
-            (!node.ceval || useFirstEval(ceval, node.ceval, this.ctrl.ceval.search.multiPv))
-          ) {
+          if (node.fen === ceval.fen && this.ctrl.ceval.preferLatestEval(ceval, node.ceval)) {
+            ceval.engineId ??= 'legacy';
             node.ceval = ceval;
           }
         });
@@ -190,9 +187,14 @@ export class IdbTree {
   }
 
   get localAnalysisIsBetter(): boolean {
+    const local = this.cache.localAnalysis?.engine;
+    const published = this.ctrl.publishedEvalEngine;
+    const localEngineEfficiency = this.ctrl.ceval.engines.nodeEfficiencyVsFishnet(local?.id ?? '') ?? 1;
+    const publishedEngineEfficiency =
+      this.ctrl.ceval.engines.nodeEfficiencyVsFishnet(published?.id ?? '') ?? 1;
     return (
-      (this.cache.localAnalysis?.engine?.nodesPerMove ?? 0) >
-      (this.ctrl.publishedEvalEngine?.nodesPerMove ?? 0) + 200_000
+      (local?.nodesPerMove ?? 0) * localEngineEfficiency >
+      (published?.nodesPerMove ?? 0) * publishedEngineEfficiency + 200_000
     );
   }
 

@@ -10,6 +10,7 @@ import type { CevalCtrl } from './ctrl';
 export type WinningChances = number;
 export type SearchBy = { movetime: number } | { depth: number } | { nodes: number };
 export type Search = { by: SearchBy; multiPv: number; indeterminate?: boolean };
+export type FishnetEfficiency = Partial<Record<'chess' | 'variant', number>>;
 
 export interface EvalMeta {
   path: TreePath;
@@ -46,7 +47,8 @@ export interface BaseEngineInfo {
   requires?: Feature[];
   supportsPuzzleReport?: boolean;
   supportsCloudEval?: boolean;
-  nodeEfficiencyVsFishnet?: number; // analysis strength per node compared to fishnet's big nnue stockfish
+  nodeEfficiencyVsFishnet?: FishnetEfficiency;
+  // analysis strengths per node compared to fishnet's big dogs
 }
 
 export interface ExternalEngineInfoFromServer extends BaseEngineInfo {
@@ -125,6 +127,7 @@ export interface CevalOpts {
   onUciHover: (hovering: Hovering | null) => void;
   redraw: Redraw;
   onSelectEngine?: () => void;
+  localEval?: () => LocalEval | null; // so canGoDeeper is correct when ceval.curEval has no value yet
   externalEngines?: ExternalEngineInfoFromServer[];
   custom?: CustomCeval; // hides switch, threat, and go deeper buttons
   hideErrors?: boolean;
@@ -150,6 +153,7 @@ export interface CevalHandler {
   getOrientation(): Color;
   threatMode(): boolean;
   getNode(): TreeNode;
+  getNodeKey?: () => string;
   clearCeval: () => void;
   startCeval: () => void;
   cevalEnabled: (enable?: boolean) => boolean | 'force';

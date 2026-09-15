@@ -2,7 +2,7 @@ import type { ChartGame, AcplChart } from 'chart';
 
 import { myUserId } from 'lib';
 import { isEquivalent } from 'lib/algo';
-import type { CustomCeval } from 'lib/ceval/types';
+import type { CustomCeval, EngineInfo } from 'lib/ceval/types';
 import { numberFormat } from 'lib/i18n';
 import { licon } from 'lib/licon';
 import { log } from 'lib/permalog';
@@ -27,21 +27,38 @@ class LocalAnalysisDialog {
   private chart: AcplChart;
   private readonly storageKey = `analyse.local.preset.${myUserId() ?? 'anon'}`;
   private mode: { preset: Preset; custom: CustomCeval };
-  private readonly presets: Record<Preset, { label: string; title: string; nodes?: number }>;
-  private justPublished = false;
+  private readonly presets: Record<Preset, { label: string; title: () => string; nodes?: number }>;
 
   constructor(readonly ctrl: AnalyseCtrl) {
     this.engine = new LocalAnalysisEngine(ctrl, this.updateEngineStatus, this.updateChartData);
     this.presets = {
-      standard: { label: i18n.site.standard, title: i18n.localAnalysis.standardQuality, nodes: 1_000_000 },
+      standard: {
+        label: i18n.site.standard,
+        title: () => i18n.localAnalysis.standardQuality,
+        nodes: 1_000_000,
+      },
       broadcast: {
         label: i18n.localAnalysis.broadcast,
-        title: i18n.localAnalysis.broadcastQuality,
+        title: () => i18n.localAnalysis.broadcastQuality,
         nodes: 5_000_000,
       },
       custom: {
         label: i18n.localAnalysis.custom,
-        title: i18n.localAnalysis.customQualityXSeconds(ctrl.ceval.info()!.threads < 5 ? 4 : 2),
+        title: () => {
+          const sentences = [i18n.localAnalysis.customQuality];
+          const efficiency = this.nodeEfficiency();
+          if (efficiency) {
+            const ceval = this.ctrl.ceval;
+            const { threads, engine } = ceval.info()!;
+            const nps = ceval.nodesPerSecond(engine.id, threads);
+            if (nps && efficiency) {
+              let tick: number;
+              for (tick = 2; efficiency * nps * tick <= 5_000_000; tick += 2) {}
+              sentences.push(i18n.localAnalysis.outperformBroadcastXSeconds(tick));
+            }
+          }
+          return sentences.join(' ');
+        },
       },
     };
     this.selectPreset();
@@ -122,9 +139,6 @@ class LocalAnalysisDialog {
             : this.localNpm || this.publishedNpm),
       );
     }
-    if (this.publishedNpm >= Number(this.presets[this.mode.preset].nodes) && !this.justPublished) {
-      this.status(i18n.localAnalysis.serverAlreadyHas);
-    }
   };
 
   clickAnalyse = async (): Promise<void> => {
@@ -169,7 +183,6 @@ class LocalAnalysisDialog {
     const serverDoc = await this.ctrl.idbTree.serverDocument();
     if (!serverDoc) {
       log(`localAnalysisDialog: getVerified failed for ${this.ctrl.idbTree.id}`);
-      this.justPublished = true;
       await this.ctrl.idbTree.clear('analysis');
       this.updateView();
       this.showButtons({ ok: true, analyse: false, publish: false });
@@ -194,7 +207,6 @@ class LocalAnalysisDialog {
         site.reload();
       } else this.dlg.close();
     } else {
-      this.justPublished = true;
       this.ctrl.publishedEvalEngine = this.ctrl.staticAnalysis?.engine;
       await this.ctrl.idbTree.clear('analysis');
       this.ctrl.redraw();
@@ -223,7 +235,7 @@ class LocalAnalysisDialog {
   clickClearPublished = async () => {
     if (!this.ctrl.opts.study || !(await confirm(i18n.study.clearPublished))) return;
     try {
-      await xhrText(`/analysis/${this.ctrl.opts.study.chapter.id}/${this.ctrl.idbTree.id}`, {
+      await xhrText(`/analysis/${this.ctrl.opts.study.id}/${this.ctrl.opts.study.chapter.id}`, {
         method: 'DELETE',
       });
       site.reload();
@@ -248,9 +260,10 @@ class LocalAnalysisDialog {
     let html =
       nodeIndex === 0
         ? i18n.localAnalysis.startingPosition
-        : i18n.localAnalysis.plyXOfY(nodeIndex, totalNodes - 1);
-
-    if (this.mode.preset === 'custom' && isFinite(nodesPerMove)) {
+        : i18n.localAnalysis.moveXOfY(nodeIndex, totalNodes - 1);
+    const efficiency = this.nodeEfficiency();
+    if (this.mode.preset === 'custom' && isFinite(nodesPerMove) && efficiency) {
+      nodesPerMove *= efficiency;
       for (const fasterThan of [this.presets.broadcast, this.presets.standard]) {
         const presetNodes = fasterThan.nodes!;
         if (nodesPerMove <= presetNodes) continue;
@@ -274,7 +287,7 @@ class LocalAnalysisDialog {
 
   presetInfoHtml = (preset: Preset) => {
     const param = (label: string, value: string, postfix?: string) =>
-      `<label>${label}:</label><p ${postfix !== undefined ? 'class="row-val"' : ''}>${value} ${
+      `<label>${label}:</label><p ${postfix !== undefined ? 'class="whole-row"' : ''}>${value} ${
         postfix ? postfix : ''
       }</p>`;
     const mode = this.getMode(preset);
@@ -283,10 +296,11 @@ class LocalAnalysisDialog {
     const info = this.ctrl.ceval.info(mode.custom)!;
 
     const projectedQuality = () => {
-      if (!('movetime' in info.search.by)) return '';
+      const nps = this.ctrl.ceval.nodesPerSecond(info.engine.id, info.threads);
+      const efficiency = this.nodeEfficiency();
+      if (!('movetime' in info.search.by) || !efficiency || !nps) return '';
 
-      const balancedCores = info.threads < 10 ? info.threads : 10 + (info.threads - 10) / 1.5;
-      let multiplier = Math.round((balancedCores * info.search.by.movetime) / 300) / 10;
+      let multiplier = Math.round((info.search.by.movetime * nps * efficiency) / 100_000_000) / 10;
       if (multiplier > 10) multiplier = Math.round(multiplier);
       return param(
         i18n.localAnalysis.projected,
@@ -298,12 +312,12 @@ class LocalAnalysisDialog {
       'movetime' in info.search.by
         ? param(i18n.site.time, i18n.site.nbSeconds(Math.round(info.search.by.movetime / 1000)))
         : 'nodes' in info.search.by
-          ? param(i18n.localAnalysis.nodes, numberFormat(info.search.by.nodes))
+          ? param(i18n.localAnalysis.nodesPerMove, numberFormat(info.search.by.nodes))
           : '';
     const engineNameParam = param(i18n.localAnalysis.willUse, info.engine?.short ?? info.engine?.name ?? '');
     const titleHtml =
       !this.ctrl.idbTree.hasLocalAnalysis || !this.ctrl.publishedEvalEngine
-        ? `<span>${this.presets[preset].title}</span>`
+        ? `<span>${this.presets[preset].title()}</span>`
         : this.analysisInfoHtml(this.ctrl.publishedEvalEngine);
 
     return $html`
@@ -335,14 +349,14 @@ class LocalAnalysisDialog {
         : info.nodesPerMove === 5_000_000
           ? i18n.localAnalysis.broadcast
           : (() => {
-              const efficiency = this.ctrl.ceval.engines.getEngine({ id: info.id })?.nodeEfficiencyVsFishnet;
-              if (!efficiency) return '';
+              const nodeEfficiency = this.ctrl.ceval.engines.nodeEfficiencyVsFishnet(info.id);
+              if (!nodeEfficiency) return '';
               return i18n.localAnalysis.xTimesYQuality(
-                Math.round((efficiency * info.nodesPerMove) / 100_000) / 10,
+                Math.round((nodeEfficiency * info.nodesPerMove) / 100_000) / 10,
                 i18n.site.standard.toLocaleLowerCase(),
               );
             })();
-    const provenance = isLocalPane ? i18n.localAnalysis.local : i18n.localAnalysis.server;
+    const provenance = isLocalPane ? i18n.localAnalysis.local : i18n.localAnalysis.published;
     const clearButton = isLocalPane
       ? `<button class="clear local" title="${i18n.study.clearLocal}">${licon.X}</button>`
       : this.ctrl.study?.members.canContribute()
@@ -351,13 +365,13 @@ class LocalAnalysisDialog {
     return $html`
       ${isTitleServerPane ? '' : this.separator(i18n.localAnalysis.currentAnalysis)}
       <label>${isTitleServerPane ? i18n.localAnalysis.published : i18n.localAnalysis.using}:</label>
-      <p class="row-val">
+      <p class="whole-row">
         ${provenance}
         <span class="note">(${engine})${clearButton}</span>
       </p>
       <label>${i18n.localAnalysis.quality}:</label>
       <p>${quality}</p>
-      <label>${i18n.localAnalysis.nodes}:</label>
+      <label>${i18n.localAnalysis.nodesPerMove}:</label>
       <p>${numberFormat(info.nodesPerMove)}</p>`;
   }
 
@@ -368,14 +382,15 @@ class LocalAnalysisDialog {
   getMode(val: Preset) {
     const ceval = this.ctrl.ceval;
     if (!(val in this.presets)) val = 'standard';
-    const id = ceval.engines.matchEngines(info =>
-      Boolean(
-        (info.variants ?? ['chess']).includes(ceval.rules) &&
-        (!ceval.nonStandardMaterial || info.supportsNonStandardMaterial) &&
-        info.nodeEfficiencyVsFishnet === 1,
-      ),
-    )[0].id;
-    if (!id && val !== 'custom') return undefined;
+    const efficiency = (e: EngineInfo) =>
+      e.nodeEfficiencyVsFishnet?.[ceval.rules === 'chess' ? 'chess' : 'variant'] ?? 0;
+    const id = ceval.engines
+      .supporting({
+        rules: ceval.rules,
+        nonStandardMaterial: ceval.nonStandardMaterial,
+      })
+      .sort((a, b) => efficiency(b) - efficiency(a))[0]?.id;
+    if (val !== 'custom' && !id) return undefined;
     const search = () =>
       val === 'custom' ? 300_000 : { by: { nodes: this.presets[val].nodes! }, multiPv: 1 };
     const engine =
@@ -388,7 +403,7 @@ class LocalAnalysisDialog {
       .filter(([key, _]) => this.getMode(key as Preset))
       .map(
         ([key, info]) =>
-          `<button class="preset-tab" data-preset="${key}" title="${info.title}">${info.label}</button>`,
+          `<button class="preset-tab" data-preset="${key}" title="${info.title()}">${info.label}</button>`,
       )
       .join('');
   }
@@ -414,12 +429,9 @@ class LocalAnalysisDialog {
     const showButton =
       reason === 'rec' ||
       (allowed &&
+        this.ctrl.idbTree.hasLocalAnalysis &&
         (this.mode.preset === 'custom' ||
           this.ctrl.idbTree.localAnalysisNpm === this.presets[this.mode.preset].nodes));
-    // (allowed &&
-    //   this.ctrl.idbTree.localAnalysisIsBetter &&
-    //   (this.mode.preset === 'custom' ||
-    //     this.ctrl.idbTree.localAnalysisNpm === this.presets[this.mode.preset].nodes));
 
     return { showButton, whyNot: reason === 'rec' ? i18n.localAnalysis.turnOnRec : reason };
   }
@@ -434,5 +446,9 @@ class LocalAnalysisDialog {
 
   get publishedNpm() {
     return Number(this.ctrl.publishedEvalEngine?.nodesPerMove);
+  }
+
+  nodeEfficiency(flavor: 'chess' | 'variant' = this.ctrl.ceval.rules === 'chess' ? 'chess' : 'variant') {
+    return this.selectedEngine?.nodeEfficiencyVsFishnet?.[flavor];
   }
 }

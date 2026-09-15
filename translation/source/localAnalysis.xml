@@ -2,12 +2,12 @@
 <resources>
   <string name="analyse">Analyse</string>
   <string name="localAnalysis">Local analysis</string>
-  <string name="server">Server</string>
   <string name="local">Local</string>
   <string name="currentAnalysis">Current analysis</string>
   <string name="XAnalysis">%s analysis</string>
   <string name="cannotPublish">Cannot publish</string>
   <string name="projected">Projected</string>
+  <string name="nodesPerMove">Nodes per move</string>
   <string name="xNodesPerMove">%s nodes per move</string>
   <string name="using">Using</string>
   <string name="willUse">Will use</string>
@@ -16,10 +16,10 @@
   <string name="broadcast">Broadcast</string>
   <string name="broadcastQuality">Same as official broadcast tournaments. Five times stronger than standard.</string>
   <string name="custom">Custom</string>
-  <string name="customQualityXSeconds">Use your own engine settings. Your device should outperform broadcast quality at %s seconds per move.</string>
+  <string name="customQuality">Use your current engine settings.</string>
+  <string name="outperformBroadcastXSeconds">This should outperform broadcast quality at %s seconds per move.</string>
   <string name="doneInX">Done in %s seconds</string>
-  <string name="nodes">Nodes</string>
-  <string name="plyXOfY">Ply %1$s of %2$s</string>
+  <string name="moveXOfY">Move %1$s of %2$s</string>
   <string name="xTimesYQuality">%1$sx %2$s quality</string>
   <string name="publish">Publish</string>
   <string name="published">Published</string>

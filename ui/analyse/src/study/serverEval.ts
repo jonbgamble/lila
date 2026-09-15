@@ -80,10 +80,10 @@ export function view(ctrl: ServerEval): VNode {
             }
             if (!(await confirm(`${i18n.study.clearPublished}?`, i18n.site.delete))) return;
             try {
-              await text(`/analysis/${ctrl.root.study!.data.id}/${ctrl.chapterId()}`, { method: 'DELETE' });
+              await text(`/analysis/${ctrl.root.opts.study!.id}/${ctrl.chapterId()}`, { method: 'DELETE' });
               site.reload();
             } catch (e) {
-              await alert(String(e));
+              alert(String(e));
             }
           },
           'delete',
