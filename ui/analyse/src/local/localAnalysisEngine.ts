@@ -33,53 +33,31 @@ export interface PostResult {
   errorText?: string;
 }
 
-export async function uploadAnalysis(serverDocument: ServerAnalysisDocument): Promise<PostResult> {
-  const userId = myUserId();
-  const rsp = await fetch('/analysis/publish', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      userId ? { ...serverDocument, engine: { ...serverDocument.engine, userId } } : serverDocument,
-    ),
-  });
-  const result: PostResult = {
-    status: rsp.ok ? 'ok' : rsp.status === 409 ? 'conflict' : rsp.status === 423 ? 'locked' : 'error',
-  };
-  if (!rsp.ok && rsp.status !== 409) {
-    result.errorText = `${rsp.status} ${rsp.statusText} ${(await rsp.text()).slice(0, 255)}`;
-  }
-  return result;
-}
-
 type CanPublishAnalysis = {
   allowed: boolean;
   reason?: 'rec' | 'permission' | 'invalid' | 'ongoing' | string;
 };
 
 export function canPublishAnalysis(ctrl: AnalyseCtrl): CanPublishAnalysis {
-  if (!ctrl.canAnalyse()) return { allowed: false };
-  if (!myUserId() || !ctrl.study) return { allowed: false, reason: 'permission' };
-  if (!ctrl.study.members.canContribute()) return { allowed: false, reason: 'permission' };
+  if (!ctrl.canAnalyse() || !ctrl.allowLines()) return { allowed: false };
   if (ctrl.mainline.length < 10 || !ctrl.ceval.analysable) return { allowed: false, reason: 'invalid' };
-  if (ctrl.study && !ctrl.study?.vm.mode.write) return { allowed: false, reason: 'rec' };
-  if (ctrl.study?.relay && !isFinished(ctrl.study.data.chapter)) return { allowed: false, reason: 'ongoing' };
-  if (!ctrl.allowLines()) return { allowed: false };
+  if (!ctrl.study || !ctrl.study.members.canContribute()) return { allowed: false, reason: 'permission' };
+  if (!ctrl.study.vm.mode.write) return { allowed: false, reason: 'rec' };
+  if (ctrl.study.relay && !isFinished(ctrl.study.data.chapter)) return { allowed: false, reason: 'ongoing' };
   return { allowed: true };
 }
 
 export class LocalAnalysisEngine {
   readonly nodes: TreeNodeLite[];
+  busy = false;
+
   private readonly path: TreePath;
   private readonly targetId: string;
   private nodeIndex = 0;
   private nodesSearched = 0;
   private finishNode: (error?: 'cancelled') => void = () => {};
 
-  constructor(
-    private readonly ctrl: AnalyseCtrl,
-    private readonly status: (moves: number, totalMoves: number, nodesPerMove: number) => void,
-    private readonly notify: () => void,
-  ) {
+  constructor(private readonly ctrl: AnalyseCtrl) {
     this.ctrl.ceval.reset();
     this.nodes = mainlineNodeList(structuredCloneLite(this.ctrl.tree.root));
     for (const [i, node] of this.nodes.entries()) {
@@ -106,15 +84,22 @@ export class LocalAnalysisEngine {
     return (await rsp.json()) as Division;
   }
 
-  async analyse(custom: CustomCeval, division: Division): Promise<LocalAnalysisResult> {
+  async analyse(
+    custom: CustomCeval,
+    division: Division,
+    status: (moves: number, totalMoves: number, nodesPerMove: number) => void,
+  ): Promise<LocalAnalysisResult> {
     try {
+      this.busy = true;
       this.ctrl.initCeval({ emit: this.onEval, custom });
-      this.notify();
       while (this.isRunning()) {
+        status(this.nodeIndex, this.nodes.length, this.nodesSearched / this.nodeIndex);
         await this.evaluateNode();
       }
+      //status(this.nodeIndex, this.nodes.length, this.nodesSearched / this.nodeIndex);
       return await this.review(division);
     } finally {
+      this.busy = false;
       this.ctrl.initCeval();
     }
   }
@@ -139,7 +124,6 @@ export class LocalAnalysisEngine {
         depth: ev.depth,
         pvs: ev.pvs.map(pv => ({ ...pv, moves: pv.moves.join(' ') })),
       };
-      this.notify();
       this.nodeIndex++;
       this.finishNode();
     }
@@ -147,8 +131,6 @@ export class LocalAnalysisEngine {
 
   private evaluateNode() {
     if (!this.isRunning()) return this.finishNode();
-
-    this.status(this.nodeIndex, this.nodes.length, this.nodesSearched / this.nodeIndex);
 
     this.nodes[this.nodeIndex].eval = undefined;
     this.ctrl.ceval.start(

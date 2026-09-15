@@ -10,11 +10,7 @@ import { clamp } from '@/algo';
 import { throttleWithFlush } from '@/async';
 import { isTouchDevice } from '@/device';
 import { pubsub } from '@/pubsub';
-<<<<<<< HEAD
-import { storedIntProp, storedStringProp, storage } from '@/storage';
-=======
 import { storedIntProp, storedStringProp, storage, storedMap } from '@/storage';
->>>>>>> bd448283fd (cherry pick da04bbe123ba6901e99552be68be664e95668881)
 import type { ClientEval, LocalEval, TreePath } from '@/tree/types';
 
 import { prop, type Prop, type Toggle, toggle } from '../index';
@@ -32,7 +28,7 @@ import {
   type EngineInfo,
   CevalState,
 } from './types';
-import { sanIrreversible, showEngineError, fewerCores } from './util';
+import { sanIrreversible, showEngineError } from './util';
 import { povChances } from './winningChances';
 
 interface SearchInfo {
@@ -92,7 +88,7 @@ export class CevalCtrl {
 
     document.addEventListener('visibilitychange', () => {
       if (
-        this.engines.external ||
+        this.engines.external() ||
         this.curEval?.bestmove ||
         !this.lastStarted ||
         !this.analysable ||
@@ -153,26 +149,28 @@ export class CevalCtrl {
 
   setThreads = (threads: number): void => storage.set('ceval.threads', threads.toString());
 
-  info(custom?: CustomSearch): SearchInfo | undefined {
-    const maybeSearch = custom?.search?.();
-    const active = this.engines.active();
-    if (!active) return undefined;
-    const maxTime = Number(maybeSearch) || active.maxMovetime;
+  info(customSearch?: CustomSearch): SearchInfo | undefined {
+    const searchOverrides = customSearch?.search?.();
+    const engine = this.engines.getEngine({ id: customSearch?.engine?.id });
+    if (!engine) return undefined;
+    const maxTime =
+      (searchOverrides && 'maxMovetime' in searchOverrides && searchOverrides.maxMovetime) ||
+      engine.maxMovetime;
     return {
+      engine,
       threads: clamp(
-        custom?.engine?.threads ?? (Number(storage.get('ceval.threads')) || this.recommendedThreads),
-        { min: active.minThreads, max: this.maxThreads },
+        customSearch?.engine?.threads ?? (Number(storage.get('ceval.threads')) || this.recommendedThreads),
+        { min: engine.minThreads, max: engine.maxThreads },
       ),
-      hashSize: clamp(custom?.engine?.hashSize ?? Number(storage.get('ceval.hash-size')), {
+      hashSize: clamp(customSearch?.engine?.hashSize ?? Number(storage.get('ceval.hash-size')), {
         min: 16,
-        max: active.maxHash,
+        max: engine.maxHash,
       }),
-      engine: (custom?.engine && this.engines.getEngine({ id: custom.engine.id })) || active,
       search:
-        typeof maybeSearch === 'object'
-          ? maybeSearch
+        searchOverrides && 'by' in searchOverrides
+          ? searchOverrides
           : {
-              multiPv: this.storedPv(),
+              multiPv: Math.min(this.storedPv(), searchOverrides?.maxMultiPv ?? Infinity),
               by: { movetime: clamp(this.isDeeper() ? Infinity : this.storedMovetime(), { max: maxTime }) },
             },
     };
@@ -184,20 +182,11 @@ export class CevalCtrl {
 
   get recommendedThreads(): number {
     return (
-      this.engines.external?.maxThreads ??
+      this.engines.external()?.maxThreads ??
       clamp(navigator.hardwareConcurrency - (navigator.hardwareConcurrency % 2 ? 0 : 1), {
         min: this.engines.active()?.minThreads ?? 1,
-        max: this.maxThreads,
+        max: this.engines.active()?.maxThreads,
       })
-    );
-  }
-
-  get maxThreads(): number {
-    return (
-      this.engines.external?.maxThreads ??
-      (fewerCores()
-        ? Math.min(this.engines.active()?.maxThreads ?? 32, navigator.hardwareConcurrency)
-        : (this.engines.active()?.maxThreads ?? 32))
     );
   }
 
@@ -227,7 +216,7 @@ export class CevalCtrl {
   }
 
   get engineVersion(): string | undefined {
-    return (this.engines.external && this.worker?.version?.()) || this.engines.active()?.name;
+    return (this.engines.external() && this.worker?.version?.()) || this.engines.active()?.name;
   }
 
   get isBackground(): boolean {
@@ -247,6 +236,12 @@ export class CevalCtrl {
     this.engines.setActive(id);
     this.opts.onSelectEngine?.();
   };
+
+  private unload(): void {
+    this.worker?.stop();
+    this.worker?.destroy();
+    this.worker = undefined;
+  }
 
   setPvBoard = (pvBoard: PvBoard | null): void => {
     this.pvBoard(pvBoard);
@@ -286,14 +281,11 @@ export class CevalCtrl {
     return latest.nodes >= stored.nodes;
   }
 
-<<<<<<< HEAD
-=======
   nodesPerSecond(engineId: string, threads: number): number | undefined {
     const snapshots = this.performanceMap(engineId);
     if (!snapshots) return undefined;
 
     const average = (arr: number[]) => arr.reduce((a: number, b: number) => a + b, 0) / arr.length;
-
     if (snapshots[threads]?.length) return average(snapshots[threads]);
 
     const perfs: number[] = [];
@@ -303,7 +295,16 @@ export class CevalCtrl {
     return average(perfs);
   }
 
->>>>>>> bd448283fd (cherry pick da04bbe123ba6901e99552be68be664e95668881)
+  private snapshotPerformance(ev: LocalEval) {
+    const { engine, threads } = this.info()!;
+    if (!engine) return;
+
+    const snapshots = this.performanceMap(engine.id);
+    (snapshots[threads] ??= []).push(ev.nodes / (ev.millis / 1000));
+    snapshots[threads] = snapshots[threads].slice(-5);
+    this.performanceMap(engine.id, snapshots);
+  }
+
   private readonly doStart = (s: Started) => {
     this.lastStarted = s;
     const step = s.steps[s.steps.length - 1];
@@ -353,12 +354,6 @@ export class CevalCtrl {
     this.worker.start(work);
   };
 
-  private unload(): void {
-    this.worker?.stop();
-    this.worker?.destroy();
-    this.worker = undefined;
-  }
-
   private makeThrottledEmitter() {
     // 'working' properties are bound for closure
     const working = {
@@ -367,7 +362,7 @@ export class CevalCtrl {
       emit: this.opts.emit,
       background: this.isBackground,
       movetime: 'movetime' in this.search.by && this.search.by.movetime,
-      dontStop: Boolean(this.engines.external || this.opts.custom || this.isDeeper() || this.isInfinite),
+      dontStop: Boolean(this.engines.external() || this.opts.custom || this.isDeeper() || this.isInfinite),
     };
     const emitter = throttleWithFlush(125, (ev: LocalEval, meta: EvalMeta) => {
       this.curEval = ev;
@@ -405,15 +400,5 @@ export class CevalCtrl {
         emitter.clear();
       }
     };
-  }
-
-  private snapshotPerformance(ev: LocalEval) {
-    const { engine, threads } = this.info()!;
-    if (ev.pvs.length > 1 || !engine) return;
-
-    const snapshots = this.performanceMap(engine.id);
-    (snapshots[threads] ??= []).push(ev.nodes / (ev.millis / 1000));
-    snapshots[threads] = snapshots[threads].slice(-5);
-    this.performanceMap(engine.id, snapshots);
   }
 }

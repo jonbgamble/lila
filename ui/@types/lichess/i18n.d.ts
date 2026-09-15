@@ -1859,10 +1859,6 @@ interface I18n {
     cannotPublish: string;
     /** Current analysis */
     currentAnalysis: string;
-    /** Custom */
-    custom: string;
-    /** Use your current engine settings. */
-    customQuality: string;
     /** Done in %s seconds */
     doneInX: I18nFormat;
     /** Keep mine */
@@ -1897,6 +1893,10 @@ interface I18n {
     standardQuality: string;
     /** Starting position */
     startingPosition: string;
+    /** Timed */
+    timed: string;
+    /** Use your current engine settings. */
+    timedQuality: string;
     /** You must enable REC before you can share local analysis to a study. */
     turnOnRec: string;
     /** Use theirs */

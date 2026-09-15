@@ -12,13 +12,8 @@ import { SimpleEngine } from './simpleEngine';
 import { StockfishWebEngine } from './stockfishWebEngine';
 import { ThreadedEngine } from './threadedEngine';
 
-interface WithMake {
-  info: BrowserEngineInfo;
-  make: (e: BrowserEngineInfo) => CevalEngine;
-}
-
 export class Engines {
-  localEngineMap: Map<string, WithMake>;
+  localEngineMap: Map<string, { info: BrowserEngineInfo; make: (e: BrowserEngineInfo) => CevalEngine }>;
   externalEngines: ExternalEngineInfo[];
   private activeEngine: EngineInfo | undefined = undefined;
   readonly retiredEnginesVsFishnet: Map<string, FishnetEfficiency> = new Map([
@@ -230,7 +225,7 @@ export class Engines {
         make: (e: BrowserEngineInfo) => new SimpleEngine(e),
       },
     ];
-    this.localEngineMap = new Map<string, WithMake>(
+    this.localEngineMap = new Map(
       browserEngines
         .filter(
           e =>
@@ -275,7 +270,7 @@ export class Engines {
     return this.activeEngine;
   }
 
-  get external(): ExternalEngineInfo | undefined {
+  external(): ExternalEngineInfo | undefined {
     return this.activeEngine?.tech === 'EXTERNAL' ? this.activeEngine : undefined;
   }
 
@@ -343,11 +338,19 @@ function maxHashMB() {
 }
 
 const maxHash = maxHashMB();
-const withDefaults = (engine: BrowserEngineInfo): BrowserEngineInfo => ({
+const maxThreads =
+  isAndroid() || isIos() || navigator.userAgent.includes('CrOS') ? navigator.hardwareConcurrency : 32;
+
+type GivenInDefaults = 'minThreads' | 'maxThreads';
+type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+type LooseBrowserEngineInfo = Optional<BrowserEngineInfo, GivenInDefaults>;
+type WithMake = { info: LooseBrowserEngineInfo; make: (e: BrowserEngineInfo) => CevalEngine };
+
+const withDefaults = (engine: LooseBrowserEngineInfo): BrowserEngineInfo => ({
   variants: ['chess'],
   minMem: 1024,
   maxHash,
   minThreads: 2,
-  maxThreads: 32,
+  maxThreads,
   ...engine,
 });

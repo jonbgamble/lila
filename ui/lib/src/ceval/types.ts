@@ -40,21 +40,19 @@ export interface BaseEngineInfo {
   url?: string;
   variants?: Rules[];
   supportsNonStandardMaterial?: boolean;
-  minThreads?: number;
-  maxThreads?: number;
+  minThreads: number;
+  maxThreads: number;
   maxHash?: number;
   maxMovetime?: number;
   requires?: Feature[];
   supportsPuzzleReport?: boolean;
   supportsCloudEval?: boolean;
-  nodeEfficiencyVsFishnet?: FishnetEfficiency;
-  // analysis strengths per node compared to fishnet's big dogs
+  nodeEfficiencyVsFishnet?: FishnetEfficiency; // analysis strength per node compared to fishnet's big dogs
 }
 
 export interface ExternalEngineInfoFromServer extends BaseEngineInfo {
   variants: Rules[];
   maxHash: number;
-  maxThreads: number;
   providerData?: string;
   clientSecret: string;
   officialStockfish?: boolean;
@@ -111,7 +109,7 @@ export interface EngineArgs {
 
 export interface CustomSearch {
   engine?: EngineArgs;
-  search?: () => Search | Millis; // pass number as millis to cap user defined search
+  search?: () => Search | { maxMultiPv?: number; maxMovetime?: Millis };
   canBackground?: boolean;
 }
 
