@@ -21,7 +21,7 @@ final class Demo(
     logger.info("Demo mode enabled; loading demo users")
     userRepo.coll
       .find(userRepo.trollSelect.apply(true))
-      .sort($sort.asc("username"))
+      .sort(sort.asc("username"))
       .cursor[UserModel]()
       .listAll()
       .map(_.map(Me(_)).toIndexedSeq)
@@ -35,22 +35,28 @@ final class Demo(
   def userFor(req: RequestHeader): Fu[Option[Me]] =
     users.fold(fuccess(none)):
       _.map: users =>
-        Option.when(users.nonEmpty)(users(Math.floorMod(HTTPRequest.ipAddress(req).value.hashCode, users.size)))
+        Option.when(users.nonEmpty)(
+          users(Math.floorMod(HTTPRequest.ipAddress(req).value.hashCode, users.size))
+        )
 
   def sessionCookie(req: RequestHeader): Fu[Option[Cookie]] =
     if !enabled then fuccess(none)
     else
-      securityApi.hasAuthentication(req).flatMap:
-        if _ then fuccess(none)
-        else
-          userFor(req).flatMap:
-            _.fold(fuccess(none)): me =>
-              securityApi
-                .saveDemoAuthentication(me.userId)(using req)
-                .map: sessionId =>
-                  lilaCookie
-                    .withSession(remember = true)(_ + (securityApi.sessionIdKey -> sessionId.value))(using req)
-                    .some
+      securityApi
+        .hasAuthentication(req)
+        .flatMap:
+          if _ then fuccess(none)
+          else
+            userFor(req).flatMap:
+              _.fold(fuccess(none)): me =>
+                securityApi
+                  .saveDemoAuthentication(me.userId)(using req)
+                  .map: sessionId =>
+                    lilaCookie
+                      .withSession(remember = true)(_ + (securityApi.sessionIdKey -> sessionId.value))(using
+                        req
+                      )
+                      .some
 
 final class DemoFilter(demo: Demo)(using val mat: org.apache.pekko.stream.Materializer)(using Executor)
     extends Filter:

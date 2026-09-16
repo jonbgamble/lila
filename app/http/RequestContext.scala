@@ -78,9 +78,8 @@ trait RequestContext(using Executor):
     if env.mode.isDev then env.web.manifest.update()
     f(using EmbedContext(ctx))
 
-  private def makeUserContext(req: RequestHeader): Fu[LoginContext] =
-    env.security.api
-      .restoreUser(req)
+  private def makeUserContext(using req: RequestHeader): Fu[LoginContext] =
+    env.security.api.restoreUser
       .flatMap:
         case some @ Some(_) => fuccess(some)
         case None =>

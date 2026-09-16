@@ -147,7 +147,7 @@ final class SecurityApi(
     yield sessionId
 
   def hasAuthentication(req: RequestHeader): Fu[Boolean] =
-    reqSessionId(req).traverse(store.authInfo).map(_.flatten.isDefined)
+    reqSessionId(req).traverse(store.loginWithSessionId(_)(using req)).map(_.flatten.isDefined)
 
   def saveSignup(userId: UserId, apiVersion: Option[ApiVersion], fp: Option[FingerPrint], pwned: IsPwned)(
       using req: RequestHeader
