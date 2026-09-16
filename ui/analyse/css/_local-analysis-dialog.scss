@@ -30,6 +30,7 @@ $c-content: color-mix(in oklab, var(--c-bg) 50%, var(--c-bg-page));
   }
 
   .preset-tab {
+    height: 60px;
     margin-bottom: -1px;
     padding-block: 1rem;
     background-color: transparent;

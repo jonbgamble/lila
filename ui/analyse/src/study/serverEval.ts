@@ -76,7 +76,8 @@ export function view(ctrl: ServerEval): VNode {
           ctrl.root.idbTree.hasLocalAnalysis ? i18n.study.clearLocal : i18n.study.clearPublished,
           async () => {
             if (ctrl.root.idbTree.hasLocalAnalysis) {
-              return await ctrl.root.idbTree.clear('analysis');
+              await ctrl.root.idbTree.clear('analysis');
+              site.reload();
             }
             if (!(await confirm(`${i18n.study.clearPublished}?`, i18n.site.delete))) return;
             try {

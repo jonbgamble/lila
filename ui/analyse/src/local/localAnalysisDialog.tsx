@@ -133,7 +133,10 @@ class LocalAnalysisDialog {
           {i18n.site.cancel}
         </button>
         <button
-          class={['button button-empty button-clas publish-btn', !this.canUpload.showButton && 'none']}
+          class={[
+            'button button-empty button-clas publish-btn',
+            !(this.isIdle || this.canUpload.showButton) && 'none',
+          ]}
           on={{ click: async () => this.clickPublish().then(redraw) }}>
           {i18n.localAnalysis.publish}
         </button>
