@@ -143,26 +143,16 @@ $c-content: color-mix(in oklab, var(--c-bg) 50%, var(--c-bg-page));
       color: $c-font-dimmer;
     }
 
-    .whole-row {
+    .span-three {
       grid-column: span 3;
+      display: flex;
+      align-items: center;
+      gap: 1ch;
     }
 
-    .note {
+    .weak {
       font-size: 12px;
       color: $c-font-dim;
-    }
-
-    .engine-note {
-      margin-inline-start: 1ch;
-      font-size: 12px;
-      color: $c-font-dim;
-    }
-
-    .engine-note::after {
-      margin-inline-start: 4px;
-      font-size: 12px;
-      font-family: lichess;
-      content: $licon-InfoCircle;
     }
 
     .clear {

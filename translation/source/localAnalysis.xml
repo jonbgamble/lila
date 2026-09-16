@@ -15,8 +15,8 @@
   <string name="standardQuality">Same as normal Lichess server analysis</string>
   <string name="broadcast">Broadcast</string>
   <string name="broadcastQuality">Same as official broadcast tournaments. Five times stronger than standard.</string>
-  <string name="custom">Custom</string>
-  <string name="customQuality">Use your current engine settings.</string>
+  <string name="timed">Timed</string>
+  <string name="timedQuality">Use your current engine settings.</string>
   <string name="outperformBroadcastXSeconds">This should outperform broadcast quality at %s seconds per move.</string>
   <string name="doneInX">Done in %s seconds</string>
   <string name="moveXOfY">Move %1$s of %2$s</string>

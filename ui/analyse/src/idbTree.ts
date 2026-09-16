@@ -186,18 +186,6 @@ export class IdbTree {
     return this.cache.localAnalysis?.engine?.nodesPerMove;
   }
 
-  get localAnalysisIsBetter(): boolean {
-    const local = this.cache.localAnalysis?.engine;
-    const published = this.ctrl.publishedEvalEngine;
-    const localEngineEfficiency = this.ctrl.ceval.engines.nodeEfficiencyVsFishnet(local?.id ?? '') ?? 1;
-    const publishedEngineEfficiency =
-      this.ctrl.ceval.engines.nodeEfficiencyVsFishnet(published?.id ?? '') ?? 1;
-    return (
-      (local?.nodesPerMove ?? 0) * localEngineEfficiency >
-      (published?.nodesPerMove ?? 0) * publishedEngineEfficiency + 200_000
-    );
-  }
-
   get movesDirty(): boolean {
     return this.cache.movesDirty;
   }

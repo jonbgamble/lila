@@ -69,17 +69,15 @@ export function canPublishAnalysis(ctrl: AnalyseCtrl): CanPublishAnalysis {
 
 export class LocalAnalysisEngine {
   readonly nodes: TreeNodeLite[];
+  busy = false;
+
   private readonly path: TreePath;
   private readonly targetId: string;
   private nodeIndex = 0;
   private nodesSearched = 0;
   private finishNode: (error?: 'cancelled') => void = () => {};
 
-  constructor(
-    private readonly ctrl: AnalyseCtrl,
-    private readonly status: (moves: number, totalMoves: number, nodesPerMove: number) => void,
-    private readonly notify: () => void,
-  ) {
+  constructor(private readonly ctrl: AnalyseCtrl) {
     this.ctrl.ceval.reset();
     this.nodes = mainlineNodeList(structuredCloneLite(this.ctrl.tree.root));
     for (const [i, node] of this.nodes.entries()) {
@@ -106,15 +104,22 @@ export class LocalAnalysisEngine {
     return (await rsp.json()) as Division;
   }
 
-  async analyse(custom: CustomCeval, division: Division): Promise<LocalAnalysisResult> {
+  async analyse(
+    custom: CustomCeval,
+    division: Division,
+    status: (moves: number, totalMoves: number, nodesPerMove: number) => void,
+  ): Promise<LocalAnalysisResult> {
     try {
+      this.busy = true;
       this.ctrl.initCeval({ emit: this.onEval, custom });
-      this.notify();
       while (this.isRunning()) {
+        status(this.nodeIndex, this.nodes.length, this.nodesSearched / this.nodeIndex);
         await this.evaluateNode();
       }
+      //status(this.nodeIndex, this.nodes.length, this.nodesSearched / this.nodeIndex);
       return await this.review(division);
     } finally {
+      this.busy = false;
       this.ctrl.initCeval();
     }
   }
@@ -139,7 +144,6 @@ export class LocalAnalysisEngine {
         depth: ev.depth,
         pvs: ev.pvs.map(pv => ({ ...pv, moves: pv.moves.join(' ') })),
       };
-      this.notify();
       this.nodeIndex++;
       this.finishNode();
     }
@@ -147,8 +151,6 @@ export class LocalAnalysisEngine {
 
   private evaluateNode() {
     if (!this.isRunning()) return this.finishNode();
-
-    this.status(this.nodeIndex, this.nodes.length, this.nodesSearched / this.nodeIndex);
 
     this.nodes[this.nodeIndex].eval = undefined;
     this.ctrl.ceval.start(

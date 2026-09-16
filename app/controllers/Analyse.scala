@@ -218,13 +218,8 @@ final class Analyse(
             .map(_.flatMap(chess.format.Uci.apply).map(_.uci).mkString(" ")) | ""
           for
             requested <- env.fishnet.api.userAnalysisExists(uploaded.id)
-            existing <- requested.not.so(env.analyse.repo.byId(uploaded.id))
             result <-
               if requested then fuccess(Locked)
-              else if existing
-                  .map(_.engine.nodesPerMove)
-                  .exists(npm => uploaded.engine.nodesPerMove < npm + 200_000)
-              then fuccess(Conflict)
               else
                 env.analyse.analyser
                   .save(
