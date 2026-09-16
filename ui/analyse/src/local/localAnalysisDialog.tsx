@@ -293,12 +293,12 @@ class LocalAnalysisDialog {
       <label>{label}:</label>,
       cls ? <p class={cls}>{value}</p> : <p>{value}</p>,
     ];
-    const nps = this.ctrl.ceval.nodesPerSecond(info.engine.id, info.threads);
-    const efficiency = this.timedEngineNodeEfficiency();
+    const nps = this.ctrl.ceval.nodesPerSecond(info.engine.id, info.threads) || 0;
+    const efficiency = this.timedEngineNodeEfficiency() || 0;
     const projectedQuality =
       'movetime' in info.search.by &&
-      efficiency &&
-      nps &&
+      efficiency > 0 &&
+      nps > 0 &&
       this.ctrl.ceval.rules === 'chess' &&
       (() => {
         let multiplier = Math.round((info.search.by.movetime * nps * efficiency) / 100_000_000) / 10;
@@ -373,8 +373,7 @@ class LocalAnalysisDialog {
           {clearButton}
         </span>
       </p>,
-      <label>{i18n.localAnalysis.quality}:</label>,
-      <p>{quality}</p>,
+      quality && [<label>{i18n.localAnalysis.quality}:</label>, <p>{quality}</p>],
       <label>{i18n.localAnalysis.nodesPerMove}:</label>,
       <p>{numberFormat(info.nodesPerMove)}</p>,
     ];

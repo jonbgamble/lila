@@ -18,6 +18,7 @@ interface Opts {
   initDict: StudyMemberMap;
   myId?: UserId;
   ownerId: UserId;
+  isPublic(): boolean;
   send: AnalyseSocketSend;
   tab: Prop<Tab>;
   startTour(): void;
@@ -63,7 +64,7 @@ export class StudyMemberCtrl {
 
   myMember = () => (this.opts.myId ? this.dict()[this.opts.myId] : undefined);
 
-  canContribute = (): boolean => this.myMember()?.role === 'w';
+  canContribute = (): boolean => !!this.opts.myId && (this.opts.isPublic() || this.myMember()?.role === 'w');
 
   setActive = (id: UserId) => {
     if (this.opts.tab() !== 'members') return;

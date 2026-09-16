@@ -155,6 +155,7 @@ export default class StudyCtrl {
       initDict: data.members,
       myId: practiceData ? undefined : ctrl.opts.userId,
       ownerId: data.ownerId,
+      isPublic: () => this.data.visibility === 'public',
       send: this.send,
       tab: this.vm.tab,
       startTour: this.startTour,
