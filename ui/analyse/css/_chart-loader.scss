@@ -9,6 +9,10 @@
     transition: opacity 150ms;
   }
 
+  &:has(#acpl-chart-container-loader) .analysis-chart-actions {
+    display: none;
+  }
+
   &:has(.analysis-chart-action.delete:hover) {
     background-color: color-mix(in oklab, $c-bad 20%, $c-bg-box);
 

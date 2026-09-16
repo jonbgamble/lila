@@ -72,6 +72,7 @@ final class HttpFilter(
 
   private def redirectWrongDomain(req: RequestHeader): Option[Result] = {
     req.host != net.domain.value &&
+    !req.path.startsWith("/fishnet/") &&
     HTTPRequest.isRedirectable(req) &&
     !HTTPRequest.isProgrammatic(req) &&
     // asset request going through the CDN, don't redirect
