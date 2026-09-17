@@ -8,8 +8,6 @@ import type { CustomCeval } from 'lib/ceval/types';
 import { mainlineNodeList, structuredCloneLite } from 'lib/tree/ops';
 import type { ClientEval, Glyph, TreeNodeLite, TreePath } from 'lib/tree/types';
 
-import { isFinished } from '@/study/studyChapters';
-
 import AnalyseCtrl from '../ctrl';
 import type { AnalysisUpdate, AnalysisEngineInfo, AnalysisMeta, Division } from '../interfaces';
 
@@ -26,25 +24,6 @@ export interface ServerAnalysisDocument {
 export interface LocalAnalysisResult {
   localUpdate: AnalysisUpdate;
   serverDocument: ServerAnalysisDocument;
-}
-
-export interface PostResult {
-  status: 'ok' | 'conflict' | 'locked' | 'error';
-  errorText?: string;
-}
-
-type CanPublishAnalysis = {
-  allowed: boolean;
-  reason?: 'rec' | 'permission' | 'invalid' | 'ongoing' | string;
-};
-
-export function canPublishAnalysis(ctrl: AnalyseCtrl): CanPublishAnalysis {
-  if (!ctrl.canAnalyse() || !ctrl.allowLines()) return { allowed: false };
-  if (ctrl.mainline.length < 10 || !ctrl.ceval.analysable) return { allowed: false, reason: 'invalid' };
-  if (!ctrl.study || !ctrl.study.members.canContribute()) return { allowed: false, reason: 'permission' };
-  if (!ctrl.study.vm.mode.write) return { allowed: false, reason: 'rec' };
-  if (ctrl.study.relay && !isFinished(ctrl.study.data.chapter)) return { allowed: false, reason: 'ongoing' };
-  return { allowed: true };
 }
 
 export class LocalAnalysisEngine {

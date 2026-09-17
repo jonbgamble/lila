@@ -16,8 +16,10 @@ import {
 } from 'lib/view';
 import { text as xhrText } from 'lib/xhr';
 
+import { isFinished } from '@/study/studyChapters';
+
 import type AnalyseCtrl from '../ctrl';
-import { canPublishAnalysis, LocalAnalysisEngine } from './localAnalysisEngine';
+import { LocalAnalysisEngine } from './localAnalysisEngine';
 
 type Preset = 'standard' | 'broadcast' | 'timed';
 
@@ -135,12 +137,14 @@ class LocalAnalysisDialog {
         <button
           class={[
             'button button-empty button-clas publish-btn',
-            !(this.isIdle || this.canUpload.showButton) && 'none',
+            !(this.isIdle && this.canPublish.showButton) && 'none',
           ]}
           on={{ click: async () => this.clickPublish().then(redraw) }}>
           {i18n.localAnalysis.publish}
         </button>
-        <p class="status">{this.status ?? (this.canUpload.showButton && i18n.localAnalysis.youCanPublish)}</p>
+        <p class="status">
+          {this.status ?? (this.canPublish.showButton && i18n.localAnalysis.youCanPublish)}
+        </p>
         <button
           class={['button analyse-btn', !this.canAnalyse && 'none']}
           on={{ click: async () => this.analyse(dialog, redraw) }}>
@@ -191,8 +195,8 @@ class LocalAnalysisDialog {
   }
 
   private async clickPublish() {
-    if (this.canUpload.whyNot) {
-      return alert(this.canUpload.whyNot);
+    if (this.canPublish.whyNot) {
+      return alert(this.canPublish.whyNot);
     }
     if (
       this.publishedNpm &&
@@ -418,10 +422,16 @@ class LocalAnalysisDialog {
     return this.engine?.busy === false;
   }
 
-  private get canUpload() {
-    const { allowed, reason } = canPublishAnalysis(this.ctrl);
-    const showButton = reason === 'rec' || (allowed && this.isIdle && this.ctrl.idbTree.hasLocalAnalysis);
-    return { showButton, whyNot: reason === 'rec' ? i18n.localAnalysis.turnOnRec : reason };
+  private get canPublish() {
+    const ctrl = this.ctrl;
+    if (!ctrl.canAnalyse() || !ctrl.allowLines()) return { showButton: false };
+    if (ctrl.mainline.length < 10 || !ctrl.ceval.analysable) return { showButton: false, whyNot: 'invalid' };
+    if (!ctrl.study || !ctrl.study.members.canContribute())
+      return { showButton: false, whyNot: 'permission' };
+    if (!ctrl.study.vm.mode.write) return { showButton: true, whyNot: i18n.localAnalysis.turnOnRec };
+    if (ctrl.study.relay && !isFinished(ctrl.study.data.chapter))
+      return { showButton: false, whyNot: 'ongoing' };
+    return { showButton: true };
   }
 
   private get localNpm() {
