@@ -112,7 +112,7 @@ class LocalAnalysisDialog {
           ))}
       </div>,
       <div class="main-content">
-        <div class={['preset-infos', !this.canAnalyse && 'hidden']}>
+        <div class={['preset-infos', !this.canAnalyse && 'hidden', !this.engine && 'none']}>
           {(Object.keys(this.presets) as Preset[]).map(this.presetInfo)}
         </div>
         <div class={['chart-container', this.canAnalyse && 'none']}>
@@ -424,7 +424,8 @@ class LocalAnalysisDialog {
 
   private get canPublish() {
     const ctrl = this.ctrl;
-    if (!ctrl.canAnalyse() || !ctrl.allowLines()) return { showButton: false };
+    if (!this.ctrl.idbTree.hasLocalAnalysis) return { showButton: false };
+    if (!this.isIdle || !ctrl.canAnalyse() || !ctrl.allowLines()) return { showButton: false };
     if (ctrl.mainline.length < 10 || !ctrl.ceval.analysable) return { showButton: false, whyNot: 'invalid' };
     if (!ctrl.study || !ctrl.study.members.canContribute())
       return { showButton: false, whyNot: 'permission' };

@@ -15,6 +15,7 @@ $c-content: color-mix(in oklab, var(--c-bg) 50%, var(--c-bg-page));
 
   .main-content {
     position: relative;
+    min-height: min(200px, 75vh);
   }
 
   .preset-tabs {
@@ -100,7 +101,8 @@ $c-content: color-mix(in oklab, var(--c-bg) 50%, var(--c-bg-page));
     gap: 0.5rem min(2vw, 1rem);
     padding: min(2vw, 2rem);
     place-items: start start;
-    width: 100%;
+    inset: 0;
+    min-height: min(200px, 75vh);
     color: $c-font;
     background-color: $c-content;
     border-radius: 6px;
