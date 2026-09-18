@@ -4,6 +4,7 @@ import { lichessRules } from 'chessops/compat';
 import { parseFen } from 'chessops/fen';
 import { parseSquare, makeSquare } from 'chessops/util';
 
+import { memoize } from 'lib';
 import { view as cevalView } from 'lib/ceval';
 import { fenToEpd } from 'lib/game/chess';
 import { licon, type LiconValue } from 'lib/licon';
@@ -28,12 +29,16 @@ import {
   type VNode,
   type MaybeVNode,
 } from 'lib/view';
+import { alert } from 'lib/view/dialogs';
 import { url as xhrUrl } from 'lib/xhr';
 
 import { fenToChess960Id, isValidPositionId } from './chess960';
 import chessground from './chessground';
 import type EditorCtrl from './ctrl';
+import type { VisionModule } from './editor.vision';
 import type { Selected, CastlingToggle, EditorState, EndgamePosition, OpeningPosition } from './interfaces';
+
+const visionModule = memoize(() => site.asset.loadEsm<VisionModule>('editor.vision').catch(() => undefined));
 
 function castleCheckBox(ctrl: EditorCtrl, id: CastlingToggle, inputLabel: string, reversed: boolean): VNode {
   const inputElement = input('checkbox')({
@@ -127,6 +132,49 @@ function controlsButtonClear(ctrl: EditorCtrl, icon?: LiconValue) {
     },
     i18n.site.clearBoard,
   );
+}
+
+function useImageButton(ctrl: EditorCtrl): VNode {
+  return button(
+    '.button.button-empty.text',
+    {
+      type: 'button',
+      ...dataIcon(licon.Eye),
+      on: {
+        async click(e) {
+          const button = e.currentTarget as HTMLButtonElement;
+          e.preventDefault();
+          const file = await selectImage();
+          if (!file) return;
+
+          button.disabled = true;
+          const status = (message: string) => (button.textContent = message);
+          try {
+            const vision = await visionModule();
+            const placement = await vision!.readImage(file, status);
+            if (!ctrl.setFen(`${placement} w - - 0 1`)) throw new Error("Oops! Couldn't do it");
+          } catch (error) {
+            alert(String(error));
+          } finally {
+            button.disabled = false;
+            button.textContent = 'Use image';
+          }
+        },
+      },
+    },
+    'Use image',
+  );
+}
+
+function selectImage(): Promise<File | undefined> {
+  return new Promise(resolve => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.setAttribute('capture', 'environment');
+    input.addEventListener('change', () => resolve(input.files?.[0]), { once: true });
+    input.click();
+  });
 }
 
 function controls(ctrl: EditorCtrl, state: EditorState): VNode {
@@ -285,6 +333,7 @@ function controls(ctrl: EditorCtrl, state: EditorState): VNode {
           ]),
           chess960PositionIdSelector,
           div('.actions', [
+            useImageButton(ctrl),
             controlsButtonStart(ctrl, licon.Reload),
             controlsButtonClear(ctrl, licon.Trash),
             button(

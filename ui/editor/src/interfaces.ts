@@ -53,3 +53,34 @@ export interface EndgamePosition {
   fen: FEN;
   epd?: string;
 }
+
+export interface VisionLoadRequest {
+  type: 'load';
+  modelUrl: string;
+  wasmUrl: string;
+  wasmModuleUrl: string;
+  threads: number;
+}
+
+export interface VisionPredictRequest {
+  type: 'predict';
+  image: ImageBitmap;
+}
+
+export type VisionWorkerRequest = VisionLoadRequest | VisionPredictRequest;
+
+export interface VisionReadyResponse {
+  type: 'ready';
+}
+
+export interface VisionPredictionResponse {
+  type: 'prediction';
+  boardFen: string;
+}
+
+export interface VisionErrorResponse {
+  type: 'error';
+  message: string;
+}
+
+export type VisionWorkerResponse = VisionReadyResponse | VisionPredictionResponse | VisionErrorResponse;
