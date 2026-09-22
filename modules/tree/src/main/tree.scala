@@ -246,6 +246,7 @@ case class Root(
 
   def clearAnnotationsRecursively =
     copy(
+      eval = none,
       comments = Comments(Nil),
       shapes = Shapes(Nil),
       glyphs = Node.Glyphs.empty,
@@ -369,6 +370,7 @@ case class Branch(
 
   def clearAnnotations =
     copy(
+      eval = none,
       comments = Comments(Nil),
       shapes = Shapes(Nil),
       glyphs = Node.Glyphs.empty

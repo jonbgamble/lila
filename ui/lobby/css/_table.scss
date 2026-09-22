@@ -11,7 +11,7 @@
 
     flex: 1 1 auto;
     justify-content: stretch;
-    gap: 9px; // grid gap in app/_pool.scss
+    gap: 9px; // grid gap in app/_shortcut.scss
 
     &__button {
       display: flex;
@@ -48,6 +48,10 @@
 
       &--friend-user.button::before {
         content: $licon-Swords;
+      }
+
+      &--shortcuts.button::before {
+        content: $licon-StarOutline;
       }
 
       @media (hover: hover) {

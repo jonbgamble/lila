@@ -28,7 +28,8 @@ object header:
             u.light,
             relation = social.relation,
             followable = social.followable,
-            blocked = social.blocked
+            blocked = social.blocked,
+            messageable = social.messageable
           )
       ,
       ctx.useMe(lila.mod.canImpersonate(u.id))
@@ -239,7 +240,7 @@ object header:
         )
       ),
       (!UserId.isOfficial(u.id)).option:
-        div(cls := "angles number-menu number-menu--tabs menu-box-pop")(
+        div(id := "angles", cls := "angles number-menu number-menu--tabs menu-box-pop")(
           a(
             dataTab := "activity",
             cls := List(

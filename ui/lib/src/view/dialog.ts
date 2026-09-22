@@ -1,5 +1,3 @@
-// no side effects allowed due to re-export by index.ts
-
 import {
   attributesModule,
   classModule,
@@ -206,7 +204,6 @@ const easyCloseHandler = new (class {
   private stack: DialogWrapper[] = [];
 
   push(dlg: DialogWrapper<any>) {
-    if (!dlg.o.easyClose) return;
     if (this.stack.length === 0)
       document.addEventListener('pointerdown', this.pointerdown, { capture: true });
     this.stack.push(dlg);
@@ -339,7 +336,6 @@ class DialogWrapper<Ctx = undefined> implements Dialog<Ctx> {
       const first = focii[0],
         last = focii[focii.length - 1],
         focus = document.activeElement as HTMLElement;
-
       if (focus === last && !e.shiftKey) first?.focus();
       else if (focus === first && e.shiftKey) last?.focus();
       else return;
