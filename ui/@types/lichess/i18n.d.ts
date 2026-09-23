@@ -1861,6 +1861,8 @@ interface I18n {
     currentAnalysis: string;
     /** Done in %s seconds */
     doneInX: I18nFormat;
+    /** Downloading %1$s of %2$s */
+    downloadingXofY: I18nFormat;
     /** Keep mine */
     keepMine: string;
     /** Keep this browser tab active during analysis. */

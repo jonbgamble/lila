@@ -1,5 +1,7 @@
 import { type Rules } from 'chessops/types';
 
+import { pubsub } from 'lib/pubsub';
+
 import type { BrowserEngineInfo, ExternalEngineInfo, EngineInfo, CevalEngine } from '@/ceval';
 import { isAndroid, isIos, isIPad, features as browserSupport } from '@/device';
 import { log } from '@/permalog';
@@ -323,6 +325,9 @@ export class Engines {
     if (status.error) {
       log(status.error);
       this.ctrl.engineFailed(status.error);
+    }
+    if (status.download) {
+      pubsub.emit('ceval.engine.download', status.download);
     }
     this.ctrl.opts.redraw();
   };

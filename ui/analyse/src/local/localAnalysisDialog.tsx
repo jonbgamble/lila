@@ -4,6 +4,7 @@ import type { CustomSearch, EngineInfo } from 'lib/ceval/types';
 import { numberFormat } from 'lib/i18n';
 import { licon } from 'lib/licon';
 import { log } from 'lib/permalog';
+import { pubsub } from 'lib/pubsub';
 import {
   type Dialog,
   type LooseVNodes,
@@ -40,6 +41,7 @@ class LocalAnalysisDialog {
   private chart?: AcplChart;
   private status?: LooseVNodes;
   private mode: { preset: Preset; customSearch: CustomSearch };
+  private updateDownloadStatus: (d: { bytes: number; total: number }) => void;
   private readonly storageKey = 'analyse.local.preset';
   private readonly presets: Record<Preset, { label: string; nodes?: number; title: () => string }>;
 
@@ -82,6 +84,20 @@ class LocalAnalysisDialog {
   }
 
   readonly render = (redraw: Redraw, dialog: Dialog): LooseVNodes => {
+    if (!this.updateDownloadStatus) {
+      this.updateDownloadStatus = (d: { bytes: number; total: number }) => {
+        const downloadStatus = i18n.localAnalysis.downloadingXofY(
+          Math.round((d.bytes * 100) / d.total) + '%',
+          Math.round(d.total / 1000 / 1000) + 'MB',
+        );
+        if (downloadStatus === this.status) return;
+
+        this.status = downloadStatus;
+        redraw();
+      };
+      pubsub.on('ceval.engine.download', this.updateDownloadStatus);
+    }
+
     const analysedNodes =
       this.localNpm && this.publishedNpm
         ? Math.max(this.localNpm, this.publishedNpm)
@@ -158,6 +174,7 @@ class LocalAnalysisDialog {
   };
 
   readonly close = () => {
+    pubsub.off('ceval.engine.download', this.updateDownloadStatus);
     this.engine?.stop();
   };
 

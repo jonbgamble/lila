@@ -21,6 +21,7 @@
   <string name="doneInX">Done in %s seconds</string>
   <string name="moveXOfY">Move %1$s of %2$s</string>
   <string name="xTimesYQuality">%1$sx %2$s quality</string>
+  <string name="downloadingXofY">Downloading %1$s of %2$s</string>
   <string name="publish">Publish</string>
   <string name="published">Published</string>
   <string name="analysisUploadFailed">Analysis upload failed. Try again later.</string>
