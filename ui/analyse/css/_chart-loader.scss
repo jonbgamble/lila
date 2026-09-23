@@ -6,18 +6,26 @@
   position: relative;
 
   canvas {
-    transition: opacity 150ms;
+    border-bottom-left-radius: $box-radius-size;
+    border-bottom-right-radius: $box-radius-size;
+    transition:
+      opacity 150ms,
+      background-color 150ms;
+  }
+
+  &.study__server-eval canvas {
+    border-top-left-radius: $box-radius-size;
+    border-top-right-radius: $box-radius-size;
   }
 
   &:has(#acpl-chart-container-loader) .analysis-chart-actions {
     display: none;
   }
 
-  &:has(.analysis-chart-action.delete:hover) {
-    background-color: color-mix(in oklab, $c-bad 20%, $c-bg-box);
-
+  &:has(.analysis-chart-actions .delete:hover) {
     canvas {
-      opacity: 0.35;
+      background-color: color-mix(in oklab, $c-bad 8%, $c-bg-box);
+      opacity: 0.5;
     }
   }
 }
@@ -39,11 +47,15 @@
     pointer-events: auto;
     padding: 5px;
     border-radius: $box-radius-size;
-    border: $border;
+    border: 1px solid hsl(from $c-font-dim h s l / 0.5);
     background: $c-dimmer;
     color: $c-font-dim;
     opacity: 0.8;
-    font-size: 0.9em;
+    font-size: 14px;
+
+    &::before {
+      vertical-align: top;
+    }
   }
 
   .delete {
@@ -53,18 +65,16 @@
   @include mq-has-hover {
     :where(i, button):hover {
       opacity: 1;
-      color: $c-primary;
-      border-color: $c-primary;
+
+      &:not(.delete) {
+        color: $c-primary;
+        border-color: hsl(from $c-primary h s l / 0.5);
+      }
 
       &.delete {
-        color: $c-bad;
-        border-color: $c-bad;
+        border-color: hsl(from $c-bad h s l / 0.5);
       }
     }
-  }
-
-  &:has(.delete:hover) {
-    outline: 1px solid hsl(from $c-bad h s l / 0.5);
   }
 }
 

@@ -60,7 +60,7 @@ export function view(ctrl: ServerEval): VNode {
   const chartAction = (icon: 'Cogs' | 'X', title: string, action: () => void, cls = '') =>
     hl(`button.${cls}`, {
       attrs: { type: 'button', title, 'aria-label': title, ...dataIcon(licon[icon]) },
-      on: { click: e => (e.stopPropagation(), action()) },
+      on: { click: action },
     });
 
   return hl('div.study__server-eval.analysis-chart.ready', [
@@ -76,10 +76,12 @@ export function view(ctrl: ServerEval): VNode {
           ctrl.root.idbTree.hasLocalAnalysis ? i18n.study.clearLocal : i18n.study.clearPublished,
           async () => {
             if (ctrl.root.idbTree.hasLocalAnalysis) {
-              await ctrl.root.idbTree.clear('analysis');
-              site.reload();
+              if (await confirm(i18n.study.clearLocal, i18n.site.delete)) {
+                ctrl.root.idbTree.clear('analysis').then(site.reload);
+              }
+              return;
             }
-            if (!(await confirm(`${i18n.study.clearPublished}?`, i18n.site.delete))) return;
+            if (!(await confirm(i18n.study.clearPublished, i18n.site.delete))) return;
             try {
               await text(`/analysis/${ctrl.root.opts.study!.id}/${ctrl.chapterId()}`, { method: 'DELETE' });
               site.reload();

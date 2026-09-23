@@ -60,6 +60,13 @@ export default function (element: HTMLElement, ctrl: AnalyseCtrl) {
     pubsub.on('analysis.server.progress', (d: AnalyseData) => {
       if (!advChart) startAdvantageChart();
       else advChart.updateData(d, ctrl.mainline);
+      const deleteBtn = document.querySelector<HTMLElement>('.analysis-chart .delete')!;
+      deleteBtn.classList.toggle('none', !ctrl.idbTree.hasLocalAnalysis);
+      deleteBtn.onclick ??= async () => {
+        if (!(await confirm(i18n.study.clearLocal))) return;
+
+        ctrl.idbTree.clear('analysis').then(site.reload);
+      };
       if (d.analysis && !d.analysis.partial) $('#acpl-chart-container-loader').remove();
     });
   }
@@ -75,16 +82,16 @@ export default function (element: HTMLElement, ctrl: AnalyseCtrl) {
       $panel.html(
         $html`
         <div id="acpl-chart-container" class="analysis-chart">
-          <div class="analysis-chart-actions">
-            <i class="analysis-editor" role="button" 
-                 title="${escapeHtml(i18n.study.analysisEditor)}"
-                 data-icon="${licon.Cogs}"></i>
-          </div>
           <canvas id="acpl-chart"></canvas>
+          <div class="analysis-chart-actions">
+            <i class="analysis-editor" role="button" title="${escapeHtml(i18n.study.analysisEditor)}"
+               data-icon="${licon.Cogs}" tabindex="0"></i>
+            <i class="delete${ctrl.idbTree.hasLocalAnalysis ? '' : ' none'}"
+               role="button" title="${i18n.study.clearLocal}" data-icon="${licon.X}" tabindex="0"></i>
+          </div>
         </div>
         ${loading ? chartLoader() : ''}`,
       );
-      $panel.find('.analysis-editor').on('click', () => site.asset.loadEsm('analyse.local', { init: ctrl }));
     } else if (loading && !$('#acpl-chart-container-loader').length) $panel.append(chartLoader());
     site.asset.loadEsm<ChartGame>('chart.game').then(m => {
       m.acpl($('#acpl-chart')[0] as HTMLCanvasElement, data, ctrl.mainline).then(chart => {

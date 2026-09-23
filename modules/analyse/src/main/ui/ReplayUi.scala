@@ -135,15 +135,23 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
                       div(cls := "computer-analysis")(
                         if hasAnalysis then
                           div(id := "acpl-chart-container", cls := "analysis-chart")(
+                            canvas(id := "acpl-chart"),
                             div(cls := "analysis-chart-actions")(
                               i(
                                 cls := "analysis-editor",
                                 role := "button",
+                                tabindex := "0",
                                 title := trans.study.analysisEditor.txt(),
                                 dataIcon := Icon.Cogs
+                              ),
+                              i(
+                                cls := "delete none",
+                                role := "button",
+                                tabindex := "0",
+                                title := trans.study.clearLocal.txt(),
+                                dataIcon := Icon.X
                               )
-                            ),
-                            canvas(id := "acpl-chart")
+                            )
                           )
                         else
                           frag(
