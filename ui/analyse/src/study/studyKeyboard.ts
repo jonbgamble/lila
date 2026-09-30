@@ -1,12 +1,18 @@
-import { keyToMouseEvent } from '@/keyboard';
-
+import { makeBinder } from '../keyboard';
 import type StudyCtrl from './studyCtrl';
 
-export default function studyKeyboard(ctrl: StudyCtrl) {
-  const kbd = window.site.mousetrap;
+export default function studyKeyboard(ctrl: StudyCtrl): void {
+  const kbd = makeBinder(ctrl.ctrl.reaper);
 
-  keyToMouseEvent('d', 'click', '.study__buttons .comments');
-  keyToMouseEvent('g', 'click', '.study__buttons .glyphs');
+  for (const [key, button] of [
+    ['d', 'comments'],
+    ['g', 'glyphs'],
+  ])
+    kbd.bind(key, () =>
+      $(`.study__buttons .${button}`).each(function (this: HTMLElement) {
+        this.dispatchEvent(new MouseEvent('click'));
+      }),
+    );
 
   kbd.bind('p', ctrl.goToPrevChapter);
   kbd.bind('n', ctrl.goToNextChapter);
@@ -40,4 +46,10 @@ export default function studyKeyboard(ctrl: StudyCtrl) {
     ctrl.chapters.toggleNewForm();
     ctrl.redraw();
   });
+  if (!site.blindMode)
+    kbd.bind('shift+b', event => {
+      if (event.repeat) return;
+      event.preventDefault();
+      if (!ctrl.relay) site.asset.loadEsm('studyDb');
+    });
 }

@@ -4,6 +4,7 @@ import { setupPosition } from 'chessops/variant';
 
 import { myUserId } from 'lib';
 import { randomId } from 'lib/algo';
+import type { CevalCtrl } from 'lib/ceval';
 import type { CustomCeval } from 'lib/ceval/types';
 import { mainlineNodeList, structuredCloneLite } from 'lib/tree/ops';
 import type { ClientEval, Glyph, TreeNodeLite, TreePath } from 'lib/tree/types';
@@ -34,12 +35,14 @@ export class LocalAnalysisEngine {
   busy = false;
 
   private readonly path: TreePath;
+  private readonly ceval: CevalCtrl;
   private nodeIndex: number;
   private nodesSearched = 0;
   private finishNode: (error?: 'cancelled') => void = () => {};
 
   constructor(private readonly ctrl: AnalyseCtrl) {
-    this.ctrl.ceval.reset();
+    this.ceval = this.ctrl.ceval!;
+    this.ceval.reset();
     this.nodes = mainlineNodeList(structuredCloneLite(this.ctrl.tree.root));
     this.nodeIndex = this.nodes.length - 1;
     for (const [i, node] of this.nodes.entries()) {
@@ -81,7 +84,7 @@ export class LocalAnalysisEngine {
   }
 
   readonly stop = () => {
-    this.ctrl.ceval.reset();
+    this.ceval.reset();
     this.finishNode(this.isRunning() ? 'cancelled' : undefined);
   };
 
@@ -108,7 +111,7 @@ export class LocalAnalysisEngine {
     if (!this.isRunning()) return this.finishNode();
 
     this.nodes[this.nodeIndex].eval = undefined;
-    this.ctrl.ceval.start(
+    this.ceval.start(
       this.path.slice(0, this.nodeIndex * 2),
       this.nodes.slice(0, this.nodeIndex + 1),
       false,
@@ -137,16 +140,16 @@ export class LocalAnalysisEngine {
       };
     });
     const nodesPerMove =
-      'nodes' in this.ctrl.ceval.search.by
-        ? this.ctrl.ceval.search.by.nodes
+      'nodes' in this.ceval.search.by
+        ? this.ceval.search.by.nodes
         : Math.round(
             this.nodes.reduce((sum, node) => sum + (node.eval?.knodes ?? 1000), 0) / this.nodes.length,
           ) * 1000;
     const engine = {
-      id: String(this.ctrl.ceval.engines.active()!.id),
+      id: String(this.ceval.engines.active()!.id),
       nodesPerMove,
       userId: myUserId() ?? 'lichess',
-      engineVersion: this.ctrl.ceval.engineVersion!,
+      engineVersion: this.ceval.engineVersion!,
     };
     const serverDocument: ServerAnalysisDocument = {
       id: this.ctrl.idbTree.id,

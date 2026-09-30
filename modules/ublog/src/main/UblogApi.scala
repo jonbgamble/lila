@@ -412,11 +412,11 @@ final class UblogApi(
         Match(select ++ bdoc("live" -> true)) -> {
           Sort(aggSort) :: Limit(cut) ::
             removeUnlistedOrClosedAndProjectForPreview(colls.post, framework) :::
-            List(Skip(offset.pp), Limit(length.pp))
+            List(Skip(offset), Limit(length))
         }
       .map: docs =>
         for
-          doc <- docs.pp(docs.length)
+          doc <- docs
           post <- doc.asOpt[UblogPost.PreviewPost]
         yield post
     aggregate(2 * (offset + length) + length).flatMap: posts =>
