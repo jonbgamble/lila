@@ -13,6 +13,7 @@ import type {
   TreeNodeLite,
   TreePath,
 } from 'lib/tree/types';
+import type { StudyNavigationRequest } from 'lib/types';
 
 import type { ExplorerOpts } from './explorer/interfaces';
 import type { ForecastData } from './forecast/interfaces';
@@ -29,7 +30,9 @@ export interface NvuiPlugin {
 export interface AnalyseApi {
   socketReceive(type: string, data: any): boolean;
   path(): TreePath;
-  setChapter(id: string): void;
+  setChapter(id: string): Promise<boolean>;
+  restoreStudyPosition(request: StudyNavigationRequest): boolean;
+  reload(opts: AnalyseOpts): Promise<void>;
 }
 
 export interface OpeningPuzzle {

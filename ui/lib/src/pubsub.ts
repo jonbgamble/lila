@@ -1,4 +1,5 @@
 import type { Line } from '@/chat/interfaces';
+import type { StudyNavigationRequest, StudyOrientationMeta } from '@/types';
 import type { Data as WatchersData } from '@/view/watchers';
 
 import type { EvalMeta } from './ceval';
@@ -7,9 +8,10 @@ import type { TreePath, ClientEval } from './tree/types';
 export type PubsubEventKey = keyof PubsubEvents;
 
 export interface PubsubEvents {
+  'study.navigate': (request: StudyNavigationRequest) => void;
   'ab.rep': (data: string) => void;
   'analysis.closeAll': () => void;
-  'analysis.change': (fen: FEN, path: TreePath) => void;
+  'analysis.change': (fen: FEN, path: TreePath, study?: StudyOrientationMeta) => void;
   'analysis.chart.click': (index: number) => void;
   'analysis.comp.toggle': (enabled: boolean) => void;
   'analysis.eval': (ev: ClientEval | undefined, meta: EvalMeta) => void;
@@ -84,10 +86,11 @@ export class Pubsub {
   private readonly allSubs: Map<keyof PubsubEvents, Set<PubsubEvents[keyof PubsubEvents]>> = new Map();
   private readonly oneTimeEvents: Map<OneTimeKey, OneTimeHandler<OneTimeEvents[OneTimeKey]>> = new Map();
 
-  on = <K extends keyof PubsubEvents>(name: K, cb: PubsubEvents[K]): void => {
+  on = <K extends keyof PubsubEvents>(name: K, cb: PubsubEvents[K]): (() => void) => {
     const subs = this.allSubs.get(name);
     if (subs) subs.add(cb);
     else this.allSubs.set(name, new Set([cb]));
+    return () => this.off(name, cb);
   };
 
   off = <K extends keyof PubsubEvents>(name: K, cb: PubsubEvents[K]): void => {

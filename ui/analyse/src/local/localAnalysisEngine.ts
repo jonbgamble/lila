@@ -4,6 +4,7 @@ import { setupPosition } from 'chessops/variant';
 
 import { myUserId } from 'lib';
 import { randomId } from 'lib/algo';
+import type { CevalCtrl } from 'lib/ceval';
 import type { CustomCeval } from 'lib/ceval/types';
 import { mainlineNodeList, structuredCloneLite } from 'lib/tree/ops';
 import type { ClientEval, Glyph, TreeNodeLite, TreePath } from 'lib/tree/types';
@@ -38,7 +39,7 @@ export class LocalAnalysisEngine {
   private nodesSearched = 0;
   private finishNode: (error?: 'cancelled') => void = () => {};
 
-  constructor(private readonly ctrl: AnalyseCtrl) {
+  constructor(private readonly ctrl: AnalyseCtrl & { ceval: CevalCtrl }) {
     this.ctrl.ceval.reset();
     this.nodes = mainlineNodeList(structuredCloneLite(this.ctrl.tree.root));
     this.nodeIndex = this.nodes.length - 1;

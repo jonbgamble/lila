@@ -10,7 +10,7 @@ import {
 } from 'snabbdom';
 
 import { isTouchDevice } from '@/device';
-import { Janitor } from '@/event';
+import { Reaper } from '@/event';
 import { frag } from '@/index';
 import { licon } from '@/licon';
 import { pubsub } from '@/pubsub';
@@ -42,7 +42,6 @@ export interface DialogOpts<Ctx = undefined> {
   onShow?: (dialog: Dialog<Ctx>) => void; // called after dialog is shown
   onClose?: (dialog: Dialog<Ctx>) => void; // always called when dialog closes
   noCloseButton?: boolean; // if true, no upper right corner close button
-  noScrollable?: boolean; // if true, no scrollable div container. Fixes dialogs containing an auto-completer
   noTabCycle?: boolean; // if true, dont trap tab focus within the dialog
   modal?: boolean; // if true, show as modal (darken everything else)
   easyClose?: 'anyClick' | 'clickOutside';
@@ -59,6 +58,7 @@ export interface DomDialogOpts<Ctx = undefined> extends DialogOpts<Ctx> {
 }
 
 export interface SnabDialogOpts<Ctx = undefined> extends DialogOpts<Ctx> {
+  noScrollable?: boolean; // avoids clipping autocomplete popups in snab dialogs
   htmlUrl?: string; // legacy HTML content; ignored when vnodes are provided
   vnodes?: LooseVNodes; // dialog content
   onInsert?: (dialog: Dialog<Ctx>) => void; // if provided you must call show
@@ -69,6 +69,7 @@ export interface SnabDialogOpts<Ctx = undefined> extends DialogOpts<Ctx> {
 export interface JsxDialogOpts<Ctx = undefined> extends DialogOpts<Ctx> {
   render: (redraw: Redraw, dialog: Dialog<Ctx>) => LooseVNodes;
   parentEl?: Element; // unmanaged container for the vdom root. defaults to document.body
+  onInsert?: (dialog: Dialog<Ctx>) => void; // if provided you must call show
 }
 
 export type ActionListener<T extends Event = Event, Ctx = undefined> = (
@@ -112,7 +113,7 @@ export async function domDialog<Ctx = undefined>(o: DomDialogOpts<Ctx>): Promise
   for (const [k, v] of Object.entries(o.attrs?.view ?? {})) view.setAttribute(k, String(v));
   if (html) view.innerHTML = html;
 
-  const scrollable = frag<Element>(`<div class="${o.noScrollable ? 'not-' : ''}scrollable">`);
+  const scrollable = frag<Element>('<div class="scrollable">');
   scrollable.appendChild(view);
   dialog.appendChild(scrollable);
 
@@ -193,14 +194,15 @@ export function jsxDialog<Ctx = undefined>(o: JsxDialogOpts<Ctx>): Redraw {
         dialog = dlg;
         if (parentEl) dialog.dialog.style.position = 'absolute';
         redraw();
-        dialog.show();
+        if (o.onInsert) o.onInsert(dialog);
+        else dialog.show();
       },
     }),
   );
   return redraw;
 }
 
-const easyCloseHandler = new (class {
+const lifecycleHandler = new (class {
   private stack: DialogWrapper[] = [];
 
   push(dlg: DialogWrapper<any>) {
@@ -243,8 +245,8 @@ const easyCloseHandler = new (class {
 })();
 
 class DialogWrapper<Ctx = undefined> implements Dialog<Ctx> {
-  private readonly dialogEvents = new Janitor();
-  private readonly actionEvents = new Janitor();
+  private readonly dialogEvents = new Reaper();
+  private readonly actionEvents = new Reaper();
   private resolve?: (dialog: Dialog<Ctx>) => void;
   private readonly observer: MutationObserver = new MutationObserver(list => {
     for (const m of list)
@@ -294,8 +296,8 @@ class DialogWrapper<Ctx = undefined> implements Dialog<Ctx> {
     if (this.o.modal && !snabModal) this.dialog.showModal();
     else this.dialog.show();
 
-    easyCloseHandler.push(this);
-    this.dialogEvents.addCleanupTask(() => easyCloseHandler.remove(this));
+    lifecycleHandler.push(this);
+    this.dialogEvents.addCleanupTask(() => lifecycleHandler.remove(this));
 
     this.autoFocus();
     this.o.onShow?.(this);
@@ -368,8 +370,8 @@ class DialogWrapper<Ctx = undefined> implements Dialog<Ctx> {
       this.dialog.remove();
     }
     for (const css of this.o.css ?? []) {
-      if ('hashed' in css) site.asset.removeCssPath(css.hashed);
-      else if ('url' in css) site.asset.removeCss(css.url);
+      if ('hashed' in css) site.asset.releaseCss({ key: css.hashed });
+      else site.asset.releaseCss({ href: css.url });
     }
     this.actionEvents.cleanup();
     this.dialogEvents.cleanup();
@@ -379,9 +381,9 @@ class DialogWrapper<Ctx = undefined> implements Dialog<Ctx> {
 async function loadWithCss<T = string>(css: CssAsset[] = [], loadMe?: Promise<T>): Promise<T | undefined> {
   const results = await Promise.allSettled([
     loadMe,
-    site.asset.loadCssPath('bits.dialog'),
+    site.asset.loadCss({ key: 'bits.dialog' }),
     ...css.map(asset =>
-      'hashed' in asset ? site.asset.loadCssPath(asset.hashed) : site.asset.loadCss(asset.url),
+      'hashed' in asset ? site.asset.loadCss({ key: asset.hashed }) : site.asset.loadCss({ href: asset.url }),
     ),
   ]);
   return results[0]?.status === 'fulfilled' ? results[0].value : undefined;
