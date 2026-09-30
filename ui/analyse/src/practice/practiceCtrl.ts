@@ -85,7 +85,7 @@ export function make(root: AnalyseCtrl): PracticeCtrl {
 
     const { bestmove, nodes, millis, cloud } = node.ceval;
     return masteryMode()
-      ? !root.ceval.isComputing
+      ? !root.ceval?.isComputing
       : Boolean(bestmove || nodes >= 600_000 || cloud || millis > 2000);
   }
 
@@ -149,6 +149,7 @@ export function make(root: AnalyseCtrl): PracticeCtrl {
   const isMyTurn = (): boolean => root.turnColor() === root.bottomColor();
 
   function checkCeval() {
+    if (isStaleCallback()) return;
     const node = root.node;
     if (!running()) {
       comment(null);
@@ -186,13 +187,16 @@ export function make(root: AnalyseCtrl): PracticeCtrl {
   }
 
   function checkCevalOrTablebase() {
+    if (isStaleCallback()) return;
     if (tablebaseGuaranteed(variant, root.node.fen))
       root.explorer.fetchTablebaseHit(root.node.fen).then(
         hit => {
+          if (isStaleCallback()) return;
           if (hit && root.node.fen === hit.fen) root.node.tbhit = hit;
           checkCeval();
         },
         () => {
+          if (isStaleCallback()) return;
           if (!defined(root.node.tbhit)) root.node.tbhit = null;
           checkCeval();
         },
@@ -205,9 +209,11 @@ export function make(root: AnalyseCtrl): PracticeCtrl {
     checkCevalOrTablebase();
   }
 
-  requestIdleCallbackSafe(checkCevalOrTablebase, 800);
+  function isStaleCallback(): boolean {
+    return practice !== root.practice; // if study was replaced over xhr, this practice can be stale
+  }
 
-  return {
+  const practice: PracticeCtrl = {
     onCeval: checkCeval,
     onJump() {
       played(false);
@@ -272,7 +278,10 @@ export function make(root: AnalyseCtrl): PracticeCtrl {
           ? { maxMovetime: 300 * 1000 }
           : (api.overrides.practiceSearch?.() ?? { by: { nodes: 600_000 }, multiPv: 1, indeterminate: true }),
       pearlNode: () => renderCustomPearl(root, masteryMode()),
-      statusNode: () => (root.ceval.isComputing ? undefined : renderCustomStatus(root, masteryMode)),
+      statusNode: () => (root.ceval?.isComputing ? undefined : renderCustomStatus(root, masteryMode)),
     },
   };
+
+  requestIdleCallbackSafe(checkCevalOrTablebase, 800);
+  return practice;
 }

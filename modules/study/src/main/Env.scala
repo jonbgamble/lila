@@ -58,6 +58,7 @@ final class Env(
 
   val studyRepo = StudyRepo(studyDb(CollName("study")))
   val chapterRepo = ChapterRepo(studyDb(CollName("study_chapter_flat")))
+  val bookmarks = StudyBookmarks(studyDb(CollName("study_bookmarks")))
   private val topicRepo = StudyTopicRepo(studyDb(CollName("study_topic")))
   private val userTopicRepo = StudyUserTopicRepo(studyDb(CollName("study_user_topic")))
 
@@ -120,4 +121,5 @@ final class Env(
       _ <- studyRepo.anonymizeAllOf(del.id)
       _ = searchIds.foreach(id => lila.common.Bus.pub(lila.core.study.IndexStudySearch(id)))
       _ <- topicApi.userTopicsDelete(del.id)
+      _ <- bookmarks.delete(del.id)
     yield ()

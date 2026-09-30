@@ -2,6 +2,7 @@ import type { AcplChart, ChartGame } from 'chart';
 
 import { withEffect } from 'lib';
 import { clamp } from 'lib/algo';
+import type { CevalCtrl } from 'lib/ceval';
 import { maxBrowserHash } from 'lib/ceval/engines/engines';
 import type { CustomSearch, BaseEngineInfo } from 'lib/ceval/types';
 import { engineSelect, hashSetting, searchTicks } from 'lib/ceval/view/settings';
@@ -30,7 +31,10 @@ import type { AnalysisEngineInfo } from '../interfaces';
 import { LocalAnalysisEngine } from './localAnalysisEngine';
 
 export async function localAnalysisDialog(ctrl: AnalyseCtrl): Promise<void> {
-  const state = new LocalAnalysisDialog(ctrl, await site.asset.loadEsm<ChartGame>('chart.game'));
+  const state = new LocalAnalysisDialog(
+    ctrl as AnalyseCtrl & { ceval: CevalCtrl },
+    await site.asset.loadEsm<ChartGame>('chart.game'),
+  );
   jsxDialog({
     class: 'local-analysis-dialog',
     css: [{ hashed: 'analyse.local-dialog' }],
@@ -52,7 +56,7 @@ class LocalAnalysisDialog {
   private updateDownloadStatus: (d: { bytes: number; total: number }) => void;
 
   constructor(
-    readonly ctrl: AnalyseCtrl,
+    readonly ctrl: AnalyseCtrl & { ceval: CevalCtrl },
     private readonly chartGame: ChartGame,
   ) {
     const info = this.bestEngineDefaults;

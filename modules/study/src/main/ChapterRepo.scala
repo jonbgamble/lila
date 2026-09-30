@@ -21,6 +21,31 @@ final class ChapterRepo(val coll: AsyncColl)(using Executor, org.apache.pekko.st
   val sortOrder = sort.asc("order")
   val sortOrderDesc = sort.desc("order")
 
+  def metadataByStudyIds(studyIds: Seq[StudyId]): Fu[Map[StudyId, List[Chapter.Metadata]]] =
+    studyIds.nonEmpty.so:
+      coll:
+        _.find(
+          bdoc("studyId".in(studyIds)),
+          bdoc(
+            "_id" -> true,
+            "studyId" -> true,
+            "name" -> true,
+            "setup" -> true,
+            "tags" -> true,
+            "order" -> true,
+            "ownerId" -> true,
+            "createdAt" -> true,
+            "description" -> true,
+            "conceal" -> true,
+            "practice" -> true,
+            "gamebook" -> true
+          ).some
+        )
+          .sort(sortOrder)
+          .cursor[Chapter.Metadata]()
+          .listAll()
+      .map(_.groupBy(_.studyId))
+
   def byId(id: StudyChapterId): Fu[Option[Chapter]] = coll(_.byId[Chapter](id))
 
   def studyIdOf(chapterId: StudyChapterId): Fu[Option[StudyId]] =
@@ -98,6 +123,7 @@ final class ChapterRepo(val coll: AsyncColl)(using Executor, org.apache.pekko.st
         .mapWithIndex: (id, index) =>
           c.updateField(studyId(study.id) ++ bid(id), "order", index + 1)
         .parallelVoid
+        .addEffect(_ => updateElasticIndex(study.id))
 
   def nextOrderByStudy(sid: StudyId): Fu[Chapter.Order] =
     coll(_.primitiveOne[Chapter.Order](studyId(sid), sort.desc("order"), "order")).dmap { ~_ + 1 }

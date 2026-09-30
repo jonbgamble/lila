@@ -65,7 +65,7 @@ export default function (element: HTMLElement, ctrl: AnalyseCtrl) {
       deleteBtn.onclick ??= async () => {
         if (!(await confirm(i18n.study.clearLocal))) return;
 
-        ctrl.idbTree.clear('analysis').then(site.reload);
+        ctrl.idbTree.clear('analysis').then(ctrl.reloadPage);
       };
       if (d.analysis && !d.analysis.partial) $('#acpl-chart-container-loader').remove();
     });
@@ -159,7 +159,7 @@ export default function (element: HTMLElement, ctrl: AnalyseCtrl) {
         else
           res.text().then(async t => {
             if (t && !t.startsWith('<!DOCTYPE html>')) await alert(t);
-            site.reload();
+            ctrl.reloadPage();
           });
       });
       return false;

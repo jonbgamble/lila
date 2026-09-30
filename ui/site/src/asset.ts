@@ -31,12 +31,26 @@ export const flairSrc = (flair: Flair) => url(`flair/img/${flair}.webp`, { pathV
 export const fideFedSrc = (fideFed: FideFed) =>
   url(`fide/fed-webp/${fideFed}.webp`, { pathVersion: '_____3' });
 
-export const loadCss = (href: string, key?: string): Promise<void> => {
+const resolveCss = (loc: CssLocation) =>
+  'href' in loc
+    ? loc.href.startsWith('https:')
+      ? loc.href
+      : url(loc.href)
+    : url([`css/${loc.key}`, site.manifest.css[loc.key], 'css'].filter(Boolean).join('.'));
+
+export const loadCss = (loc: CssLocation): Promise<void> => {
+  const href = resolveCss(loc);
   return new Promise(resolve => {
-    href = href.startsWith('https:') ? href : url(href);
-    if (document.head.querySelector(`link[href="${href}"]`)) return resolve();
+    const existing = document.head.querySelector<HTMLLinkElement>(`link[href="${href}"]`);
+    if (existing) {
+      if (existing.dataset.cssRefs !== undefined)
+        existing.dataset.cssRefs = String(Number(existing.dataset.cssRefs) + 1);
+      return resolve();
+    }
 
     const el = document.createElement('link');
+    el.dataset.cssRefs = '1';
+    const key = 'key' in loc ? loc.key : undefined;
     if (key) el.setAttribute('data-css-key', key);
     el.rel = 'stylesheet';
     el.href = href;
@@ -45,14 +59,19 @@ export const loadCss = (href: string, key?: string): Promise<void> => {
   });
 };
 
-export const loadCssPath = async (key: string): Promise<void> => {
-  const hash = site.manifest.css[key];
-  await loadCss(`css/${key}${hash ? `.${hash}` : ''}.css`, key);
+export const releaseCss = (loc: CssLocation): void => {
+  const el = document.head.querySelector<HTMLLinkElement>(`link[href="${resolveCss(loc)}"]`);
+  const count = Number(el?.dataset.cssRefs);
+  if (!count) return;
+  if (count > 1) el!.dataset.cssRefs = String(count - 1);
+  else el!.remove();
 };
 
-export const removeCss = (href: string) => $(`head > link[href="${href}"]`).remove();
-
-export const removeCssPath = (key: string) => $(`head > link[data-css-key="${key}"]`).remove();
+export const removeCss = (loc: CssLocation) => {
+  const href = resolveCss(loc);
+  if ('href' in loc) $(`head > link[href="${href}"]`).remove();
+  else $(`head > link[data-css-key="${loc.key}"]`).remove();
+};
 
 export const jsModule = (name: string, prefix = 'compiled/') => {
   if (name.endsWith('.js')) name = name.slice(0, -3);

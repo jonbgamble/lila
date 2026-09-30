@@ -100,7 +100,7 @@ export class IdbTree {
       (!what || what === 'collapse') && this.collapseDb().then(db => db.remove(this.id)),
       !this.ctrl.study && (!what || what === 'moves') && this.moveDb().then(db => db.remove(this.id)),
     ]);
-    if (what !== 'analysis') site.reload();
+    if (what !== 'analysis') this.ctrl.reloadPage();
     else this.cache.localAnalysis = undefined;
   };
 
@@ -112,7 +112,12 @@ export class IdbTree {
       delete node.threat;
     });
     pruneMainlineAnalysis(root);
-    return this.moveDb().then(db => db.put(this.id, { root }));
+    return this.moveDb()
+      .then(db => db.put(this.id, { root }))
+      .catch(err => {
+        if (err?.name === 'InvalidStateError') return undefined;
+        throw err;
+      });
   }
 
   async saveAnalysis(analysis: LocalAnalysisResult) {
@@ -131,7 +136,12 @@ export class IdbTree {
     if (this.noop || ceval.cloud) return undefined;
     const id = this.id;
     this.cache.cevals.set(path, ceval);
-    return this.cevalDb().then(db => db.put([id, path], { path, ceval }));
+    return this.cevalDb()
+      .then(db => db.put([id, path], { path, ceval }))
+      .catch(err => {
+        if (err?.name === 'InvalidStateError') return undefined;
+        throw err;
+      });
   }
 
   async load(): Promise<void> {
@@ -154,7 +164,7 @@ export class IdbTree {
       }
       for (const { path, ceval } of cevals) {
         this.ctrl.tree.updateAt(path, node => {
-          if (node.fen === ceval.fen && this.ctrl.ceval.preferLatestEval(ceval, node.ceval)) {
+          if (node.fen === ceval.fen && this.ctrl.ceval?.preferLatestEval(ceval, node.ceval)) {
             ceval.engineId ??= 'legacy'; // for now this is preferable to a messy idb version upgrade
             node.ceval = ceval;
           }
@@ -210,7 +220,12 @@ export class IdbTree {
   }
 
   private async saveCollapsed() {
-    return this.collapseDb().then(db => db.put(this.id, this.getCollapsed()));
+    return this.collapseDb()
+      .then(db => db.put(this.id, this.getCollapsed()))
+      .catch(err => {
+        if (err?.name === 'InvalidStateError') return undefined;
+        throw err;
+      });
   }
 
   private isCollapsible(node: TreeNodeLite, isMainline: boolean): boolean {

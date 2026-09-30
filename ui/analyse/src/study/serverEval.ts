@@ -24,8 +24,16 @@ export default class ServerEval {
     readonly root: AnalyseCtrl,
     readonly chapterId: () => string,
   ) {
-    pubsub.on('analysis.server.progress', this.updateChart);
+    root.reaper.addCleanupTask(pubsub.on('analysis.server.progress', this.updateChart));
   }
+
+  destroy = (): void => {
+    if (this.chart) {
+      pubsub.off('ply', this.chart.selectPly);
+      this.chart.destroy();
+      this.chart = undefined;
+    }
+  };
 
   reset = () => {
     this.requested = false;
@@ -45,13 +53,22 @@ export function view(ctrl: ServerEval): VNode {
   if (!analysis) return ctrl.requested ? requested() : requestButtons(ctrl);
   const mainline = ctrl.root.mainline;
   const chart = hl('canvas.study__server-eval-canvas.ready.' + analysis.id, {
-    hook: onInsert(el => {
-      requestIdleCallbackSafe(async () => {
-        (await site.asset.loadEsm<ChartGame>('chart.game'))
-          .acpl(el as HTMLCanvasElement, ctrl.root.data, mainline)
-          .then(chart => (ctrl.chart = chart));
-      }, 800);
-    }),
+    hook: {
+      ...onInsert(el => {
+        requestIdleCallbackSafe(async () => {
+          if (!el.isConnected) return;
+          const module = await site.asset.loadEsm<ChartGame>('chart.game');
+          if (!el.isConnected) return;
+          const chart = await module.acpl(el as HTMLCanvasElement, ctrl.root.data, mainline);
+          if (el.isConnected) ctrl.chart = chart;
+          else {
+            pubsub.off('ply', chart.selectPly);
+            chart.destroy();
+          }
+        }, 800);
+      }),
+      destroy: ctrl.destroy,
+    },
   });
 
   const loading =
@@ -80,14 +97,14 @@ export function view(ctrl: ServerEval): VNode {
           async () => {
             if (ctrl.root.idbTree.hasLocalAnalysis) {
               if (await confirm(i18n.study.clearLocal, i18n.site.delete)) {
-                ctrl.root.idbTree.clear('analysis').then(site.reload);
+                ctrl.root.idbTree.clear('analysis').then(ctrl.root.reloadPage);
               }
               return;
             }
             if (!(await confirm(i18n.study.clearPublished, i18n.site.delete))) return;
             try {
               await text(`/analysis/${ctrl.root.opts.study!.id}/${ctrl.chapterId()}`, { method: 'DELETE' });
-              site.reload();
+              ctrl.root.reloadPage();
             } catch (e) {
               alert(String(e));
             }

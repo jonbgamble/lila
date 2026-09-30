@@ -16,7 +16,6 @@ import lila.core.data.ErrorMsg
 import lila.tree.Clock
 import lila.tree.Node.{ Comment, Gamebook, Shapes }
 import lila.study.Node.extensions.*
-//import lila.study as id
 
 final class StudyApi(
     studyRepo: StudyRepo,

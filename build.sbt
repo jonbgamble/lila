@@ -396,7 +396,7 @@ lazy val relay = module("relay",
 
 lazy val studySearch = module("studySearch",
   Seq(study, search),
-  Seq()
+  tests.bundle
 )
 
 lazy val learn = module("learn",

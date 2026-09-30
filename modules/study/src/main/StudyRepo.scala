@@ -121,6 +121,20 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
         .addEffect(_ => updateElasticIndex(s.id))
         .void
 
+  def personalSyncSource(userId: UserId, excludedIds: List[StudyId]): Source[Study, ?] =
+    Source.futureSource:
+      coll.map: collection =>
+        collection
+          .find(
+            or(selectOwnerId(userId), selectMemberId(userId)) ++
+              selectNotBroadcast ++
+              bdoc("from" -> not(bdoc("$regex" -> "^relay(?: |$)"))) ++ bdoc("_id".nin(excludedIds)),
+            projection.some
+          )
+          .sort(bdoc("updatedAt" -> -1, "_id" -> -1))
+          .cursor[Study]()
+          .documentSource()
+
   def updateSomeFields(s: Study): Funit =
     import toBSONValueOption.given
     coll:
@@ -174,6 +188,9 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
   def setUpdatedNow(id: StudyId): Funit =
     coll.map(_.updateFieldUnchecked(bid(id), "updatedAt", nowInstant))
 
+  def incrementMetadataRevision(id: StudyId): Funit =
+    coll(_.update.one(bid(id), inc("metadataRevision" -> 1L))).void
+
   def addMember(study: StudyId, member: StudyMember): Funit =
     coll:
       _.update
@@ -207,6 +224,7 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
   def setOwner(study: StudyId, userId: UserId): Funit = for
     _ <- addMember(study, StudyMember(userId, StudyMember.Role.Write))
     _ <- coll(_.update.one(bid(study), bset("ownerId" -> userId)))
+      .addEffect(_ => updateElasticIndex(study))
   yield ()
 
   def membersDoc(id: StudyId): Fu[Option[Bdoc]] =

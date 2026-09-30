@@ -132,9 +132,10 @@ export class StudyChapterNewForm {
   startTour = async () => {
     const [tour] = await Promise.all([
       site.asset.loadEsm<StudyTour>('analyse.study.tour'),
-      site.asset.loadCssPath('bits.shepherd'),
+      site.asset.loadCss({ key: 'bits.shepherd' }),
     ]);
 
+    if (this.root.reaper.disposed) return;
     tour.chapter(tab => {
       this.tab(tab);
       this.redraw();

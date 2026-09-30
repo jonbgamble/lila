@@ -119,7 +119,7 @@ export function compute(ctrl: AnalyseCtrl): DrawShape[] {
 
   if (!hovering || hovering.fen !== nFen) {
     ctrl.explorer.hovering(null);
-    hovering = ctrl.ceval.hovering();
+    hovering = ctrl.ceval?.hovering() ?? null;
   }
 
   let shapes: DrawShape[] = [];
@@ -143,7 +143,7 @@ export function compute(ctrl: AnalyseCtrl): DrawShape[] {
 
   if (ctrl.isCevalAllowed() && ctrl.showBestMoveArrows() && ctrl.showEvaluation()) {
     if (isUci(nEval.best)) shapes = shapes.concat(makeShapesFromUci(rcolor, nEval.best, 'paleGreen'));
-    if (!hovering && ctrl.ceval.search.multiPv) {
+    if (!hovering && ctrl.ceval?.search.multiPv) {
       const bestPvMoves = nCeval && ctrl.cevalEnabled() ? nCeval.pvs[0]?.moves : undefined;
       const nextBest = bestPvMoves?.[0] || ctrl.nextNodeBest();
 
