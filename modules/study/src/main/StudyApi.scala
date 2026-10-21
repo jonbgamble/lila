@@ -16,7 +16,6 @@ import lila.core.timeline.{ Propagate, StudyLike }
 import lila.study.Node.extensions.*
 import lila.tree.Clock
 import lila.tree.Node.{ Comment, Gamebook, Shapes }
-import lila.study.Node.extensions.*
 
 final class StudyApi(
     studyRepo: StudyRepo,

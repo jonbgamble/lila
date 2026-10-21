@@ -1,5 +1,6 @@
 import type { DrawShape } from '@lichess-org/chessground/draw';
 import { opposite } from 'chessops/util';
+import { idbStudy } from 'studyDb/idbStudy';
 import type { ChapterData as DbChapterData, StudyData as DbStudyData } from 'studyDb/types';
 
 import { prop, defined, myUserId } from 'lib';
@@ -488,15 +489,14 @@ export default class StudyCtrl {
     const study = this.studyMetadata(changedChapter);
     const chapter = study.chapters?.find(chapter => chapter.id === this.data.chapter.id);
     if (!chapter) return;
-    pubsub.emit(
-      'studyDb.updated',
-      structuredClone({
-        study,
-        chapterId: chapter.id,
-        path: this.ctrl.path,
-        orientation: this.ctrl.getOrientation(),
-      }),
-    );
+    const update = structuredClone({
+      study,
+      chapterId: chapter.id,
+      path: this.ctrl.path,
+      orientation: this.ctrl.getOrientation(),
+    });
+    idbStudy.updateStudy(update).catch(() => {});
+    pubsub.emit('studyDb.updated', update);
   };
 
   xhrReload = throttlePromiseDelay(

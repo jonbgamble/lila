@@ -130,10 +130,6 @@ export class IdbStudy {
 
 export const idbStudy: IdbStudy = new IdbStudy();
 
-pubsub.on('studyDb.updated', update => {
-  idbStudy.updateStudy(update).catch(() => {});
-});
-
 pubsub.on('analysis.change', (_fen, path, study) => {
   if (study) idbStudy.updatePosition(path, study).catch(() => {});
 });
