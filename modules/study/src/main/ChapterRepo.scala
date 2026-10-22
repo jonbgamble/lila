@@ -22,31 +22,6 @@ final class ChapterRepo(val coll: AsyncColl)(using Executor, org.apache.pekko.st
   val sortOrder = sort.asc("order")
   val sortOrderDesc = sort.desc("order")
 
-  def metadataByStudyIds(studyIds: Seq[StudyId]): Fu[Map[StudyId, List[Chapter.Metadata]]] =
-    studyIds.nonEmpty.so:
-      coll:
-        _.find(
-          bdoc("studyId".in(studyIds)),
-          bdoc(
-            "_id" -> true,
-            "studyId" -> true,
-            "name" -> true,
-            "setup" -> true,
-            "tags" -> true,
-            "order" -> true,
-            "ownerId" -> true,
-            "createdAt" -> true,
-            "description" -> true,
-            "conceal" -> true,
-            "practice" -> true,
-            "gamebook" -> true
-          ).some
-        )
-          .sort(sortOrder)
-          .cursor[Chapter.Metadata]()
-          .listAll()
-      .map(_.groupBy(_.studyId))
-
   def byId(id: StudyChapterId): Fu[Option[Chapter]] = coll(_.byId[Chapter](id))
 
   def studyIdOf(chapterId: StudyChapterId): Fu[Option[StudyId]] =
@@ -344,6 +319,31 @@ final class ChapterRepo(val coll: AsyncColl)(using Executor, org.apache.pekko.st
   def delete(c: Chapter): Funit = delete(c.id).addEffect(_ => updateElasticIndex(c.studyId))
 
   def studyId(id: StudyId) = bdoc("studyId" -> id)
+
+  def metadataByStudyIds(studyIds: Seq[StudyId]): Fu[Map[StudyId, List[Chapter.Metadata]]] =
+    studyIds.nonEmpty.so:
+      coll:
+        _.find(
+          bdoc("studyId".in(studyIds)),
+          bdoc(
+            "_id" -> true,
+            "studyId" -> true,
+            "name" -> true,
+            "setup" -> true,
+            "tags" -> true,
+            "order" -> true,
+            "ownerId" -> true,
+            "createdAt" -> true,
+            "description" -> true,
+            "conceal" -> true,
+            "practice" -> true,
+            "gamebook" -> true
+          ).some
+        )
+          .sort(sortOrder)
+          .cursor[Chapter.Metadata]()
+          .listAll()
+      .map(_.groupBy(_.studyId))
 
   private def updateElasticIndex(studyId: StudyId) =
     lila.common.Bus.pub(lila.core.study.IndexStudySearch(studyId))

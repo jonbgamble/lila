@@ -121,20 +121,6 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
         .addEffect(_ => updateElasticIndex(s.id))
         .void
 
-  def personalSyncSource(userId: UserId, excludedIds: List[StudyId]): Source[Study, ?] =
-    Source.futureSource:
-      coll.map: collection =>
-        collection
-          .find(
-            or(selectOwnerId(userId), selectMemberId(userId)) ++
-              selectNotBroadcast ++
-              bdoc("from" -> not(bdoc("$regex" -> "^relay(?: |$)"))) ++ bdoc("_id".nin(excludedIds)),
-            projection.some
-          )
-          .sort(bdoc("updatedAt" -> -1, "_id" -> -1))
-          .cursor[Study]()
-          .documentSource()
-
   def updateSomeFields(s: Study): Funit =
     import toBSONValueOption.given
     coll:
@@ -187,9 +173,6 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
 
   def setUpdatedNow(id: StudyId): Funit =
     coll.map(_.updateFieldUnchecked(bid(id), "updatedAt", nowInstant))
-
-  def incrementMetadataRevision(id: StudyId): Funit =
-    coll(_.update.one(bid(id), inc("metadataRevision" -> 1L))).void
 
   def addMember(study: StudyId, member: StudyMember): Funit =
     coll:
@@ -347,6 +330,29 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
 
   def updateElasticIndex(studyId: StudyId, now: Boolean = false) =
     lila.common.Bus.pub(hub.IndexStudySearch(studyId, now))
+
+  def incrementMetadataRevisions(revisions: Map[StudyId, Long]): Funit =
+    revisions.nonEmpty.so:
+      coll: collection =>
+        val bulk = collection.update(ordered = false)
+        for
+          updates <- revisions.toList.parallel: (id, count) =>
+            bulk.element(q = bid(id), u = inc("metadataRevision" -> count))
+          _ <- bulk.many(updates)
+        yield ()
+
+  def syncSource(userId: UserId, excludedIds: List[StudyId]): Source[Study, ?] =
+    Source.futureSource:
+      coll.map: collection =>
+        collection
+          .find(
+            or(selectOwnerId(userId), selectMemberId(userId)) ++
+              bdoc("from" -> not(bdoc("$regex" -> "^relay(?: |$)"))) ++ bdoc("_id".nin(excludedIds)),
+            projection.some
+          )
+          .sort(bdoc("updatedAt" -> -1, "_id" -> -1))
+          .cursor[Study]()
+          .documentSource()
 
   private[study] def isAdminMember(study: Study, userId: UserId): Fu[Boolean] =
     coll(_.exists(bid(study.id) ++ bdoc(s"members.$userId.admin" -> true)))

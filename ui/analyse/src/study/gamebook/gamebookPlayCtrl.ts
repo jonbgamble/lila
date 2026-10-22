@@ -16,7 +16,6 @@ export interface State {
 
 export default class GamebookPlayCtrl {
   state: State;
-  private readonly timers = new Set<Timeout>();
 
   constructor(
     readonly root: AnalyseCtrl,
@@ -24,19 +23,6 @@ export default class GamebookPlayCtrl {
     readonly redraw: () => void,
   ) {
     this.makeState();
-  }
-
-  destroy = () => {
-    this.timers.forEach(clearTimeout);
-    this.timers.clear();
-  };
-
-  private defer(action: () => void, delay: number): void {
-    const timer = setTimeout(() => {
-      this.timers.delete(timer);
-      action();
-    }, delay);
-    this.timers.add(timer);
   }
 
   private readonly makeState = (): void => {
@@ -64,8 +50,8 @@ export default class GamebookPlayCtrl {
     }
     this.state = state as State;
     if (!state.comment) {
-      if (state.feedback === 'good') this.defer(this.next, this.root.path ? 1000 : 300);
-      else if (state.feedback === 'bad') this.defer(this.retry, 800);
+      if (state.feedback === 'good') setTimeout(this.next, this.root.path ? 1000 : 300);
+      else if (state.feedback === 'bad') setTimeout(this.retry, 800);
     }
   };
 
@@ -122,7 +108,7 @@ export default class GamebookPlayCtrl {
   onJump = () => {
     this.makeState();
     // wait for the root ctrl to make the move
-    this.defer(() => this.root.withCg(cg => cg.playPremove()), 100);
+    setTimeout(() => this.root.withCg(cg => cg.playPremove()), 100);
   };
 
   onShapeChange = (shapes: Shape[]) => {

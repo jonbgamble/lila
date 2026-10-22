@@ -1,5 +1,5 @@
 import type { Line } from '@/chat/interfaces';
-import type { StudyNavigationRequest, StudyOrientationMeta } from '@/types';
+import type { StudyOrientationMeta } from '@/types';
 import type { Data as WatchersData } from '@/view/watchers';
 
 import type { EvalMeta } from './ceval';
@@ -8,7 +8,6 @@ import type { TreePath, ClientEval } from './tree/types';
 export type PubsubEventKey = keyof PubsubEvents;
 
 export interface PubsubEvents {
-  'study.navigate': (request: StudyNavigationRequest) => void;
   'ab.rep': (data: string) => void;
   'analysis.closeAll': () => void;
   'analysis.change': (fen: FEN, path: TreePath, study?: StudyOrientationMeta) => void;

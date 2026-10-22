@@ -31,10 +31,7 @@ import type { AnalysisEngineInfo } from '../interfaces';
 import { LocalAnalysisEngine } from './localAnalysisEngine';
 
 export async function localAnalysisDialog(ctrl: AnalyseCtrl): Promise<void> {
-  const state = new LocalAnalysisDialog(
-    ctrl as AnalyseCtrl & { ceval: CevalCtrl },
-    await site.asset.loadEsm<ChartGame>('chart.game'),
-  );
+  const state = new LocalAnalysisDialog(ctrl, await site.asset.loadEsm<ChartGame>('chart.game'));
   jsxDialog({
     class: 'local-analysis-dialog',
     css: [{ hashed: 'analyse.local-dialog' }],
@@ -49,6 +46,7 @@ class LocalAnalysisDialog {
   private chartData: Parameters<ChartGame['acpl']>[1];
   private chart?: AcplChart;
   private status?: LooseVNodes;
+  private readonly ceval: CevalCtrl;
   private readonly quality: Prop<number>;
   private readonly engineId: StoredProp<string>;
   private readonly threads: StoredProp<number>;
@@ -56,9 +54,10 @@ class LocalAnalysisDialog {
   private updateDownloadStatus: (d: { bytes: number; total: number }) => void;
 
   constructor(
-    readonly ctrl: AnalyseCtrl & { ceval: CevalCtrl },
+    readonly ctrl: AnalyseCtrl,
     private readonly chartGame: ChartGame,
   ) {
+    this.ceval = ctrl.ceval!; // no studyDb navigation during a modal
     const info = this.bestEngineDefaults;
     this.engineId = storedStringProp('local-analysis.engine', info.id);
     this.threads = storedIntProp('local-analysis.threads', info.threads);
@@ -258,7 +257,7 @@ class LocalAnalysisDialog {
   };
 
   private analysisEditor(redraw: Redraw) {
-    const ceval = this.ctrl.ceval;
+    const ceval = this.ceval;
     const info = ceval.info(this.customSearch)!;
     const mainlineEngine = this.ctrl.mainlineAnalysis?.engine;
     const bestEngine = this.bestUsableEngine;
@@ -445,7 +444,7 @@ class LocalAnalysisDialog {
     const ctrl = this.ctrl;
     if (!this.ctrl.idbTree.hasLocalAnalysis) return { showButton: false };
     if (!this.isIdle || !ctrl.canAnalyseMainline() || !ctrl.allowLines()) return { showButton: false };
-    if (ctrl.mainline.length < 10 || !ctrl.ceval.analysable) return { showButton: false, whyNot: 'invalid' };
+    if (ctrl.mainline.length < 10 || !this.ceval.analysable) return { showButton: false, whyNot: 'invalid' };
     if (!ctrl.study || !ctrl.study.members.canContribute())
       return { showButton: false, whyNot: 'permission' };
     if (!ctrl.study.vm.mode.write) return { showButton: true, whyNot: i18n.localAnalysis.turnOnRec };
@@ -455,7 +454,7 @@ class LocalAnalysisDialog {
   }
 
   private get engineNodeEfficiency(): number | undefined {
-    const flavor = this.ctrl.ceval.rules === 'chess' ? 'chess' : 'variant';
+    const flavor = this.ceval.rules === 'chess' ? 'chess' : 'variant';
     return this.usableEngines.find(engine => engine.id === this.engineId())?.nodeEfficiencyVsFishnet?.[
       flavor
     ];
@@ -469,10 +468,10 @@ class LocalAnalysisDialog {
   }
 
   private get timeToComplete(): number | undefined {
-    const info = this.ctrl.ceval.info(this.customSearch);
+    const info = this.ceval.info(this.customSearch);
     if (!info) return undefined;
     if ('movetime' in info.search.by) return (info.search.by.movetime * this.ctrl.mainline.length) / 1000;
-    const nodesPerSecond = this.ctrl.ceval.nodesPerSecond(info.engine.id, info.threads);
+    const nodesPerSecond = this.ceval.nodesPerSecond(info.engine.id, info.threads);
     if (!nodesPerSecond || !this.engineNodeEfficiency) return undefined;
     return (this.standardQualityNodesAt() * this.ctrl.mainline.length) / nodesPerSecond;
   }
@@ -497,8 +496,8 @@ class LocalAnalysisDialog {
   }
 
   private get usableEngines(): EngineInfo[] {
-    const { rules, nonStandardMaterial } = this.ctrl.ceval;
-    return this.ctrl.ceval.engines.supporting({
+    const { rules, nonStandardMaterial } = this.ceval;
+    return this.ceval.engines.supporting({
       rules,
       nonStandardMaterial,
       withTech: t => t !== 'EXTERNAL',

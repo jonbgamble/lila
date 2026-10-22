@@ -14,10 +14,24 @@ export class ResultTabContent extends StudyList {
   error?: string;
   private cursor?: number;
   private request?: object;
+  private readonly filterTerms: string[];
+  private autoFilter = true;
 
   constructor(search: StudySearchQuery) {
     super();
     this.search = structuredClone(search);
+    const tags = search.chapter?.tags;
+    this.filterTerms = [
+      tags?.fideId1,
+      tags?.fideId2,
+      tags?.player1,
+      tags?.player2,
+      tags?.event,
+      tags?.opening,
+      tags?.eco,
+      search.study?.text,
+      tags?.variant,
+    ].filter((term): term is string => Boolean(term));
   }
 
   get submitted(): string {
@@ -46,6 +60,11 @@ export class ResultTabContent extends StudyList {
 
   override get hasMore(): boolean {
     return super.hasMore || !this.exhausted;
+  }
+
+  override filterChanged(): void {
+    this.autoFilter = false;
+    super.filterChanged();
   }
 
   protected override async load(): Promise<void> {
@@ -94,6 +113,12 @@ export class ResultTabContent extends StudyList {
       for (const study of batch.items)
         this.matchingChapterFields.set(study.studyId, study.matchingChapterFields);
       this.entries = [...(loaded ? this.entries : []), ...batch.items];
+      if (!loaded && this.autoFilter)
+        this.query = batch.items.length
+          ? (this.filterTerms.find(term =>
+              batch.items.every(entry => this.matches(entry, term.trim().toLowerCase())),
+            ) ?? '')
+          : '';
       this.cursor = batch.nextCursor ?? undefined;
       this.exhausted = batch.nextCursor == null;
     } catch {

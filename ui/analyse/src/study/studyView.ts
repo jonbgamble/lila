@@ -3,7 +3,7 @@ import { render as renderKeyboardMove } from 'keyboard-move';
 import { blurIfPrimaryClick, myUserId } from 'lib';
 import { view as cevalView } from 'lib/ceval';
 import { renderChat } from 'lib/chat/renderChat';
-import { displayColumns, shareIcon } from 'lib/device';
+import { displayColumns, shareIcon, isTouchDevice } from 'lib/device';
 import { licon } from 'lib/licon';
 import type { TreeNode, TreePath } from 'lib/tree/types';
 import { type VNode, bind, dataIcon, type LooseVNodes, onInsert, hl, icon } from 'lib/view';
@@ -99,11 +99,10 @@ export function studySideNodes(ctrl: StudyCtrl, withSearch: boolean): LooseVNode
 
   const tabs = hl('div.tabs-horiz', { attrs: { role: 'tablist' } }, [
     myUserId() &&
-      hl('button.study-db-button.narrow', {
+      !isTouchDevice() &&
+      hl('button.narrow.study-db-button', {
         attrs: { ...dataIcon(licon.ThreeCheckStack), title: 'Study database' },
-        on: {
-          click: () => site.asset.loadEsm('studyDb'),
-        },
+        on: { click: () => site.asset.loadEsm('studyDb') },
       }),
     chaptersTab,
     ctrl.members.size() > 0 && makeTab('members', i18n.study.nbMembers(ctrl.members.size())),

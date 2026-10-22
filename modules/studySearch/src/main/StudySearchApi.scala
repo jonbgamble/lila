@@ -78,7 +78,6 @@ final class StudySearchApi(elastic: SearchClient, studyRepo: StudyRepo)(using Ex
       )
     val studyClauses = query.study.toList.flatMap: study =>
       List(
-        study.text.map(text(_, List(s"${Fields.name}^3.0", s"${Fields.topics}^2.0", Fields.description))),
         study.name.map(text(_, List(Fields.name))),
         study.description.map(text(_, List(Fields.description))),
         study.topics.map(text(_, List(Fields.topics))),
@@ -113,13 +112,13 @@ final class StudySearchApi(elastic: SearchClient, studyRepo: StudyRepo)(using Ex
               )
             )
           .toList
-    val chapterQuery = Option.when(chapterClauses.nonEmpty):
+    def chapterQuery(clauses: List[JsObject], name: String): JsObject =
       Json.obj(
         "nested" -> Json.obj(
           "path" -> "chapters",
-          "query" -> boolQuery(must = chapterClauses),
+          "query" -> boolQuery(must = clauses),
           "inner_hits" -> Json.obj(
-            "name" -> "matching_chapters",
+            "name" -> name,
             "size" -> Study.maxChapters.value,
             "_source" -> Json.arr("chapters.id"),
             "highlight" -> Json.obj(
@@ -128,7 +127,25 @@ final class StudySearchApi(elastic: SearchClient, studyRepo: StudyRepo)(using Ex
           )
         )
       )
-    val clauses = studyClauses ++ chapterQuery.toList
+    val chapterFilters = Option.when(chapterClauses.nonEmpty):
+      chapterQuery(chapterClauses, "matching_chapters")
+    val textClause = query.study
+      .flatMap(_.text)
+      .map: value =>
+        boolQuery(
+          should = List(
+            boolQuery(
+              must = text(value, List(s"${Fields.name}^3.0", s"${Fields.topics}^2.0", Fields.description)) ::
+                chapterFilters.toList
+            ),
+            chapterQuery(
+              text(value, List("chapters.name", "chapters.description")) :: chapterClauses,
+              "matching_text_chapters"
+            )
+          ),
+          minimumShouldMatch = 1.some
+        )
+    val clauses = studyClauses ++ textClause.orElse(chapterFilters).toList
     if clauses.isEmpty then boolQuery(filter = List(selectPublic))
     else
       boolQuery(
@@ -271,11 +288,8 @@ object StudySearchApi:
   )
 
   private[studySearch] def readStudyDbHit(hit: JsObject): StudyDbHit =
-    val matches = hit \ "inner_hits" \ "matching_chapters" \ "hits"
-    val chapters = (matches \ "hits")
-      .asOpt[List[JsObject]]
-      .toList
-      .flatten
+    val chapters = List("matching_chapters", "matching_text_chapters").flatMap: name =>
+      (hit \ "inner_hits" \ name \ "hits" \ "hits").asOpt[List[JsObject]].toList.flatten
     def fields(value: JsObject): List[String] =
       (value \ "highlight").asOpt[JsObject].toList.flatMap(_.keys).map(_.stripPrefix("chapters."))
     val matchingChapterFields = chapters.flatMap: chapter =>
@@ -289,8 +303,8 @@ object StudySearchApi:
           id -> (fields(chapter) ++ tags.flatMap(fields)).distinct.sorted
     StudyDbHit(
       StudyId((hit \ "_id").as[String]),
-      chapters.flatMap(chapter => (chapter \ "_source" \ "id").asOpt[String]),
-      matchingChapterFields.toMap
+      chapters.flatMap(chapter => (chapter \ "_source" \ "id").asOpt[String]).distinct,
+      matchingChapterFields.groupMap(_._1)(_._2).view.mapValues(_.flatten.distinct.sorted).toMap
     )
 
   case class Query(

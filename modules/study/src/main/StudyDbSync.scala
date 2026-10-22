@@ -13,7 +13,7 @@ enum StudyDbSync:
       case Sync(manifest) =>
         source
           .map[Option[Study]](Some(_))
-          .concat(Source.single(None))
+          .concat(Source.single(None)) // none is sentinel
           .statefulMapConcat: () =>
             val missing = scala.collection.mutable.Set.from(manifest.keySet)
             (study: Option[Study]) =>
@@ -39,17 +39,13 @@ object StudyDbSync:
           (json \ "manifest")
             .validate[Map[String, Long]]
             .flatMap: manifest =>
-              if manifest.size > 100000 ||
-                manifest.keys.exists(id => !validId(id)) ||
-                manifest.values.exists(_ < 0)
-              then JsError("Invalid study sync manifest")
+              if manifest.size > 100000 || manifest.values.exists(_ < 0)
+              then JsError("bad study sync manifest")
               else JsSuccess(Sync(manifest.map((id, revision) => StudyId(id) -> revision)))
         case "fetch" =>
           (json \ "ids")
             .validate[List[String]]
             .flatMap: ids =>
-              if ids.size > 100 || ids.exists(id => !validId(id)) then JsError("Invalid study fetch IDs")
+              if ids.size > 100 then JsError("bad study fetch ids")
               else JsSuccess(Fetch(ids.distinct.map(StudyId.apply)))
-        case _ => JsError("Invalid study database mode")
-
-  private def validId(id: String): Boolean = id.matches("[a-zA-Z0-9]{8}")
+        case _ => JsError("bad study db op")

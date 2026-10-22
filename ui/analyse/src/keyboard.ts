@@ -7,7 +7,7 @@ import * as xhr from 'lib/xhr';
 
 import type AnalyseCtrl from './ctrl';
 
-export const makeKeyboard = (reaper: Reaper) => {
+export const makeBinder = (reaper: Reaper) => {
   const trap = window.site.mousetrap;
   return {
     bind(keys: string | string[], callback: (e: KeyboardEvent) => any) {
@@ -22,7 +22,7 @@ export const makeKeyboard = (reaper: Reaper) => {
 
 export const bind = (ctrl: AnalyseCtrl) => {
   addModifierKeyListeners(ctrl);
-  const kbd = makeKeyboard(ctrl.reaper);
+  const kbd = makeBinder(ctrl.reaper);
   kbd
     .bind(['left', 'k'], () => {
       ctrl.navigate.prev();

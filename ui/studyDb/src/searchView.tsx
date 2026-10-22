@@ -98,8 +98,8 @@ export function searchView(content: SearchTabContent, submit: () => void): VNode
             attrs={{
               type: 'search',
               name: 'text',
-              placeholder: 'Study name, description, or topics',
-              'aria-label': 'Search study name, description, or topics',
+              placeholder: 'Study or chapter text',
+              'aria-label': 'Search names, descriptions, and topics',
               maxlength: 200,
             }}
             props={{ value: content.query }}
@@ -135,31 +135,30 @@ export function searchView(content: SearchTabContent, submit: () => void): VNode
           />
         </div>
         <div class="search-fields">
-          {field('Owner', content.study, 'owner')}
-          {field('Chapter name or description', content.chapter, 'text', {
-            name: 'chapterText',
-          })}
-          <label class="search-field">
-            <span>Variant</span>
-            <select
-              attrs={{ name: 'variant' }}
-              on={{
-                change: (event: Event) => {
-                  content.tags.variant = (event.target as HTMLSelectElement).value;
-                  content.onChange();
-                },
-              }}>
-              <option attrs={{ value: '', selected: !content.tags.variant }}>Any variant</option>
-              {variants.map(([value, label]) => (
-                <option attrs={{ value, selected: content.tags.variant === value }}>{label}</option>
-              ))}
-            </select>
-          </label>
-          {field('ECO', content.tags, 'eco', {
-            pattern: '[A-Ea-e][0-9]{2}',
-            maxlength: 3,
-          })}
+          <div class="search-pair">
+            <label class="search-field">
+              <span>Variant</span>
+              <select
+                attrs={{ name: 'variant' }}
+                on={{
+                  change: (event: Event) => {
+                    content.tags.variant = (event.target as HTMLSelectElement).value;
+                    content.onChange();
+                  },
+                }}>
+                <option attrs={{ value: '', selected: !content.tags.variant }}>Any variant</option>
+                {variants.map(([value, label]) => (
+                  <option attrs={{ value, selected: content.tags.variant === value }}>{label}</option>
+                ))}
+              </select>
+            </label>
+            {field('ECO', content.tags, 'eco', {
+              pattern: '[A-Ea-e][0-9]{2}',
+              maxlength: 3,
+            })}
+          </div>
           {field('Opening', content.tags, 'opening')}
+          {field('Owner', content.study, 'owner')}
           {field('Event', content.tags, 'event')}
           <div class="search-players">
             {player(1)}

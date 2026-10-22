@@ -9,6 +9,7 @@ import { isNormal, type Move } from 'chessops/types';
 import { opposite, parseUci, makeSquare, roleToChar, makeUci, parseSquare } from 'chessops/util';
 import { normalizeMove } from 'chessops/variant';
 import { type ArrowKey, type KeyboardMove, ctrl as makeKeyboardMove } from 'keyboard-move';
+import type { StudyNavigationRequest } from 'studyDb/types';
 
 import {
   defined,
@@ -33,7 +34,6 @@ import { storedBooleanProp } from 'lib/storage';
 import { makeTree, treePath, treeOps, type TreeWrapper } from 'lib/tree';
 import { completeNode } from 'lib/tree/node';
 import type { ClientEval, Glyph, LocalEval, ServerEval, TreeNode, TreePath } from 'lib/tree/types';
-import type { StudyNavigationRequest } from 'lib/types';
 import { confirm } from 'lib/view';
 
 import { Autoplay, type AutoplayDelay } from './autoplay';
@@ -309,10 +309,6 @@ export default class AnalyseCtrl implements CevalHandler {
   get variantKey(): VariantKey {
     return this.data.game.variant.key;
   }
-
-  reloadPage = () => {
-    if (!this.reaper.disposed) site.reload();
-  };
 
   get mainlineAnalysis() {
     return this.idbTree.localAnalysis ?? this.data.analysis;

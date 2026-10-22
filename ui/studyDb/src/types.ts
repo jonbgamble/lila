@@ -4,8 +4,17 @@ import type { Rect } from './windowGeometry';
 
 declare module 'lib/pubsub' {
   interface PubsubEvents {
+    'study.navigate': (request: StudyNavigationRequest) => void;
     'studyDb.updated': (update: StudyUpdated) => void;
   }
+}
+
+export interface StudyNavigationRequest {
+  studyId: string;
+  chapterId?: string;
+  path?: TreePath;
+  orientation?: Color;
+  complete?: (error?: Error) => void;
 }
 
 export type TabStorage = { active: boolean } & (

@@ -428,77 +428,6 @@ export default class StudyCtrl {
     this.publishUpdated();
   };
 
-  private studyMetadata(changedChapter?: DbChapterData): DbStudyData {
-    const { data } = this;
-    const members = this.members.dict();
-    const member = members[myUserId() ?? ''];
-    return {
-      studyId: data.id,
-      studyName: data.name,
-      metadataRevision: data.metadataRevision,
-      role:
-        data.ownerId === myUserId()
-          ? 'owner'
-          : member
-            ? member.role === 'w'
-              ? 'contributor'
-              : 'member'
-            : undefined,
-      visibility: data.visibility,
-      public: data.visibility === 'public',
-      updatedAt: this.vm.updatedAt,
-      createdAt: data.createdAt,
-      description: data.description,
-      ownerId: data.ownerId,
-      owner: members[data.ownerId]?.user,
-      settings: { ...data.settings },
-      from: typeof data.from === 'string' ? data.from : { ...data.from },
-      topics: data.topics ?? [],
-      liked: data.liked,
-      likes: data.likes,
-      flair: data.flair,
-      members: Object.values(members).map(member => ({
-        user: member.user,
-        role: member.role === 'w' ? 'w' : 'r',
-      })),
-      chapterCount: this.chapters.list.size(),
-      chapters: this.chapters.list.all().map((chapter, order) => ({
-        id: chapter.id,
-        name: chapter.name,
-        order,
-        ...(chapter.id === data.chapter.id
-          ? {
-              ownerId: data.chapter.ownerId,
-              description: data.chapter.description,
-              tags: data.chapter.tags,
-              conceal: data.chapter.conceal,
-              practice: data.chapter.practice,
-              gamebook: data.chapter.gamebook,
-              variant: data.chapter.setup.variant.key,
-              setup: { ...data.chapter.setup, fromFen: !!data.chapter.setup.fromFen },
-            }
-          : {}),
-        ...(chapter.id === changedChapter?.id ? changedChapter : {}),
-      })),
-      studyDbExcluded: !!(this.relay || this.practice || data.studyDbExcluded),
-    };
-  }
-
-  private readonly publishUpdated = (changedChapter?: DbChapterData) => {
-    if (this.ctrl.reaper.disposed) return;
-    const study = this.studyMetadata(changedChapter);
-    const chapter = study.chapters?.find(chapter => chapter.id === this.data.chapter.id);
-    if (!chapter) return;
-    const update = structuredClone({
-      study,
-      chapterId: chapter.id,
-      path: this.ctrl.path,
-      orientation: this.ctrl.getOrientation(),
-    });
-    idbStudy.updateStudy(update).catch(() => {});
-    pubsub.emit('studyDb.updated', update);
-  };
-
   xhrReload = throttlePromiseDelay(
     () => 400,
     /* `callback` runs immediately after the xhr, and is not affected by the delay */
@@ -512,7 +441,7 @@ export default class StudyCtrl {
           this.vm.mode.sticky ? undefined : this.vm.chapterId,
           withChapters,
         )
-        .then(this.onReload, this.ctrl.reloadPage)
+        .then(this.onReload, site.reload)
         .then(() => {
           if (!this.ctrl.reaper.disposed) immediateCallback();
         });
@@ -530,10 +459,7 @@ export default class StudyCtrl {
     this.ctrl.flipped ? opposite(this.data.chapter.setup.orientation) : this.data.chapter.setup.orientation;
 
   instantiateGamebookPlay = () => {
-    if (!this.isGamebookPlay()) {
-      this.gamebookPlay?.destroy();
-      return (this.gamebookPlay = undefined);
-    }
+    if (!this.isGamebookPlay()) return (this.gamebookPlay = undefined);
     // ensure all original nodes have a gamebook entry,
     // so we can differentiate original nodes from user-made ones
     treeOps.updateAll(this.ctrl.tree.root, n => {
@@ -541,7 +467,6 @@ export default class StudyCtrl {
       if (n.shapes) n.gamebook.shapes = n.shapes.slice(0);
     });
     if (this.gamebookPlay?.chapterId === this.vm.chapterId) return undefined;
-    this.gamebookPlay?.destroy();
     this.gamebookPlay = new GamebookPlayCtrl(this.ctrl, this.vm.chapterId, this.redraw);
     this.vm.mode.sticky = false;
     return undefined;
@@ -1010,5 +935,76 @@ export default class StudyCtrl {
         this.multiBoard.multiCloudEval?.onCloudEval(ev);
       });
     },
+  };
+
+  private studyMetadata(changedChapter?: DbChapterData): DbStudyData {
+    const { data } = this;
+    const members = this.members.dict();
+    const member = members[myUserId() ?? ''];
+    return {
+      studyId: data.id,
+      studyName: data.name,
+      metadataRevision: data.metadataRevision,
+      role:
+        data.ownerId === myUserId()
+          ? 'owner'
+          : member
+            ? member.role === 'w'
+              ? 'contributor'
+              : 'member'
+            : undefined,
+      visibility: data.visibility,
+      public: data.visibility === 'public',
+      updatedAt: this.vm.updatedAt,
+      createdAt: data.createdAt,
+      description: data.description,
+      ownerId: data.ownerId,
+      owner: members[data.ownerId]?.user,
+      settings: { ...data.settings },
+      from: typeof data.from === 'string' ? data.from : { ...data.from },
+      topics: data.topics ?? [],
+      liked: data.liked,
+      likes: data.likes,
+      flair: data.flair,
+      members: Object.values(members).map(member => ({
+        user: member.user,
+        role: member.role === 'w' ? 'w' : 'r',
+      })),
+      chapterCount: this.chapters.list.size(),
+      chapters: this.chapters.list.all().map((chapter, order) => ({
+        id: chapter.id,
+        name: chapter.name,
+        order,
+        ...(chapter.id === data.chapter.id
+          ? {
+              ownerId: data.chapter.ownerId,
+              description: data.chapter.description,
+              tags: data.chapter.tags,
+              conceal: data.chapter.conceal,
+              practice: data.chapter.practice,
+              gamebook: data.chapter.gamebook,
+              variant: data.chapter.setup.variant.key,
+              setup: { ...data.chapter.setup, fromFen: !!data.chapter.setup.fromFen },
+            }
+          : {}),
+        ...(chapter.id === changedChapter?.id ? changedChapter : {}),
+      })),
+      studyDbExcluded: !!(this.relay || this.practice || data.studyDbExcluded),
+    };
+  }
+
+  private readonly publishUpdated = (changedChapter?: DbChapterData) => {
+    if (this.ctrl.reaper.disposed) return;
+    const study = this.studyMetadata(changedChapter);
+    const chapter = study.chapters?.find(chapter => chapter.id === this.data.chapter.id);
+    if (!chapter) return;
+    const update = structuredClone({
+      study,
+      chapterId: chapter.id,
+      path: this.ctrl.path,
+      orientation: this.ctrl.getOrientation(),
+    });
+    idbStudy.updateStudy(update).catch(() => {});
+    pubsub.emit('studyDb.updated', update);
   };
 }

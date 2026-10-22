@@ -10,7 +10,6 @@ export class SearchTabContent extends TabContentCtrl {
   query = '';
   order: StudySearchOrder = 'relevant';
   study: NonNullable<StudySearchQuery['study']> = {};
-  chapter: Omit<NonNullable<StudySearchQuery['chapter']>, 'tags'> = {};
   tags: NonNullable<NonNullable<StudySearchQuery['chapter']>['tags']> = {};
 
   get search(): StudySearchQuery {
@@ -21,7 +20,6 @@ export class SearchTabContent extends TabContentCtrl {
       return entries.length ? (Object.fromEntries(entries) as Fields) : undefined;
     };
     const study = clean({ ...this.study, text: this.query });
-    const chapter = clean(this.chapter);
     let tags = clean(this.tags);
     if (tags) {
       if (!tags.player1 && !tags.fideId1) delete tags.color1;
@@ -31,7 +29,7 @@ export class SearchTabContent extends TabContentCtrl {
     return {
       order: this.order,
       ...(study && { study }),
-      ...((chapter || tags) && { chapter: { ...chapter, ...(tags && { tags }) } }),
+      ...(tags && { chapter: { tags } }),
     };
   }
 

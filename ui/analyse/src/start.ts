@@ -46,7 +46,7 @@ export default function (
       restoreStudyPosition: request => current.ctrl.restoreStudyPosition(request),
       reload: cfg => {
         cfg.element = current.ctrl.element;
-        const ceval = current.ctrl.ceval;
+        const ceval = current.ctrl.ceval; // ceval workers can be expensive to recreate, so swap it over
         current.ctrl.reaper.dispose();
         current = mount(cfg, current.vnode, ceval);
         return current.ctrl.ready;

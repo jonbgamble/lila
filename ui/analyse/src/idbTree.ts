@@ -100,7 +100,7 @@ export class IdbTree {
       (!what || what === 'collapse') && this.collapseDb().then(db => db.remove(this.id)),
       !this.ctrl.study && (!what || what === 'moves') && this.moveDb().then(db => db.remove(this.id)),
     ]);
-    if (what !== 'analysis') this.ctrl.reloadPage();
+    if (what !== 'analysis') site.reload();
     else this.cache.localAnalysis = undefined;
   };
 
@@ -114,10 +114,7 @@ export class IdbTree {
     pruneMainlineAnalysis(root);
     return this.moveDb()
       .then(db => db.put(this.id, { root }))
-      .catch(err => {
-        if (err?.name === 'InvalidStateError') return undefined;
-        throw err;
-      });
+      .catch(consumeDatabaseUpgradeFailure);
   }
 
   async saveAnalysis(analysis: LocalAnalysisResult) {
@@ -138,10 +135,7 @@ export class IdbTree {
     this.cache.cevals.set(path, ceval);
     return this.cevalDb()
       .then(db => db.put([id, path], { path, ceval }))
-      .catch(err => {
-        if (err?.name === 'InvalidStateError') return undefined;
-        throw err;
-      });
+      .catch(consumeDatabaseUpgradeFailure);
   }
 
   async load(): Promise<void> {
@@ -222,10 +216,7 @@ export class IdbTree {
   private async saveCollapsed() {
     return this.collapseDb()
       .then(db => db.put(this.id, this.getCollapsed()))
-      .catch(err => {
-        if (err?.name === 'InvalidStateError') return undefined;
-        throw err;
-      });
+      .catch(consumeDatabaseUpgradeFailure);
   }
 
   private isCollapsible(node: TreeNodeLite, isMainline: boolean): boolean {
@@ -277,3 +268,8 @@ export class IdbTree {
 }
 
 type State = { movesDirty: boolean; cevals: Map<TreePath, LocalEval>; localAnalysis?: AnalysisMeta };
+
+function consumeDatabaseUpgradeFailure(err: any): undefined {
+  if (err?.name === 'InvalidStateError') return undefined;
+  throw err;
+}

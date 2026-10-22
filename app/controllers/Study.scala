@@ -113,117 +113,6 @@ final class Study(
 
   def mineLikes = MyStudyPager(env.study.pager.mineLikes, views.study.list.mineLikes)
 
-  def dbSync = AuthBody(parse.json(4 * 1024 * 1024)) { ctx ?=> me ?=>
-    import lila.study.StudyDbSync.{ Change, Fetch, Sync }
-    lila.study.StudyDbSync
-      .read(ctx.body.body)
-      .fold(
-        errors => fuccess(BadRequest(Json.obj("error" -> JsError.toJson(errors)))),
-        command =>
-          val studies = command match
-            case Sync(_) => env.study.studyRepo.personalSyncSource(me.userId, env.practice.studyIds)
-            case Fetch(Nil) => Source.empty[StudyModel]
-            case Fetch(ids) =>
-              Source
-                .future(env.study.studyRepo.byOrderedIds(ids))
-                .mapConcat(identity)
-                .filter(_.canView(Some(me.userId)))
-          val changes = command
-            .changes(studies)
-            .grouped(16)
-            .mapAsync(4) { batch =>
-              val ids = batch.collect { case Change.Upsert(study) => study.id }.toList
-              env.study.chapterRepo.metadataByStudyIds(ids).map { chapters =>
-                batch.map {
-                  case Change.Upsert(study) =>
-                    Json.obj(
-                      "type" -> "upsert",
-                      "study" -> env.study.jsonView.studyDbMetadata(
-                        study,
-                        chapters.getOrElse(study.id, Nil),
-                        me.userId
-                      )
-                    )
-                  case Change.Delete(id) => Json.obj("type" -> "delete", "studyId" -> id)
-                  case Change.Complete => Json.obj("type" -> "complete")
-                }
-              }
-            }
-            .mapConcat(identity)
-          fuccess(
-            jsToNdJson(changes)
-              .as("application/x-ndjson")
-              .noProxyBuffer
-              .withHeaders(CACHE_CONTROL -> "no-store")
-          )
-      )
-  }
-
-  def dbSearch = AuthBody(parse.json) { ctx ?=> me ?=>
-    WithProxy: proxy ?=>
-      dbElasticSearch(ctx.body.body)
-  }
-
-  def dbBookmarks = Auth { _ ?=> me ?=>
-    for
-      entries <- env.study.bookmarks.load(me.userId)
-      studies <- env.study.studyRepo.byOrderedIds(lila.study.StudyBookmarks.studyIds(entries))
-      visible = studies.filter(study =>
-        study.isPublic || study.isOwner(me.userId) || study.isMember(me.userId)
-      )
-      chapters <- env.study.chapterRepo.metadataByStudyIds(visible.map(_.id))
-    yield Ok(
-      Json.obj(
-        "entries" -> entries,
-        "studies" -> visible.map(study =>
-          env.study.jsonView.studyDbMetadata(study, chapters.getOrElse(study.id, Nil), me.userId)
-        )
-      )
-    ).withHeaders(CACHE_CONTROL -> "no-store")
-  }
-
-  def dbBookmarksSave = AuthBody(parse.json) { ctx ?=> me ?=>
-    lila.study.StudyBookmarks
-      .read(ctx.body.body)
-      .fold(
-        errors => fuccess(BadRequest(Json.obj("error" -> JsError.toJson(errors)))),
-        entries => env.study.bookmarks.save(me.userId, entries).inject(NoContent)
-      )
-  }
-
-  private def dbElasticSearch(json: JsValue)(using Context, lila.core.security.IsProxy)(using me: Me) =
-    lila.studySearch.StudySearchQuery
-      .read(json)
-      .fold(
-        errors => fuccess(BadRequest(Json.obj("error" -> JsError.toJson(errors)))),
-        query =>
-          limit.enumeration.search(rateLimited):
-            env.studySearch.api
-              .searchStudyDb(query, me.userId)
-              .flatMap: chunk =>
-                env.study.chapterRepo
-                  .metadataByStudyIds(chunk.results.map(_.study.id))
-                  .map: chapters =>
-                    Ok(
-                      Json.obj(
-                        "version" -> 1,
-                        "items" -> chunk.results.map: entry =>
-                          val metadata = chapters.getOrElse(entry.study.id, Nil)
-                          val chapterIds = metadata.map(_.id.value).toSet
-                          env.study.jsonView.studyDbMetadata(entry.study, metadata, me.userId) ++
-                            Json.obj(
-                              "matchingChapterIds" -> entry.matchingChapterIds.filter(chapterIds),
-                              "matchingChapterFields" -> entry.matchingChapterFields
-                                .filter((id, _) => chapterIds(id))
-                            )
-                        ,
-                        "nextCursor" -> chunk.nextCursor,
-                        "exhausted" -> chunk.nextCursor.isEmpty,
-                        "unfilteredTotal" -> chunk.unfilteredTotal
-                      )
-                    ).withHeaders(CACHE_CONTROL -> "no-store")
-      )
-
   def listFormat = Open(env.study.formatStore.toggle)
 
   private type StudyPager = Paginator[StudyModel.WithChaptersAndLiked]
@@ -293,33 +182,20 @@ final class Study(
                 .withCanonical(routes.Study.chapter(sc.study.id, sc.chapter.id))
                 .enforceCrossSiteIsolation
             ,
-            json =
-              if ctx.req.client.isXhr && getBool("full") then
-                if oldSc.study.isRelay then
-                  Ok(
-                    Json.obj("redirect" -> routes.Study.chapter(oldSc.study.id, oldSc.chapter.id).url)
-                  ).toFuccess
-                else
-                  for
-                    (sc, data) <- getJsonData(oldSc, withChapters = true)
-                    chat <- chatOf(sc.study)
-                    sVersion <- env.study.version(sc.study.id)
-                  yield Ok(views.study.bootstrap(sc.study, data, chat, sVersion))
-              else
-                for
-                  (sc, data) <- getJsonData(
-                    oldSc,
-                    withChapters = getBool("chapters") || ctx.req.client.isLichobile
-                  )
-                  chatOpt <- ctx.req.client.isXhr.not.so(chatOf(sc.study))
-                  sVersion <- ctx.req.client.isMobile.option(env.study.version(sc.study.id)).sequence
-                  jsChat = chatOpt.map: c =>
-                    env.chat.json.mobile(c, writeable = ctx.userId.so(sc.study.canChat))
-                yield Ok:
-                  Json.obj(
-                    "study" -> data.study.add("chat" -> jsChat).add("socketVersion" -> sVersion),
-                    "analysis" -> data.analysis
-                  )
+            json = for
+              (sc, data) <- getJsonData(
+                oldSc,
+                withChapters = getBool("chapters") || ctx.req.client.isLichobile
+              )
+              chatOpt <- ctx.req.client.isXhr.not.so(chatOf(sc.study))
+              sVersion <- ctx.req.client.isMobile.option(env.study.version(sc.study.id)).sequence
+              jsChat = chatOpt.map: c =>
+                env.chat.json.mobile(c, writeable = ctx.userId.so(sc.study.canChat))
+            yield Ok:
+              Json.obj(
+                "study" -> data.study.add("chat" -> jsChat).add("socketVersion" -> sVersion),
+                "analysis" -> data.analysis
+              )
           )
       }(privateUnauthorizedFu(oldSc.study), privateForbiddenFu(oldSc.study))
     .dmap(_.noCache)
@@ -783,3 +659,125 @@ final class Study(
       JsonOk:
         lila.study.JsonView.glyphs(using env.translator.to(lang))
       .headerCache(1.hour)
+
+  def dbLoadStudy(id: StudyId, chapterId: Option[StudyChapterId]) =
+    OpenOrScoped(_.Study.Read, _.Web.Mobile):
+      Found(chapterId.fold(env.study.api.byIdWithChapter(id))(env.study.api.byIdWithChapter(id, _))): oldSc =>
+        CanView(oldSc.study) {
+          if !oldSc.study.notable && ctx.req.client.isCrawler then notFoundJson()
+          else if oldSc.study.isRelay then
+            Ok(Json.obj("redirect" -> routes.Study.chapter(oldSc.study.id, oldSc.chapter.id).url)).toFuccess
+          else
+            for
+              (sc, data) <- getJsonData(oldSc, withChapters = true)
+              chat <- chatOf(sc.study)
+              sVersion <- env.study.version(sc.study.id)
+            yield Ok(views.study.studyJson(sc.study, data, chat, sVersion))
+        }(privateUnauthorizedJson.toFuccess, privateForbiddenJson.toFuccess)
+      .dmap(_.noCache)
+
+  def dbSync = AuthBody(parse.json(4 * 1024 * 1024)) { ctx ?=> me ?=>
+    import lila.study.StudyDbSync.{ Change, Fetch, Sync }
+    lila.study.StudyDbSync
+      .read(ctx.body.body)
+      .fold(
+        errors => fuccess(BadRequest(Json.obj("error" -> JsError.toJson(errors)))),
+        command =>
+          val studies = command match
+            case Sync(_) => env.study.studyRepo.syncSource(me.userId, env.practice.studyIds)
+            case Fetch(Nil) => Source.empty[StudyModel]
+            case Fetch(ids) =>
+              Source
+                .future(env.study.studyRepo.byOrderedIds(ids))
+                .mapConcat(identity)
+                .filter(_.canView(Some(me.userId)))
+          val changes = command
+            .changes(studies)
+            .grouped(16)
+            .mapAsync(4) { batch =>
+              val ids = batch.collect { case Change.Upsert(study) => study.id }.toList
+              env.study.chapterRepo.metadataByStudyIds(ids).map { chapters =>
+                batch.map {
+                  case Change.Upsert(study) =>
+                    Json.obj(
+                      "type" -> "upsert",
+                      "study" -> env.study.jsonView.studyDbMetadata(
+                        study,
+                        chapters.getOrElse(study.id, Nil),
+                        me.userId
+                      )
+                    )
+                  case Change.Delete(id) => Json.obj("type" -> "delete", "studyId" -> id)
+                  case Change.Complete => Json.obj("type" -> "complete")
+                }
+              }
+            }
+            .mapConcat(identity)
+          fuccess(
+            jsToNdJson(changes)
+              .as("application/x-ndjson")
+              .noProxyBuffer
+              .withHeaders(CACHE_CONTROL -> "no-store")
+          )
+      )
+  }
+
+  def dbSearch = AuthBody(parse.json) { ctx ?=> me ?=>
+    lila.studySearch.StudySearchQuery
+      .read(ctx.body.body)
+      .fold(
+        errors => fuccess(BadRequest(Json.obj("error" -> JsError.toJson(errors)))),
+        query =>
+          env.studySearch.api
+            .searchStudyDb(query, me.userId)
+            .flatMap: chunk =>
+              env.study.chapterRepo
+                .metadataByStudyIds(chunk.results.map(_.study.id))
+                .map: chapters =>
+                  Ok(
+                    Json.obj(
+                      "version" -> 1,
+                      "items" -> chunk.results.map: entry =>
+                        val metadata = chapters.getOrElse(entry.study.id, Nil)
+                        val chapterIds = metadata.map(_.id.value).toSet
+                        env.study.jsonView.studyDbMetadata(entry.study, metadata, me.userId) ++
+                          Json.obj(
+                            "matchingChapterIds" -> entry.matchingChapterIds.filter(chapterIds),
+                            "matchingChapterFields" -> entry.matchingChapterFields
+                              .filter((id, _) => chapterIds(id))
+                          )
+                      ,
+                      "nextCursor" -> chunk.nextCursor,
+                      "exhausted" -> chunk.nextCursor.isEmpty,
+                      "unfilteredTotal" -> chunk.unfilteredTotal
+                    )
+                  ).withHeaders(CACHE_CONTROL -> "no-store")
+      )
+  }
+
+  def dbBookmarks = Auth { _ ?=> me ?=>
+    for
+      entries <- env.study.bookmarks.load(me.userId)
+      studies <- env.study.studyRepo.byOrderedIds(lila.study.StudyBookmarks.studyIds(entries))
+      visible = studies.filter(study =>
+        study.isPublic || study.isOwner(me.userId) || study.isMember(me.userId)
+      )
+      chapters <- env.study.chapterRepo.metadataByStudyIds(visible.map(_.id))
+    yield Ok(
+      Json.obj(
+        "entries" -> entries,
+        "studies" -> visible.map(study =>
+          env.study.jsonView.studyDbMetadata(study, chapters.getOrElse(study.id, Nil), me.userId)
+        )
+      )
+    ).withHeaders(CACHE_CONTROL -> "no-store")
+  }
+
+  def dbBookmarksSave = AuthBody(parse.json) { ctx ?=> me ?=>
+    lila.study.StudyBookmarks
+      .read(ctx.body.body)
+      .fold(
+        errors => fuccess(BadRequest(Json.obj("error" -> JsError.toJson(errors)))),
+        entries => env.study.bookmarks.save(me.userId, entries).inject(NoContent)
+      )
+  }

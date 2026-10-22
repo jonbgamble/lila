@@ -245,7 +245,12 @@ export class StudyDbCtrl {
     const top = panel.getBoundingClientRect().top + 64;
     const left = columns > 2 ? gap : bounds.right + gap;
     const right = columns > 2 ? bounds.left - gap : document.documentElement.clientWidth - gap;
-    return { left, top, width: right - left, height: window.innerHeight - gap - top };
+    return {
+      left,
+      top,
+      width: right - left,
+      height: Math.min(Math.max(bounds.bottom - top, 480), window.innerHeight - gap - top),
+    };
   }
 
   private offsetGeometry(ctrl: WindowCtrl): Rect {

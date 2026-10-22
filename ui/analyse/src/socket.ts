@@ -102,7 +102,9 @@ export function make(send: AnalyseSocketSend, ctrl: AnalyseCtrl): Socket {
     analysisProgress(data: AnalysisUpdate) {
       ctrl.mergeServerAnalysisData(data);
     },
-    evalHit: (data: EvalHit) => ctrl.evalCache.onCloudEval(data),
+    evalHit(hit: EvalHit) {
+      ctrl.evalCache.onCloudEval(hit);
+    },
   };
 
   function withoutStandardVariant(obj: { variant?: VariantKey }) {

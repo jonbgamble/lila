@@ -46,10 +46,7 @@ final class Env(
     elastic.delete(SearchClient.Index.Study, event.studyId)
 
   lila.common.Bus.sub[IndexStudySearch]: event =>
-    studyRepo
-      .incrementMetadataRevision(event.studyId)
-      .flatMap(_ => indexStudy(event))
-      .logFailure(lila.log("studySearch"))
+    indexStudy(event).logFailure(lila.log("studySearch"))
 
   private def indexStudy(event: IndexStudySearch): Funit =
     if shuttingDown.get || event.now then

@@ -1,8 +1,8 @@
-import { makeKeyboard } from '../keyboard';
+import { makeBinder } from '../keyboard';
 import type StudyCtrl from './studyCtrl';
 
 export default function studyKeyboard(ctrl: StudyCtrl): void {
-  const kbd = makeKeyboard(ctrl.ctrl.reaper);
+  const kbd = makeBinder(ctrl.ctrl.reaper);
 
   for (const [key, button] of [
     ['d', 'comments'],

@@ -1,4 +1,5 @@
-import type { StudyNavigationRequest } from 'lib/types';
+import type { StudyNavigationRequest } from 'studyDb/types';
+
 import { json, url as makeUrl } from 'lib/xhr';
 
 import type { AnalyseApi, AnalyseOpts } from '../interfaces';
@@ -34,13 +35,15 @@ export class StudyNavigation {
         if (
           (position.path === undefined && position.orientation === undefined) ||
           this.api.restoreStudyPosition(target)
-        )
+        ) {
           return;
+        }
       }
       if (request !== this.pending) return;
-      const next = await json<AnalyseOpts | { redirect: string }>(`${url}?full=1`, {
-        signal: request.signal,
-      });
+      const next = await json<AnalyseOpts | { redirect: string }>(
+        makeUrl(`/study/db/load/${studyId}`, { chapterId }),
+        { signal: request.signal },
+      );
       if (request !== this.pending) return;
       if ('redirect' in next) {
         site.redirect(next.redirect);
@@ -52,8 +55,9 @@ export class StudyNavigation {
         !next.data?.treeParts ||
         !next.socketUrl ||
         typeof next.socketVersion !== 'number'
-      )
-        throw new Error('Incomplete study response');
+      ) {
+        throw new Error('bad study response');
+      }
       try {
         history.pushState({}, '', `/study/${studyId}/${next.study.chapter.id}`);
         document.title = next.study.name;

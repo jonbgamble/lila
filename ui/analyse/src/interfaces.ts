@@ -1,4 +1,5 @@
 import type { VNode } from 'snabbdom';
+import type { StudyNavigationRequest } from 'studyDb/types';
 
 import type { ExternalEngineInfoFromServer } from 'lib/ceval';
 import type { ChatCtrl, ChatPlugin, ChatOpts } from 'lib/chat/interfaces';
@@ -13,7 +14,6 @@ import type {
   TreeNodeLite,
   TreePath,
 } from 'lib/tree/types';
-import type { StudyNavigationRequest } from 'lib/types';
 
 import type { ExplorerOpts } from './explorer/interfaces';
 import type { ForecastData } from './forecast/interfaces';

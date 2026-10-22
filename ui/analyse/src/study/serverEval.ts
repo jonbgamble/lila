@@ -97,14 +97,14 @@ export function view(ctrl: ServerEval): VNode {
           async () => {
             if (ctrl.root.idbTree.hasLocalAnalysis) {
               if (await confirm(i18n.study.clearLocal, i18n.site.delete)) {
-                ctrl.root.idbTree.clear('analysis').then(ctrl.root.reloadPage);
+                ctrl.root.idbTree.clear('analysis').then(site.reload);
               }
               return;
             }
             if (!(await confirm(i18n.study.clearPublished, i18n.site.delete))) return;
             try {
               await text(`/analysis/${ctrl.root.opts.study!.id}/${ctrl.chapterId()}`, { method: 'DELETE' });
-              ctrl.root.reloadPage();
+              site.reload();
             } catch (e) {
               alert(String(e));
             }

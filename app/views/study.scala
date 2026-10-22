@@ -51,7 +51,7 @@ def create(
     )
     .css("analyse.study.create")(ui.create(data, owner, contrib))
 
-def bootstrap(
+def studyJson(
     s: lila.study.Study,
     data: lila.study.JsonView.JsData,
     chatOption: Option[lila.chat.UserChat.Mine],
@@ -99,7 +99,7 @@ def show(
     .js(
       PageModule(
         "analyse.study",
-        bootstrap(s, data, chatOption, socketVersion)
+        studyJson(s, data, chatOption, socketVersion)
       )
     )
     .flag(_.noRobots, !s.isPublic)

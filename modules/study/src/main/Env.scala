@@ -1,5 +1,10 @@
 package lila.study
 
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.{ AtomicBoolean, AtomicReference }
+import scala.concurrent.Promise
+import scala.jdk.CollectionConverters.*
+
 import com.softwaremill.macwire.*
 import play.api.Configuration
 import play.api.libs.ws.StandaloneWSClient
@@ -35,7 +40,8 @@ final class Env(
     net: lila.core.config.NetConfig,
     cacheApi: lila.memo.CacheApi,
     settingStore: lila.memo.SettingStore.Builder,
-    baker: LilaCookie
+    baker: LilaCookie,
+    shutdown: org.apache.pekko.actor.CoordinatedShutdown
 )(using
     Executor,
     Scheduler,
@@ -123,3 +129,30 @@ final class Env(
       _ <- topicApi.userTopicsDelete(del.id)
       _ <- bookmarks.delete(del.id)
     yield ()
+
+  private val pendingRevisions = ConcurrentHashMap[StudyId, Long]()
+  private val revisionWrite = AtomicReference[Funit](funit)
+  private val shuttingDown = AtomicBoolean(false)
+  private val revisionFlush = summon[Scheduler].scheduleWithFixedDelay(5.seconds, 5.seconds): () =>
+    flushPendingRevisions().logFailure(logger)
+
+  lila.common.Bus.sub[lila.core.study.IndexStudySearch]: event =>
+    pendingRevisions.merge(event.studyId, 1L, _ + _)
+    if shuttingDown.get || event.now then flushPendingRevisions().logFailure(logger)
+
+  lila.common.Lilakka.shutdown(shutdown, _.PhaseBeforeServiceUnbind, "flush study metadata revisions"): () =>
+    shuttingDown.set(true)
+    revisionFlush.cancel()
+    flushPendingRevisions()
+
+  private def flushPendingRevisions(): Funit =
+    val completed = Promise[Unit]()
+    revisionWrite
+      .getAndSet(completed.future)
+      .transformWith: _ =>
+        val revisions = pendingRevisions.keys.asScala.toList
+          .map(studyId => studyId -> pendingRevisions.remove(studyId))
+          .filter(_._2 > 0)
+        studyRepo.incrementMetadataRevisions(revisions.toMap)
+      .onComplete(completed.complete)
+    completed.future

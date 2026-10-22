@@ -149,7 +149,6 @@ export function make(root: AnalyseCtrl): PracticeCtrl {
   const isMyTurn = (): boolean => root.turnColor() === root.bottomColor();
 
   function checkCeval() {
-    if (isStaleCallback()) return;
     const node = root.node;
     if (!running()) {
       comment(null);
@@ -187,16 +186,13 @@ export function make(root: AnalyseCtrl): PracticeCtrl {
   }
 
   function checkCevalOrTablebase() {
-    if (isStaleCallback()) return;
     if (tablebaseGuaranteed(variant, root.node.fen))
       root.explorer.fetchTablebaseHit(root.node.fen).then(
         hit => {
-          if (isStaleCallback()) return;
           if (hit && root.node.fen === hit.fen) root.node.tbhit = hit;
           checkCeval();
         },
         () => {
-          if (isStaleCallback()) return;
           if (!defined(root.node.tbhit)) root.node.tbhit = null;
           checkCeval();
         },
@@ -209,11 +205,9 @@ export function make(root: AnalyseCtrl): PracticeCtrl {
     checkCevalOrTablebase();
   }
 
-  function isStaleCallback(): boolean {
-    return practice !== root.practice; // if study was replaced over xhr, this practice can be stale
-  }
+  requestIdleCallbackSafe(checkCevalOrTablebase, 800);
 
-  const practice: PracticeCtrl = {
+  return {
     onCeval: checkCeval,
     onJump() {
       played(false);
@@ -281,7 +275,4 @@ export function make(root: AnalyseCtrl): PracticeCtrl {
       statusNode: () => (root.ceval?.isComputing ? undefined : renderCustomStatus(root, masteryMode)),
     },
   };
-
-  requestIdleCallbackSafe(checkCevalOrTablebase, 800);
-  return practice;
 }
