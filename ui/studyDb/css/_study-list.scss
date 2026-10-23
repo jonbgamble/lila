@@ -174,13 +174,15 @@
 
   .study-match {
     overflow-wrap: anywhere;
+  }
 
-    mark {
-      padding: 0;
-      background: color-mix(in oklab, $c-brag 35%, transparent);
-      color: $c-font-clear;
-      font-weight: bold;
-    }
+  .study-name mark,
+  .bookmark-name mark,
+  .study-match mark {
+    padding: 0;
+    background: color-mix(in oklab, $c-brag 35%, transparent);
+    color: $c-font-clear;
+    font-weight: bold;
   }
 
   .study-match-chapter {

@@ -109,7 +109,7 @@ export class WindowEventHandler {
     if (gesture.edge) return;
     const destination = [...gesture.source.owner.windows].reverse().find(ctrl => {
       if (ctrl === gesture.source) return false;
-      const frame = ctrl.frame?.frame?.view.querySelector('.content-frame');
+      const frame = ctrl.frame?.frame?.view.querySelector('.tabs');
       if (!frame) return false;
       const rect = frame.getBoundingClientRect();
       return (

@@ -8,6 +8,7 @@ const roles = ['owner', 'contributor', 'member'] as const;
 const labels = { member: 'Member', contributor: 'Contributor', owner: 'Owner' };
 
 export function memberView(content: MemberTabContent): VNode {
+  const privateId = `${content.id}-private`;
   const selectRole = (role: (typeof roles)[number]) => {
     content.filters.role = role;
     content.filterChanged();
@@ -15,6 +16,24 @@ export function memberView(content: MemberTabContent): VNode {
   return studyListView(
     content,
     <div class="member-controls">
+      <span class="form-check__container member-filter">
+        <span class="form-check__input">
+          <input
+            attrs={{ id: privateId, type: 'checkbox' }}
+            props={{ checked: content.filters.private }}
+            on={{
+              change: (event: Event) => {
+                content.filters.private = (event.target as HTMLInputElement).checked;
+                content.filterChanged();
+              },
+            }}
+          />
+          <label class="form-check__label" attrs={{ for: privateId }} />
+        </span>
+        <label class="form-label" attrs={{ for: privateId }}>
+          Private
+        </label>
+      </span>
       <div
         class="btn-rack"
         attrs={{ role: 'radiogroup', 'aria-label': 'Study permission' }}
@@ -53,22 +72,6 @@ export function memberView(content: MemberTabContent): VNode {
             {labels[role]}
           </button>
         ))}
-      </div>
-      <div class="btn-rack">
-        <button
-          class={['btn-rack__btn', 'member-filter', content.filters.private && 'active']}
-          attrs={{
-            type: 'button',
-            'aria-pressed': String(content.filters.private),
-          }}
-          on={{
-            click: () => {
-              content.filters.private = !content.filters.private;
-              content.filterChanged();
-            },
-          }}>
-          Private
-        </button>
       </div>
       <span class="member-sync">
         {content.loading ? (

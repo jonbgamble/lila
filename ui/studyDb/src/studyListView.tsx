@@ -46,7 +46,7 @@ export function studyListView(list: MemberTabContent | ResultTabContent, control
   );
   return (
     <div class="study-list" {...listData(list.id)}>
-      {studyFilterInput(list)}
+      {!isResult && studyFilterInput(list)}
       {isResult && <div class="submitted-query">{list.submitted}</div>}
       {controls}
       {body}
@@ -62,6 +62,11 @@ export function studyRow(
   const chapterName = study.chapters?.find(chapter => chapter.id === position?.chapterId)?.name;
   const selected = list.selected.has(study.studyId);
   const entry = 'visibility' in study ? study : undefined;
+  const termsFor =
+    list.kind === 'resultTab' ? (field: string) => list.highlights[field] ?? [] : () => [list.query];
+  const matchingFields =
+    list.kind === 'resultTab' ? list.matchingChapterFields.get(study.studyId) : undefined;
+  const name = highlightMatch(study.studyName, termsFor('name'));
   return (
     <li
       class={['study-row', selected && 'selected']}
@@ -82,20 +87,12 @@ export function studyRow(
       }}>
       {studyIcon(study.flair)}
       <div class="study-content">
-        {position ? (
-          <strong class="study-name">{study.studyName}</strong>
-        ) : (
-          <span class="study-name">{study.studyName}</span>
-        )}
+        {position ? <strong class="study-name">{name}</strong> : <span class="study-name">{name}</span>}
         {chapterName && <span class="study-chapter">{chapterName}</span>}
         {entry ? studyPermission(entry) : <span class="study-permission" />}
       </div>
-      {studyNavigator(
-        study,
-        position,
-        list.kind === 'resultTab' ? list.matchingChapterFields.get(study.studyId) : undefined,
-      )}
-      {studyMatchView(study, list.query)}
+      {studyNavigator(study, position, matchingFields)}
+      {studyMatchView(study, termsFor, matchingFields)}
     </li>
   );
 }
@@ -195,48 +192,81 @@ export function studyFilterInput(content: { query: string; filterChanged(): void
   );
 }
 
-export function studyMatchView(entry: StudyData, filter: string): VNode | undefined {
-  const query = filter.trim().toLowerCase();
-  if (!query || entry.studyName?.toLowerCase().includes(query)) return undefined;
-  const matches = (text?: string) => !!text?.toLowerCase().includes(query);
+export function studyMatchView(
+  entry: StudyData,
+  termsFor: (field: string) => readonly string[],
+  matchingFields?: StudyData['matchingChapterFields'],
+): VNode | undefined {
+  const matches = (text: string | undefined, field: string) =>
+    !!text &&
+    termsFor(field).some(term => term.trim() && text.toLowerCase().includes(term.trim().toLowerCase()));
   const lines: VNode[] = [];
-  if (matches(entry.description))
+  const descriptionTerms = termsFor('description');
+  const topicTerms = termsFor('topics');
+  const chapterNameTerms = termsFor('chapters.name');
+  const chapterDescriptionTerms = termsFor('chapters.description');
+  if (matches(entry.description, 'description'))
     lines.push(
       <div class="study-match" key="description">
-        {highlightMatch(matchSnippet(entry.description!, query), query)}
+        {highlightMatch(matchSnippet(entry.description!, descriptionTerms), descriptionTerms)}
       </div>,
     );
-  if (entry.topics?.some(matches))
+  if (entry.topics?.some(topic => matches(topic, 'topics')))
     lines.push(
       <div class="study-match" key="topics">
-        {highlightMatch(entry.topics.join(', '), query)}
+        {highlightMatch(entry.topics.join(', '), topicTerms)}
       </div>,
     );
   for (const chapter of entry.chapters ?? []) {
-    if (matches(chapter.name)) {
-      lines.push(
-        <div class="study-match" key={chapter.id}>
-          {highlightMatch(chapter.name, query)}
-        </div>,
-      );
+    const fields = matchingFields?.[chapter.id] ?? [];
+    const tags =
+      chapter.tags?.filter(
+        ([name, value]) =>
+          matches(value, `tags.${name.toLowerCase()}`) ||
+          fields.some(field => field.toLowerCase() === `tags.${name.toLowerCase()}`),
+      ) ?? [];
+    const description =
+      matches(chapter.description, 'chapters.description') || fields.includes('description')
+        ? chapter.description
+        : undefined;
+    if (
+      !matches(chapter.name, 'chapters.name') &&
+      !tags.length &&
+      description === undefined &&
+      !fields.length
+    )
       continue;
-    }
-    const tags = chapter.tags?.filter(([, value]) => matches(value)) ?? [];
-    const description = matches(chapter.description) ? chapter.description : undefined;
-    if (!tags.length && description === undefined) continue;
+    const link = studyLink(entry, { chapterId: chapter.id });
     lines.push(
       <div class="study-match" key={chapter.id}>
-        <span class="study-match-chapter">{chapter.name}: </span>
+        <span class="study-match-chapter">
+          <a
+            attrs={{ href: link.href }}
+            on={{
+              click: (event: MouseEvent) => {
+                if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                link.navigate();
+              },
+            }}>
+            {highlightMatch(chapter.name, chapterNameTerms)}
+          </a>
+          {tags.length || description !== undefined ? ': ' : ''}
+        </span>
         {tags.map(([name, value], index) => (
           <span>
             {index > 0 ? '; ' : ''}
-            {name}: {highlightMatch(matchSnippet(value, query), query)}
+            {name}:{' '}
+            {highlightMatch(
+              matchSnippet(value, termsFor(`tags.${name.toLowerCase()}`)),
+              termsFor(`tags.${name.toLowerCase()}`),
+            )}
           </span>
         ))}
         {description !== undefined && (
           <span>
             {tags.length ? '; ' : ''}
-            {highlightMatch(matchSnippet(description, query), query)}
+            {highlightMatch(matchSnippet(description, chapterDescriptionTerms), chapterDescriptionTerms)}
           </span>
         )}
       </div>,
@@ -245,23 +275,41 @@ export function studyMatchView(entry: StudyData, filter: string): VNode | undefi
   return lines.length ? <div class="study-matches">{lines}</div> : undefined;
 }
 
-function matchSnippet(text: string, query: string): string {
-  const index = text.toLowerCase().indexOf(query);
-  if (index === -1) return text;
-  const start = Math.max(0, index - 40);
-  const end = Math.min(text.length, index + query.length + 40);
-  return `${start ? '...' : ''}${text.slice(start, end)}${end < text.length ? '...' : ''}`;
+function matchRanges(text: string, terms: readonly string[], context = 0): [number, number][] {
+  const lower = text.toLowerCase();
+  const ranges: [number, number][] = [];
+  for (const term of terms) {
+    const query = term.trim().toLowerCase();
+    if (!query) continue;
+    let index = lower.indexOf(query);
+    while (index >= 0) {
+      ranges.push([Math.max(0, index - context), Math.min(text.length, index + query.length + context)]);
+      index = lower.indexOf(query, index + 1);
+    }
+  }
+  const merged: [number, number][] = [];
+  for (const range of ranges.sort((left, right) => left[0] - right[0])) {
+    const previous = merged[merged.length - 1];
+    if (previous && range[0] <= previous[1]) previous[1] = Math.max(previous[1], range[1]);
+    else merged.push(range);
+  }
+  return merged;
 }
 
-function highlightMatch(text: string, query: string): (string | VNode)[] {
+function matchSnippet(text: string, terms: readonly string[]): string {
+  const ranges = matchRanges(text, terms, 40);
+  if (!ranges.length) return text;
+  return `${ranges[0][0] ? '...' : ''}${ranges.map(([start, end]) => text.slice(start, end)).join(' ... ')}${
+    ranges[ranges.length - 1][1] < text.length ? '...' : ''
+  }`;
+}
+
+export function highlightMatch(text: string, terms: readonly string[]): (string | VNode)[] {
   const parts: (string | VNode)[] = [];
-  const lower = text.toLowerCase();
   let offset = 0;
-  let index = lower.indexOf(query);
-  while (index >= 0) {
-    parts.push(text.slice(offset, index), <mark>{text.slice(index, index + query.length)}</mark>);
-    offset = index + query.length;
-    index = lower.indexOf(query, offset);
+  for (const [start, end] of matchRanges(text, terms)) {
+    parts.push(text.slice(offset, start), <mark>{text.slice(start, end)}</mark>);
+    offset = end;
   }
   parts.push(text.slice(offset));
   return parts;

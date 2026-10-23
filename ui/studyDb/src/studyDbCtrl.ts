@@ -102,15 +102,30 @@ export class StudyDbCtrl {
     else this.open();
   }
 
-  search(source: WindowCtrl): void {
+  async search(source: WindowCtrl): Promise<void> {
     if (!this.hasWindow(source) || !this.canOpen()) return;
     const search = this.tabs.searchTab;
     if (source.activeContentCtrl !== search) return;
     if (!search.canSubmit) return;
     const results = new ResultTabContent(search.search);
-    this.attach(source, [results]);
-    source.selectTab(results.id);
-    source.focusContent();
+    search.pending = results;
+    search.message = undefined;
+    search.onChange();
+    await results.init();
+    while (search.pending === results && !results.entries.length && results.hasMore && !results.error)
+      await results.loadMore();
+    if (search.pending !== results) return;
+    search.pending = undefined;
+    const destination = this.windows.find(ctrl => ctrl.tabCtrls.includes(search));
+    if (!destination || results.error || !results.entries.length) {
+      search.message = results.error ?? 'No results';
+      results.destroy();
+      search.onChange();
+      return;
+    }
+    this.attach(destination, [results]);
+    destination.selectTab(results.id);
+    destination.focusContent();
     this.save();
   }
 

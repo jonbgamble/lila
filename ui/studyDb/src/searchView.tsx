@@ -1,5 +1,5 @@
 import { licon } from 'lib/licon';
-import { jsx, type VNode, type VNodeData } from 'lib/view';
+import { jsx, spinnerVdom, type VNode, type VNodeData } from 'lib/view';
 
 import type { SearchTabContent } from './searchTabContent';
 import { listData } from './studyListView';
@@ -166,6 +166,11 @@ export function searchView(content: SearchTabContent, submit: () => void): VNode
           </div>
         </div>
       </form>
+      {(content.pending || content.message) && (
+        <div class="status" attrs={{ role: 'status' }}>
+          {content.pending ? spinnerVdom() : content.message}
+        </div>
+      )}
     </div>
   );
 }

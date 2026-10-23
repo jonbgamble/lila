@@ -3,6 +3,7 @@ import { jsx, type VNode } from 'lib/view';
 
 import type { BookmarkTabContent } from './bookmarkTabContent';
 import {
+  highlightMatch,
   infiniteScroll,
   listData,
   studyIcon,
@@ -215,7 +216,7 @@ export function bookmarkView(content: BookmarkTabContent): VNode {
                 ) : (
                   <div class="study-content">
                     <span class="bookmark-name">
-                      {entry.name}
+                      {highlightMatch(entry.name, [content.query])}
                       {study && 'visibility' in study && studyPermission(study)}
                       <button
                         class="button-empty bookmark-rename"
@@ -231,7 +232,7 @@ export function bookmarkView(content: BookmarkTabContent): VNode {
                   </div>
                 )}
                 {!folder && studyNavigator(study ?? entry)}
-                {study && content.editing?.entry !== entry && studyMatchView(study, content.query)}
+                {study && content.editing?.entry !== entry && studyMatchView(study, () => [content.query])}
               </li>
             );
           })}

@@ -1,8 +1,10 @@
 .study-db {
   .member-controls {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    justify-content: start;
     padding: 8px;
+    gap: 10px;
     cursor: default;
 
     .btn-rack__btn {
@@ -13,6 +15,10 @@
         outline-offset: -2px;
       }
     }
+
+    .form-check__input + .form-label {
+      margin-inline-start: 5px;
+    }
   }
 
   .member-filter {
@@ -20,13 +26,17 @@
     font-size: 12px;
   }
 
-  .member-sync button,
-  .member-sync .spinner {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    font-size: 14px;
+  .member-sync {
+    margin-inline-start: auto;
+
+    button,
+    .spinner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      font-size: 14px;
+    }
   }
 }

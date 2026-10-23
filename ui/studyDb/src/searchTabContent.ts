@@ -1,5 +1,6 @@
 import { licon } from 'lib/licon';
 
+import type { ResultTabContent } from './resultTabContent';
 import { TabContentCtrl } from './tabContentCtrl';
 import type { StudySearchOrder, StudySearchQuery } from './types';
 
@@ -11,6 +12,14 @@ export class SearchTabContent extends TabContentCtrl {
   order: StudySearchOrder = 'relevant';
   study: NonNullable<StudySearchQuery['study']> = {};
   tags: NonNullable<NonNullable<StudySearchQuery['chapter']>['tags']> = {};
+  pending?: ResultTabContent;
+  message?: string;
+
+  override destroy(): void {
+    this.pending?.destroy();
+    this.pending = undefined;
+    super.destroy();
+  }
 
   get search(): StudySearchQuery {
     const clean = <Fields extends object>(fields: Fields): Fields | undefined => {
@@ -35,6 +44,6 @@ export class SearchTabContent extends TabContentCtrl {
 
   get canSubmit(): boolean {
     const { study, chapter } = this.search;
-    return !!(study || chapter);
+    return !this.pending && !!(study || chapter);
   }
 }

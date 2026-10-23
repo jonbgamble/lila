@@ -9,29 +9,47 @@ export class ResultTabContent extends StudyList {
   override readonly closable = true;
 
   readonly search: StudySearchQuery;
+  readonly highlights: Record<string, string[]>;
   readonly matchingChapterFields = new Map<string, StudyData['matchingChapterFields']>();
   exhausted = false;
   error?: string;
   private cursor?: number;
   private request?: object;
-  private readonly filterTerms: string[];
-  private autoFilter = true;
 
   constructor(search: StudySearchQuery) {
     super();
     this.search = structuredClone(search);
-    const tags = search.chapter?.tags;
-    this.filterTerms = [
-      tags?.fideId1,
-      tags?.fideId2,
-      tags?.player1,
-      tags?.player2,
-      tags?.event,
-      tags?.opening,
-      tags?.eco,
-      search.study?.text,
-      tags?.variant,
-    ].filter((term): term is string => Boolean(term));
+    const { study, chapter } = this.search;
+    const tags = chapter?.tags;
+    this.highlights = Object.fromEntries(
+      Object.entries({
+        name: [study?.text, study?.name],
+        description: [study?.text, study?.description],
+        topics: [study?.text, study?.topics],
+        'chapters.name': [study?.text, chapter?.text, chapter?.name],
+        'chapters.description': [study?.text, chapter?.text, chapter?.description],
+        'tags.variant': [tags?.variant],
+        'tags.eco': [tags?.eco],
+        'tags.opening': [tags?.opening],
+        'tags.event': [tags?.event],
+        'tags.white': [
+          tags?.color1 !== 'black' ? tags?.player1 : undefined,
+          tags?.color2 !== 'black' ? tags?.player2 : undefined,
+        ],
+        'tags.black': [
+          tags?.color1 !== 'white' ? tags?.player1 : undefined,
+          tags?.color2 !== 'white' ? tags?.player2 : undefined,
+        ],
+        'tags.whitefideid': [
+          tags?.color1 !== 'black' ? tags?.fideId1 : undefined,
+          tags?.color2 !== 'black' ? tags?.fideId2 : undefined,
+        ],
+        'tags.blackfideid': [
+          tags?.color1 !== 'white' ? tags?.fideId1 : undefined,
+          tags?.color2 !== 'white' ? tags?.fideId2 : undefined,
+        ],
+      }).map(([field, terms]) => [field, terms.filter((term): term is string => Boolean(term))]),
+    );
   }
 
   get submitted(): string {
@@ -50,8 +68,8 @@ export class ResultTabContent extends StudyList {
     return this.search.study?.text ?? this.submitted;
   }
 
-  protected override compare(): number {
-    return 0;
+  protected override get filtered(): StudyData[] {
+    return this.entries;
   }
 
   get loading(): boolean {
@@ -60,11 +78,6 @@ export class ResultTabContent extends StudyList {
 
   override get hasMore(): boolean {
     return super.hasMore || !this.exhausted;
-  }
-
-  override filterChanged(): void {
-    this.autoFilter = false;
-    super.filterChanged();
   }
 
   protected override async load(): Promise<void> {
@@ -80,7 +93,7 @@ export class ResultTabContent extends StudyList {
   override async loadMore(): Promise<void> {
     if (this.loading || this.error || !this.hasMore) return;
     this.visible += 50;
-    if (this.exhausted || this.filtered.length >= this.visible) this.onChange();
+    if (this.exhausted || this.entries.length >= this.visible) this.onChange();
     else await this.fill();
   }
 
@@ -93,7 +106,7 @@ export class ResultTabContent extends StudyList {
     const signal = this.signal;
     if (!signal || signal.aborted || this.loading) return;
     const loaded = this.exhausted || this.cursor !== undefined;
-    if (loaded && (this.exhausted || this.filtered.length >= this.visible)) return;
+    if (loaded && (this.exhausted || this.entries.length >= this.visible)) return;
     const request = (this.request = {});
     this.error = undefined;
     this.onChange();
@@ -113,12 +126,6 @@ export class ResultTabContent extends StudyList {
       for (const study of batch.items)
         this.matchingChapterFields.set(study.studyId, study.matchingChapterFields);
       this.entries = [...(loaded ? this.entries : []), ...batch.items];
-      if (!loaded && this.autoFilter)
-        this.query = batch.items.length
-          ? (this.filterTerms.find(term =>
-              batch.items.every(entry => this.matches(entry, term.trim().toLowerCase())),
-            ) ?? '')
-          : '';
       this.cursor = batch.nextCursor ?? undefined;
       this.exhausted = batch.nextCursor == null;
     } catch {
