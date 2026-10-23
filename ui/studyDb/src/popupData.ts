@@ -6,26 +6,27 @@ interface PopupItem {
   navigate?: () => void;
 }
 
-const previews = new WeakMap<HTMLElement, PopupItem[]>();
+const previews = new WeakMap<HTMLElement, { items: PopupItem[]; title?: string }>();
 
-export function popupData(items: PopupItem[]): VNodeData {
-  if (!items.length) return {};
+export function popupData(items: PopupItem[], title?: string): VNodeData {
+  if (!items.length && !title) return {};
   return {
     attrs: { tabindex: 0, 'aria-describedby': 'studyContentPreview' },
     hook: {
       insert: vnode => {
         const element = vnode.elm as HTMLElement;
-        previews.set(element, items);
+        previews.set(element, { items, title });
         $(element).powerTip({
           popupId: 'studyContentPreview',
-          placement: 's',
+          placement: title ? 'se' : 's',
           offset: 4,
           render: async trigger => {
             const popup = document.querySelector<HTMLElement>('#studyContentPreview')!;
             popup.setAttribute('role', 'tooltip');
             popup.style.maxHeight = `${Math.max(80, window.innerHeight - trigger.getBoundingClientRect().bottom - 12)}px`;
+            const preview = previews.get(trigger);
             const list = document.createElement('ul');
-            for (const entry of previews.get(trigger) ?? []) {
+            for (const entry of preview?.items ?? []) {
               const item = document.createElement('li');
               if (entry.href) {
                 const link = document.createElement('a');
@@ -49,11 +50,15 @@ export function popupData(items: PopupItem[]): VNodeData {
               } else item.textContent = entry.name;
               list.append(item);
             }
-            popup.replaceChildren(list);
+            if (preview?.title) {
+              const heading = document.createElement('strong');
+              heading.textContent = preview.title;
+              popup.replaceChildren(heading, document.createElement('hr'), list);
+            } else popup.replaceChildren(list);
           },
         });
       },
-      postpatch: (_previous, vnode) => previews.set(vnode.elm as HTMLElement, items),
+      postpatch: (_previous, vnode) => previews.set(vnode.elm as HTMLElement, { items, title }),
       destroy: vnode => {
         const element = vnode.elm as HTMLElement;
         $.powerTip.destroy(element);

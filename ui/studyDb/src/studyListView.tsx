@@ -85,11 +85,11 @@ export function studyRow(
         },
         dragstart: (event: DragEvent) => list.drag(study.studyId, event),
       }}>
-      {studyIcon(study.flair)}
+      {studyIcon(study)}
       <div class="study-content">
         {position ? <strong class="study-name">{name}</strong> : <span class="study-name">{name}</span>}
+        {entry && studyPublicIcon(entry)}
         {chapterName && <span class="study-chapter">{chapterName}</span>}
-        {entry ? studyPermission(entry) : <span class="study-permission" />}
       </div>
       {studyNavigator(study, position, matchingFields)}
       {studyMatchView(study, termsFor, matchingFields)}
@@ -97,42 +97,17 @@ export function studyRow(
   );
 }
 
-export function studyPermission(entry: StudyData): VNode {
-  const sorted = entry.members?.slice().sort((a, b) => {
-    if (a.user.id === entry.ownerId) return -1;
-    if (b.user.id === entry.ownerId) return 1;
-    if (a.role === 'w' && b.role !== 'w') return -1;
-    if (b.role === 'w' && a.role !== 'w') return 1;
-    return a.user.name.localeCompare(b.user.name);
-  });
-  const members =
-    sorted?.map(({ user, role }) => {
-      const permission = user.id === entry.ownerId ? 'Owner' : role === 'w' ? 'Contributor' : 'Member';
-      return { name: `${user.title ? user.title + ' ' : ''}${user.name} - ${permission}` };
-    }) ?? (entry.owner ? [{ name: entry.owner.name + ' - Owner' }] : []);
-  const preview = popupData(entry.role ? members : []);
-  const [icon, label] =
-    entry.role === 'owner'
-      ? [licon.Owner, 'Owner']
-      : entry.role === 'contributor'
-        ? [licon.WritePermission, 'Contributor']
-        : entry.role === 'member'
-          ? [licon.User, 'Member']
-          : entry.visibility === 'public'
-            ? [licon.Meridians, 'Public study']
-            : [undefined, ''];
-  return (
+export function studyPublicIcon(entry: StudyData): VNode | undefined {
+  return entry.visibility === 'public' ? (
     <span
-      class={['study-permission', entry.role && 'role-' + entry.role]}
-      {...preview}
+      class="study-public"
       attrs={{
-        ...preview.attrs,
         role: 'img',
-        title: !entry.role && entry.visibility === 'public' && label,
-        'aria-label': label,
-        'data-icon': icon,
+        title: 'Public study',
+        'aria-label': 'Public study',
+        'data-icon': licon.Meridians,
       }}></span>
-  );
+  ) : undefined;
 }
 
 export function studyNavigator(
@@ -325,11 +300,33 @@ export function studyLink(study: Pick<StudyData, 'studyId'>, position?: StudyPos
   };
 }
 
-export function studyIcon(flair?: string): VNode {
-  return flair ? (
-    <img class="study-icon" attrs={{ src: site.asset.flairSrc(flair), alt: '', draggable: 'false' }} />
+export function studyIcon(study?: StudyData): VNode {
+  const sorted = study?.members?.slice().sort((a, b) => {
+    if (a.user.id === study.ownerId) return -1;
+    if (b.user.id === study.ownerId) return 1;
+    if (a.role === 'w' && b.role !== 'w') return -1;
+    if (b.role === 'w' && a.role !== 'w') return 1;
+    return a.user.name.localeCompare(b.user.name);
+  });
+  const members =
+    sorted?.map(({ user, role }) => {
+      const permission = user.id === study?.ownerId ? 'Owner' : role === 'w' ? 'Contributor' : 'Member';
+      return { name: `${user.title ? user.title + ' ' : ''}${user.name} - ${permission}` };
+    }) ?? (study?.owner ? [{ name: study.owner.name + ' - Owner' }] : []);
+  const preview = popupData(members, study?.studyName);
+  const attrs = { ...preview.attrs, 'aria-label': study ? 'Study members' : undefined };
+  return study?.flair ? (
+    <img
+      class="study-icon"
+      {...preview}
+      attrs={{ ...attrs, src: site.asset.flairSrc(study.flair), alt: '', draggable: 'false' }}
+    />
   ) : (
-    <span class="study-icon" attrs={{ 'data-icon': licon.StudyBoard, 'aria-hidden': 'true' }} />
+    <span
+      class="study-icon"
+      {...preview}
+      attrs={{ ...attrs, 'data-icon': licon.StudyBoard, 'aria-hidden': !study }}
+    />
   );
 }
 

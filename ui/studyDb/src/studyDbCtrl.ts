@@ -257,6 +257,18 @@ export class StudyDbCtrl {
     if (columns < 2 || !panel || !board) return { left: 24, top: 80, width: 400, height: 480 };
     const gap = parseFloat(window.getComputedStyle(document.body).getPropertyValue('---block-gap')) / 2;
     const bounds = board.getBoundingClientRect();
+    if (columns === 3) {
+      const chapters = document.querySelector('div.study__chapters');
+      const bottom = window.innerHeight - gap;
+      const top = Math.max(
+        windowViewport().top,
+        Math.min(
+          chapters?.getBoundingClientRect().bottom ?? panel.getBoundingClientRect().top + 64,
+          bottom - 480,
+        ),
+      );
+      return { left: gap, top, width: bounds.left - 2 * gap, height: Math.max(0, bottom - top) };
+    }
     const top = panel.getBoundingClientRect().top + 64;
     const left = columns > 2 ? gap : bounds.right + gap;
     const right = columns > 2 ? bounds.left - gap : document.documentElement.clientWidth - gap;

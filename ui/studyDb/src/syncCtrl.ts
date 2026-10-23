@@ -18,6 +18,19 @@ export class SyncCtrl {
 
   constructor() {
     pubsub.on('studyDb.updated', this.studyUpdated);
+    pubsub.on('analysis.change', (_fen, path, position) => {
+      if (!position) return;
+      const study = this.studies.get(position.studyId);
+      if (
+        !study?.visit ||
+        study.studyDbExcluded ||
+        study.visit.chapterId !== position.chapterId ||
+        (study.visit.path === path && study.visit.orientation === position.orientation)
+      )
+        return;
+      study.visit = { ...study.visit, path, orientation: position.orientation };
+      this.publish();
+    });
   }
 
   get loading(): boolean {

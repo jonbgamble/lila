@@ -11,7 +11,7 @@ import {
   studyNavigator,
   studyFilterInput,
   studyMatchView,
-  studyPermission,
+  studyPublicIcon,
 } from './studyListView';
 import { studyDragType, type BookmarkFolder, type StudyDrag } from './types';
 
@@ -169,7 +169,7 @@ export function bookmarkView(content: BookmarkTabContent): VNode {
                 {folder ? (
                   <span class="study-icon" attrs={{ 'data-icon': licon.Folder, 'aria-hidden': 'true' }} />
                 ) : (
-                  studyIcon(study?.flair)
+                  studyIcon(study)
                 )}
                 {content.editing?.entry === entry ? (
                   <form
@@ -217,7 +217,7 @@ export function bookmarkView(content: BookmarkTabContent): VNode {
                   <div class="study-content">
                     <span class="bookmark-name">
                       {highlightMatch(entry.name, [content.query])}
-                      {study && 'visibility' in study && studyPermission(study)}
+                      {study && 'visibility' in study && studyPublicIcon(study)}
                       <button
                         class="button-empty bookmark-rename"
                         attrs={{

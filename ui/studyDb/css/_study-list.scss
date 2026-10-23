@@ -118,7 +118,7 @@
 
   .study-navigate,
   .study-chapter-count,
-  .study-permission {
+  .study-icon[tabindex] {
     cursor: pointer;
 
     &:focus-visible {
@@ -132,7 +132,7 @@
   }
 
   .study-chapter-count:hover,
-  .study-permission:hover {
+  .study-icon[tabindex]:hover {
     color: $c-font-clear !important;
   }
 
@@ -189,14 +189,14 @@
     color: $c-font;
   }
 
-  .study-permission {
+  .study-public {
     display: inline-flex;
     align-items: center;
     align-self: center;
     justify-content: center;
     height: 20px;
     font-size: 14px;
-    color: $c-font-dim;
+    color: hsl(from $c-font h s l / 0.5);
   }
 
   .status,
@@ -253,6 +253,10 @@
 
   li {
     padding: 4px;
+  }
+
+  hr {
+    margin: 8px 0 6px;
   }
 
   a {
