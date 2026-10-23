@@ -101,7 +101,7 @@ export function studySideNodes(ctrl: StudyCtrl, withSearch: boolean): LooseVNode
     myUserId() &&
       !isTouchDevice() &&
       hl('button.narrow.study-db-button', {
-        attrs: { ...dataIcon(licon.ThreeCheckStack), title: 'Study database' },
+        attrs: { ...dataIcon(licon.ThreeCheckStack), title: 'Study database (ctrl-B)' },
         on: { click: () => site.asset.loadEsm('studyDb') },
       }),
     chaptersTab,

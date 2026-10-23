@@ -44,7 +44,7 @@ export class WindowFrame {
       noTabCycle: true,
       noCloseButton: true,
       focus: '.content-frame input',
-      attrs: { dialog: { 'aria-label': 'Study browser' } },
+      attrs: { dialog: { 'aria-label': 'Study browser', 'pass-ctrl': true } },
       onInsert: frame => {
         if (this.ctrl.frame !== this) return frame.dialog.remove();
         this.frame = frame;

@@ -47,7 +47,7 @@ export default function studyKeyboard(ctrl: StudyCtrl): void {
     ctrl.redraw();
   });
   if (!site.blindMode)
-    kbd.bind('shift+b', event => {
+    kbd.bind('ctrl+b', event => {
       if (event.repeat) return;
       event.preventDefault();
       if (!ctrl.relay) site.asset.loadEsm('studyDb');
