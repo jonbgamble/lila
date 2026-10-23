@@ -98,12 +98,6 @@ export function studySideNodes(ctrl: StudyCtrl, withSearch: boolean): LooseVNode
     makeTab('chapters', i18n.study[ctrl.relay ? 'nbGames' : 'nbChapters'](ctrl.chapters.list.size()));
 
   const tabs = hl('div.tabs-horiz', { attrs: { role: 'tablist' } }, [
-    myUserId() &&
-      !isTouchDevice() &&
-      hl('button.narrow.study-db-button', {
-        attrs: { ...dataIcon(licon.ThreeCheckStack), title: 'Study database' },
-        on: { click: () => site.asset.loadEsm('studyDb') },
-      }),
     chaptersTab,
     ctrl.members.size() > 0 && makeTab('members', i18n.study.nbMembers(ctrl.members.size())),
     withSearch &&
@@ -119,6 +113,12 @@ export function studySideNodes(ctrl: StudyCtrl, withSearch: boolean): LooseVNode
         on: {
           click: () => ctrl.toggleStudyFormIfAllowed(),
         },
+      }),
+    myUserId() &&
+      !isTouchDevice() &&
+      hl('button.narrow.study-db-button', {
+        attrs: { ...dataIcon(licon.ThreeCheckStack), title: 'Study database (ctrl-B)' },
+        on: { click: () => site.asset.loadEsm('studyDb') },
       }),
   ]);
 
