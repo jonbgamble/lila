@@ -46,10 +46,10 @@ export default function studyKeyboard(ctrl: StudyCtrl): void {
     ctrl.chapters.toggleNewForm();
     ctrl.redraw();
   });
-  if (!site.blindMode)
-    kbd.bind('ctrl+b', event => {
-      if (event.repeat) return;
-      event.preventDefault();
-      if (!ctrl.relay) site.asset.loadEsm('studyDb');
-    });
+
+  kbd.bind('ctrl+b', event => {
+    if (event.repeat) return;
+    event.preventDefault();
+    if (!ctrl.relay) site.asset.loadEsm('studyDb');
+  });
 }
