@@ -31,6 +31,12 @@ export class StudyDbCtrl {
     return this.windowContents.has(ctrl);
   }
 
+  clearSelection(except?: TabContent): void {
+    for (const contents of this.windowContents.values())
+      for (const content of contents)
+        if (content !== except && 'clearSelection' in content) content.clearSelection();
+  }
+
   mount(ctrl: WindowCtrl): void {
     if (!this.hasWindow(ctrl)) return;
     if (!this.canOpen()) return this.closeWindow(ctrl);

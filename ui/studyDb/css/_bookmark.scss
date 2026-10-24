@@ -38,6 +38,14 @@
     .bookmark-rename {
       visibility: hidden;
     }
+
+    .bookmark-new-folder:hover {
+      color: $c-primary;
+    }
+
+    .bookmark-delete:not(:disabled):hover {
+      color: $c-bad;
+    }
   }
 
   .bookmark-name:hover .bookmark-rename {
@@ -59,15 +67,9 @@
     }
   }
 
-  .bookmark-delete {
-    &:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
-
-    &:not(:disabled):hover {
-      color: $c-bad;
-    }
+  .bookmark-delete:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 
   .bookmarks-body {
@@ -115,7 +117,7 @@
     input {
       min-width: 0;
       width: 100%;
-      padding: 4px;
+      padding: 0 4px;
     }
 
     button {

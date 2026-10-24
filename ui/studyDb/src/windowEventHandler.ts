@@ -29,6 +29,11 @@ export class WindowEventHandler {
     if (event.button !== 0 || !event.isPrimary || this.gesture) return;
     this.releaseClick = undefined;
     const target = event.target as HTMLElement;
+    source.owner.clearSelection(
+      target.closest('.study-row, button, input, select, textarea, a, label, form')
+        ? source.activeContentCtrl
+        : undefined,
+    );
     if (target.closest('.tab-close')) return;
     const button = target.closest<HTMLElement>('.tabs > button[role="tab"]');
     const edge = target.closest<HTMLElement>('[data-resize]')?.dataset.resize as ResizeEdge | undefined;

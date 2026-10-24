@@ -36,6 +36,13 @@ export abstract class StudyList extends TabContentCtrl {
     this.onChange();
   }
 
+  clearSelection(): void {
+    this.anchor = undefined;
+    if (!this.selected.size) return;
+    this.selected.clear();
+    this.onChange();
+  }
+
   drag(studyId: string, event: DragEvent): void {
     if (!this.selected.has(studyId)) this.select(studyId, event);
     const payload: StudyDrag = {

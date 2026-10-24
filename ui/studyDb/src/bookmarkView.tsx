@@ -78,7 +78,7 @@ export function bookmarkView(content: BookmarkTabContent): VNode {
         {studyFilterInput(content)}
         <button
           key="folder-create"
-          class="button-empty"
+          class="button-empty bookmark-new-folder"
           attrs={{
             type: 'button',
             title: 'New folder',

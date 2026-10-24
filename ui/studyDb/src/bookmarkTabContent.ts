@@ -99,6 +99,13 @@ export class BookmarkTabContent extends TabContentCtrl {
     this.onChange();
   }
 
+  clearSelection(): void {
+    this.anchor = undefined;
+    if (!this.selected.size) return;
+    this.selected.clear();
+    this.onChange();
+  }
+
   toggle(folder: BookmarkFolder): void {
     if (this.expanded.has(folder)) this.expanded.delete(folder);
     else this.expanded.add(folder);

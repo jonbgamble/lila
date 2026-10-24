@@ -24,7 +24,6 @@ export abstract class TabContentCtrl {
   readonly id = `study-db-tab-${nextId++}`;
   readonly closable: boolean = false;
   readonly sync = syncCtrl;
-  onChange: () => void = () => {};
   protected signal?: AbortSignal;
   private lifetime?: AbortController;
   private loaded = false;
@@ -45,6 +44,8 @@ export abstract class TabContentCtrl {
     this.lifetime = undefined;
     this.onChange = () => {};
   }
+
+  onChange: () => void = () => {};
 
   protected load(): void | Promise<void> {}
 }

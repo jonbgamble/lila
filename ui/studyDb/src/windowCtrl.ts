@@ -62,6 +62,7 @@ export class WindowCtrl {
 
   selectTab(id: string): void {
     if (!this.tabCtrls.some(content => content.id === id)) throw new Error(`window has no ${id} content`);
+    if (id !== this.selectedTabId) this.owner.clearSelection();
     this.selectedTabId = id;
     this.redraw();
     this.owner.save();

@@ -38,5 +38,11 @@
       height: 24px;
       font-size: 14px;
     }
+
+    @include mq-has-hover {
+      button:hover {
+        background: $c-primary;
+      }
+    }
   }
 }
